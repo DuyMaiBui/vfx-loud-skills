@@ -1,0 +1,37 @@
+id: debris-burst
+category: component
+engine: unity
+license: cc0
+
+name: Debris burst
+description: >
+  Mảnh vỡ bắn ra radial, count thấp (8) để không nuốt overdraw. Dùng texture
+  ground-break cho impact trên đất, hexagon cho shard đá/crystal.
+
+build:
+  particle_system:
+    emission: burst 8, delay 0
+    main:
+      start_lifetime: 0.5
+      start_size: 0.1 -> 0.25 (two constants)
+      start_speed: 3 -> 5
+      gravity_modifier: 1.0
+      max_particles: 20
+      simulation_space: world
+      rotation_over_lifetime: 180 deg/s random
+    shape: circle radius 0.08
+    color_over_lifetime: alpha 1 -> 0
+    renderer:
+      material: URP Unlit alpha blend
+      texture: vfx://texture/ground-break-01/1
+      alternative_texture: vfx://texture/hexagon-01/1
+
+used_by:
+  - vfx://recipe/cartoon-ground-impact/1
+  - vfx://vfx/impact-dirt/1
+  - vfx://technique/radial-burst/1
+  - vfx://technique/mesh-particle/1
+
+notes:
+  - Mesh mode xem vfx://technique/mesh-particle/1 (chỉ khi mesh ≤ 100 tri)
+  - Count > 12 trên mobile puzzle là overdraw vô ích

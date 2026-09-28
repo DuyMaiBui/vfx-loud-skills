@@ -1,0 +1,35 @@
+id: glow-particle
+category: component
+engine: unity
+license: cc0
+
+name: Glow particle
+description: >
+  Đốm sáng mềm làm core cho heal, pickup, magic, portal. Additive, không rotation,
+  lifetime dài để làm "hơi sáng" ổn định.
+
+build:
+  particle_system:
+    emission: rate over time 6
+    main:
+      start_lifetime: 1.2
+      start_size: 0.3 -> 0.6 (two constants)
+      start_speed: 0
+      gravity_modifier: 0
+      max_particles: 8
+      simulation_space: local
+    color_over_lifetime: alpha 0.6 -> 0 -> 0.6 (ping-pong)
+    renderer:
+      material: URP Unlit additive
+      texture: vfx://texture/soft-spot-01/1
+      render_order: behind_subject
+
+used_by:
+  - vfx://vfx/heal-aura/1
+  - vfx://vfx/pickup-health/1
+  - vfx://vfx/portal-round/1
+  - vfx://recipe/pickup-pop/1
+
+notes:
+  - Alpha cao hơn 0.8 sẽ nổ trắng khi chồng 2 lớp
+  - Dark variant: vfx://texture/soft-spot-dark-01/1 (cho poison/shadow)

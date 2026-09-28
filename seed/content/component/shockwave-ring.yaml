@@ -1,0 +1,33 @@
+id: shockwave-ring
+category: component
+engine: unity
+license: cc0
+
+name: Shockwave ring
+description: >
+  Ring shockwave additive, scale 0.2 -> 1.8 trong 0.3s. Luôn đặt TRÊN lớp dust
+  (render order sau) để không bị bụi che.
+
+build:
+  particle_system:
+    emission: burst 1, delay 0
+    main:
+      start_lifetime: 0.35
+      start_size: 0.2 -> 1.8 (two constants)
+      start_speed: 0
+      max_particles: 4
+      simulation_space: local
+    color_over_lifetime: alpha 1 -> 0
+    renderer:
+      material: URP Unlit additive
+      texture: vfx://texture/ring-01/1
+      render_order: front_of_dust
+
+used_by:
+  - vfx://recipe/cartoon-ground-impact/1
+  - vfx://recipe/melee-slash/1
+  - vfx://technique/shockwave-ring/1
+
+notes:
+  - Không scale quá 2.0 -> ring mỏng, mất lực
+  - Không xoay; nếu cần arc một chiều thay bằng vfx://texture/semicircle-01/1

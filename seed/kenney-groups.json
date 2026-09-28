@@ -1,0 +1,23 @@
+{
+  "_comment": "Metadata semantic TAY cho Kenney Particle Pack. Key = prefix tên file. Slug cuối = kenney-<prefix>-<số>.",
+  "groups": {
+    "circle": { "name": "Circle dot", "description": "Solid round dot dùng làm core, tâm muzzle flash và base glow.", "tags": ["circle", "dot", "round", "core", "glow"], "style": ["cartoon", "minimal"], "category": "shape" },
+    "dirt": { "name": "Dirt clod", "description": "Mẩu đất bắn ra cho ground impact, footstep và destruction.", "tags": ["dirt", "debris", "impact", "ground", "earth"], "style": ["cartoon", "stylized"], "category": "impact" },
+    "fire": { "name": "Fire blob", "description": "Khối lửa cho tâm vụ nổ và ngọn lửa dày.", "tags": ["fire", "flame", "heat", "explosion"], "style": ["cartoon", "stylized"], "category": "fire" },
+    "flame": { "name": "Flame tongue", "description": "Lưỡi lửa cho đuốc, campfire và fireball.", "tags": ["flame", "fire", "torch", "fireball"], "style": ["cartoon", "stylized"], "category": "fire" },
+    "flare": { "name": "Lens flare", "description": "Vệt flare cho nguồn sáng và lóe magic.", "tags": ["flare", "light", "shine", "magic"], "style": ["stylized", "cinematic"], "category": "energy" },
+    "light": { "name": "Light glow", "description": "Ánh sáng mềm cho đèn, tâm portal và aura.", "tags": ["light", "glow", "lamp", "aura"], "style": ["stylized"], "category": "energy" },
+    "magic": { "name": "Magic swirl", "description": "Xoáy magic cho spell cast và hiệu ứng niệm chú.", "tags": ["magic", "spell", "swirl", "fantasy"], "style": ["fantasy"], "category": "magic" },
+    "muzzle": { "name": "Muzzle flash", "description": "Lóe nòng súng dạng ngôi sao ở đầu nòng.", "tags": ["muzzle", "flash", "gun", "gunshot"], "style": ["action"], "category": "gun" },
+    "scorch": { "name": "Scorch mark", "description": "Vết cháy decal cho aftermath vụ nổ và火 burn.", "tags": ["scorch", "burn", "decal", "aftermath"], "style": ["stylized"], "category": "decal" },
+    "scratch": { "name": "Scratch mark", "description": "Vết xước decal cho claw hit và bề mặt bị phá.", "tags": ["scratch", "decal", "claw", "damage"], "style": ["stylized"], "category": "decal" },
+    "slash": { "name": "Slash arc", "description": "Cung chém cong cho melee sword hit.", "tags": ["slash", "sword", "melee", "arc"], "style": ["action", "fantasy"], "category": "slash" },
+    "smoke": { "name": "Smoke puff", "description": "Bụi khói cho plume vụ nổ, dust cloud và steam.", "tags": ["smoke", "puff", "dust", "steam", "cloud"], "style": ["cartoon", "stylized"], "category": "smoke" },
+    "spark": { "name": "Spark", "description": "Tia lửa cho metal hit, electric touch và hàn.", "tags": ["spark", "hit", "metal", "electric"], "style": ["stylized"], "category": "spark" },
+    "star": { "name": "Star sparkle", "description": "Ngôi sao lấp lánh cho reward, heal và shimmer magic.", "tags": ["star", "sparkle", "reward", "magic", "heal"], "style": ["casual", "cartoon"], "category": "energy" },
+    "symbol": { "name": "Symbol", "description": "Hình đồ họa cho UI feedback, quest marker và icon nhặt item.", "tags": ["symbol", "ui", "marker", "icon"], "style": ["casual", "ui"], "category": "ui" },
+    "trace": { "name": "Trace streak", "description": "Vệt kéo dài cho bullet tracer và projectile trail.", "tags": ["trace", "tracer", "trail", "projectile"], "style": ["action"], "category": "trail" },
+    "twirl": { "name": "Twirl spiral", "description": "Spiral xoắn cho portal, vortex và air dash.", "tags": ["twirl", "spiral", "vortex", "portal"], "style": ["fantasy", "sci-fi"], "category": "magic" },
+    "window": { "name": "Window light", "description": "Ánh sáng hình cửa sổ cho god ray và glow trong nhà.", "tags": ["window", "light", "ray", "glow"], "style": ["stylized"], "category": "energy" }
+  }
+}

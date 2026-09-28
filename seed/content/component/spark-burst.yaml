@@ -1,0 +1,38 @@
+id: spark-burst
+category: component
+engine: unity
+license: cc0
+
+name: Spark burst
+description: >
+  Tia lửa ngắn dùng cho metal hit, electric touch, welding. Velocity stretch để
+  tia trông như vệt chứ không phải chấm.
+
+build:
+  particle_system:
+    emission: burst 6, delay 0
+    main:
+      start_lifetime: 0.18
+      start_size: 0.08
+      start_speed: 6 -> 9 (two constants)
+      gravity_modifier: 0.6
+      max_particles: 16
+      simulation_space: world
+    shape: circle radius 0.05
+    size_over_lifetime: shrink to 0
+    velocity_over_lifetime: drag
+    renderer:
+      render_mode: billboard
+      stretch_axis: velocity
+      length_scale: 2.0
+      material: URP Unlit additive
+      texture: vfx://texture/circle-01/1
+
+used_by:
+  - vfx://recipe/hit-spark/1
+  - vfx://vfx/sparks/1
+  - vfx://technique/stretched-particle/1
+
+notes:
+  - Gravity 0.6 cho cảm giác nặng; giảm còn 0.2 nếu là magic spark
+  - Không dùng với lifetime > 0.4s -> tia biến thành đốm bay chậm

@@ -1,0 +1,38 @@
+# Deploy: `docker compose up -d --build`  (hoặc `podman compose up -d --build`)
+# Local dev KHÔNG cần compose: xem scripts/dev-db.sh
+services:
+  db:
+    image: docker.io/pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: vfx
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vfx}
+      POSTGRES_DB: vfxcloud
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U vfx -d vfxcloud']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  server:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: '8787'
+      DATABASE_URL: postgres://vfx:${POSTGRES_PASSWORD:-vfx}@db:5432/vfxcloud
+      DATA_DIR: /data
+      AUTH_DISABLED: ${AUTH_DISABLED:-1}
+      VFX_API_KEY: ${VFX_API_KEY:-}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      EMBEDDER: ${EMBEDDER:-hashing}
+    volumes:
+      - vfxdata:/data
+    ports:
+      - '${PORT:-8787}:8787'
+
+volumes:
+  pgdata:
+  vfxdata:

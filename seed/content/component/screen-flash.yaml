@@ -1,0 +1,34 @@
+id: screen-flash
+category: component
+engine: unity
+license: cc0
+
+name: Screen flash / hit flash
+description: >
+  Chớp trắng cực ngắn để xác nhận hit. Không phải particle trong world — đặt ở
+  layer UI hoặc quad sát camera.
+
+build:
+  particle_system:
+    emission: burst 1, delay 0
+    main:
+      start_lifetime: 0.08
+      start_size: 3.0 (world units, camera-space)
+      start_speed: 0
+      max_particles: 2
+      simulation_space: local
+      scaling_mode: shape
+    color_over_lifetime: white 1 -> 0
+    renderer:
+      material: URP Unlit additive
+      texture: vfx://texture/circle-02/1
+      render_order: overlay
+
+used_by:
+  - vfx://recipe/hit-spark/1
+  - vfx://vfx/impact-large/1
+  - vfx://recipe/reward-burst/1
+
+notes:
+  - 0.08s quá ngắn để thấy được trên 30fps; nếu target 60fps giữ nguyên
+  - Tắt hoàn toàn nếu game có photosensitivity option

@@ -1,0 +1,36 @@
+id: soft-dust
+category: component
+engine: unity
+license: cc0
+
+name: Soft dust layer
+description: >
+  Lớp bụi mỏng dùng chung cho mọi ground impact. Alpha blend, lifetime dài hơn
+  ring, không bao giờ dùng additive (bụi additive sẽ sáng lên khi chồng).
+
+build:
+  particle_system:
+    emission: burst 1, delay 0.03
+    main:
+      start_lifetime: 0.7
+      start_size: 0.5 -> 1.4 (two constants)
+      start_speed: 0
+      gravity_modifier: -0.05
+      max_particles: 12
+      simulation_space: world
+    shape: circle radius 0.15, arc 360
+    size_over_lifetime: curve up
+    color_over_lifetime: alpha 0.9 -> 0
+    renderer:
+      material: URP Unlit alpha blend
+      texture: vfx://texture/smoke-01/1
+      render_order: behind_ring
+
+used_by:
+  - vfx://recipe/cartoon-ground-impact/1
+  - vfx://recipe/soft-smoke-plume/1
+  - vfx://technique/radial-burst/1
+
+notes:
+  - Khi impact to hơn: tăng lifetime (0.9) thay vì tăng scale toàn effect
+  - Không đặt layer này chồng > 50% diện tích với shockwave-ring
