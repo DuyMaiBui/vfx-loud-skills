@@ -14,6 +14,7 @@
     "check": "tsc --noEmit",
     "seed": "node seed/run.ts",
     "graph:build": "node seed/graph/build.ts",
+    "recolor:validate": "node seed/recolor-validate.ts",
     "corpus:sha": "node seed/corpus-sha.ts"
   },
   "keywords": [],

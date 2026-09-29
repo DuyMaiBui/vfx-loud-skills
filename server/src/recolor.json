@@ -1,0 +1,86 @@
+{
+  "_comment": "Data for the deterministic recolor transform (server/src/recolor.ts). Paths are payload paths with numeric array indices collapsed to []. Anything not listed here is left untouched and reported in `skipped`, so a new colour field in the corpus shows up as evidence rather than being silently half-recoloured.",
+
+  "hue": {
+    "_comment": "OKLCh hue rotation keeps perceptual lightness/chroma while changing hue; HSV is used for the luminance/luma test and for preserveLuminance's target-V.",
+    "space": "oklch",
+    "gamma": 2.2,
+    "minChroma": 0.02,
+    "maxChroma": 0.4,
+    "preserveAlpha": true
+  },
+
+  "material": {
+    "_comment": "Colour properties to consider on a material the payload references. The Unity client applies the tint to a material COPY, never the shared material asset. weight = how likely the shader uses it; the client tries in order and skips names the shader lacks.",
+    "properties": [
+      { "name": "_Color", "weight": 1.0, "note": "Built-in RP / most Synty & Archanor particle shaders" },
+      { "name": "_BaseColor", "weight": 0.9, "note": "URP/HDRP Lit, Shader Graph" },
+      { "name": "_TintColor", "weight": 0.8, "note": "common on stylized/toon particle shaders" },
+      { "name": "_EmissionColor", "weight": 0.5, "note": "emissive component; tinted only when the shader has no base colour" },
+      { "name": "_MainColor", "weight": 0.4, "note": "legacy/alternate spelling" },
+      { "name": "_ColorA", "weight": 0.3, "note": "two-colour trail/beam shaders" },
+      { "name": "_ColorB", "weight": 0.3, "note": "two-colour trail/beam shaders" }
+    ],
+    "defaultProperty": "_Color"
+  },
+
+  "paths": {
+    "_comment": "Three row layouts, because Unity uses three. `colour` = [r,g,b,a]. `gradient` = a GradientColorKey row [time,r,g,b] — the time is element 0 and alpha lives in the sibling alphaKeys, so a colour reader must skip it. `keys` = a LineRenderer colourGradient key0..key7 [r,g,b,a] (its time is the sibling ctimeN).",
+    "colour": [
+      "particleNodes[].main.startColor.color",
+      "particleNodes[].main.startColor.min",
+      "particleNodes[].main.startColor.max",
+      "particleNodes[].colorOverLifetime.gradient.min.color",
+      "particleNodes[].colorOverLifetime.gradient.max.color",
+      "particleNodes[].colorOverLifetime.gradient.gradient.color",
+      "particleNodes[].otherEnabledModules.TrailModule.colorOverLifetime.color",
+      "particleNodes[].otherEnabledModules.TrailModule.colorOverLifetime.min.color",
+      "particleNodes[].otherEnabledModules.TrailModule.colorOverLifetime.max.color",
+      "particleNodes[].otherEnabledModules.TrailModule.colorOverLifetime.gradient.color",
+      "particleNodes[].otherEnabledModules.TrailModule.colorOverTrail.color",
+      "particleNodes[].otherEnabledModules.TrailModule.colorOverTrail.min.color",
+      "particleNodes[].otherEnabledModules.TrailModule.colorOverTrail.max.color",
+      "particleNodes[].otherEnabledModules.TrailModule.colorOverTrail.gradient.color",
+      "particleNodes[].otherEnabledModules.ColorBySpeedModule.color.color",
+      "particleNodes[].otherEnabledModules.ColorBySpeedModule.color.min",
+      "particleNodes[].otherEnabledModules.ColorBySpeedModule.color.max",
+      "particleNodes[].otherEnabledModules.ColorBySpeedModule.color.gradient.color",
+      "particleNodes[].otherEnabledModules.CustomDataModule.color0.color",
+      "particleNodes[].otherEnabledModules.CustomDataModule.color0.min",
+      "particleNodes[].otherEnabledModules.CustomDataModule.color0.max",
+      "particleNodes[].otherEnabledModules.CustomDataModule.color1.color",
+      "particleNodes[].otherEnabledModules.CustomDataModule.color1.min",
+      "particleNodes[].otherEnabledModules.CustomDataModule.color1.max"
+    ],
+    "gradient": [
+      "particleNodes[].colorOverLifetime.gradient.gradient.colorKeys",
+      "particleNodes[].colorOverLifetime.gradient.min.colorKeys",
+      "particleNodes[].colorOverLifetime.gradient.max.colorKeys",
+      "particleNodes[].main.startColor.gradient.colorKeys",
+      "particleNodes[].otherEnabledModules.TrailModule.colorOverLifetime.gradient.colorKeys",
+      "particleNodes[].otherEnabledModules.TrailModule.colorOverLifetime.min.colorKeys",
+      "particleNodes[].otherEnabledModules.TrailModule.colorOverLifetime.max.colorKeys",
+      "particleNodes[].otherEnabledModules.TrailModule.colorOverTrail.gradient.colorKeys",
+      "particleNodes[].otherEnabledModules.ColorBySpeedModule.color.gradient.colorKeys",
+      "particleNodes[].otherEnabledModules.CustomDataModule.color0.gradient.colorKeys",
+      "particleNodes[].otherEnabledModules.CustomDataModule.color1.gradient.colorKeys"
+    ],
+    "keys": [
+      "effectNodes[].components[].m_Parameters.colorGradient.key0",
+      "effectNodes[].components[].m_Parameters.colorGradient.key1",
+      "effectNodes[].components[].m_Parameters.colorGradient.key2",
+      "effectNodes[].components[].m_Parameters.colorGradient.key3",
+      "effectNodes[].components[].m_Parameters.colorGradient.key4",
+      "effectNodes[].components[].m_Parameters.colorGradient.key5",
+      "effectNodes[].components[].m_Parameters.colorGradient.key6",
+      "effectNodes[].components[].m_Parameters.colorGradient.key7"
+    ],
+    "_note_lights": "LightsModule.color is a float multiplier, not RGB — deliberately absent. A Light's actual colour lives on the prefab's Light component, which the corpus does not carry."
+  },
+
+  "textureBaked": {
+    "_comment": "Evidence that the colour is baked into the texture, so no param shift and no material tint can reach it. Used by seed/recolor-validation.ts and by the meta.recolorable pass in seed/graph.",
+    "differentTextureGuid": true,
+    "noColourParams": true
+  }
+}
