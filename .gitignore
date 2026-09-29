@@ -2,4 +2,3 @@ node_modules/
 data/
 *.log
 .DS_Store
-seed/vendor/

@@ -28,8 +28,8 @@ Nên phần "hiện đúng trong Editor" + 3 request thật phải làm tay tron
 ./scripts/server.sh restart     # server + migrate, log /tmp/opencode/vfx-server.log
 npm run seed                    # seed corpus (idempotent)
 
-./scripts/fetch-kenney.sh       # tải Kenney Particle Pack (CC0) → seed/vendor/kenney
-npm run seed                    #   → ingest 80 texture Kenney
+./scripts/fetch-kenney.sh       # (tuỳ chọn) tải lại Kenney từ kenney.nl nếu bị xoá
+npm run seed                    # ingest 80 texture Kenney — đã vendored ở seed/vendor/kenney
 
 ./scripts/smoke.sh              # chạy đủ 4 gate
 ```
