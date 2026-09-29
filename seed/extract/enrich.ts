@@ -1,5 +1,8 @@
 import { conceptsForTokens, coloursForTokens, splitName } from '../../server/src/vocab.ts';
 import { coreName } from '../../server/src/search-doc.ts';
+import { compactFacets, deriveTextFacets, type Facets } from '../../server/src/facets.ts';
+import { behaviorFromNodes } from './behavior.ts';
+import { facetsFromNodes, payloadNodes } from './facets.ts';
 import { parseUnityDocs, asMap, asNum, asSeq, type YamlMap, type YamlValue } from './unity-yaml.ts';
 
 /**
@@ -26,6 +29,10 @@ export interface Enriched {
   tags: string[];
   description: string;
   facts: PayloadFacts;
+  /** meta.facets: text facets (name/path) + payload facets. */
+  facets: Facets;
+  /** meta.behavior: plain-English description of what the effect shows over time. */
+  behavior?: string;
 }
 
 export interface PayloadFacts {
@@ -165,5 +172,9 @@ export function enrichExtracted(i: EnrichInput): Enriched {
     ...keywords,
     ...style,
   ]).slice(0, 16);
-  return { keywords, style, tags, description, facts };
+  const text = deriveTextFacets(nameTokens, folderTokens);
+  const { nodes, effect } = payloadNodes(i.yaml);
+  const facets = compactFacets({ ...text, colors: colours, ...facetsFromNodes(nodes, effect) });
+  const behavior = behaviorFromNodes(nodes, effect, { category: facets.category ?? [], element: facets.element ?? [], colors: colours });
+  return { keywords, style, tags, description, facts, facets, ...(behavior ? { behavior } : {}) };
 }

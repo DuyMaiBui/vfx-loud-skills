@@ -8,7 +8,9 @@ import { getEmbedder } from './embed.ts';
 import { aiTrainingAllowed, extractedLicenseProblem, licenseClassOf } from './license.ts';
 import { SLUG_RE } from './slug.ts';
 import { searchDocument } from './search-doc.ts';
-import { expandQuery } from './vocab.ts';
+import { candidateFilter, FilterError, normalizeFilters, type FacetFilters } from './facet-query.ts';
+import { ranking } from './rank.ts';
+import type { Facets } from './facets.ts';
 
 export { aiTrainingAllowed, licenseClassOf };
 
@@ -57,6 +59,10 @@ export interface Card {
   tags: string[];
   style: string[];
   keywords: string[];
+  /** meta.facets of the record ({} when none is derivable). */
+  facets: Facets;
+  /** meta.behavior: what the effect shows over time; null when not derivable. */
+  behavior: string | null;
   license: string;
   preview_uri: string | null;
 }
@@ -70,6 +76,16 @@ export class VfxError extends Error {
   ) {
     super(message);
     this.code = code;
+  }
+}
+
+/** Untrusted `filters` -> validated FacetFilters; a bad shape / unknown facet is a 400. */
+export function parseFilters(raw: unknown): FacetFilters {
+  try {
+    return normalizeFilters(raw);
+  } catch (e) {
+    if (e instanceof FilterError) throw new VfxError(e.message, 'invalid');
+    throw e;
   }
 }
 
@@ -126,6 +142,8 @@ function toCard(row: ResourceRow): Card {
     tags: row.tags ?? [],
     style: row.style ?? [],
     keywords: Array.isArray(row.meta?.keywords) ? (row.meta.keywords as string[]) : [],
+    facets: (row.meta?.facets as Facets | undefined) ?? {},
+    behavior: typeof row.meta?.behavior === 'string' ? row.meta.behavior : null,
     license: row.license,
     preview_uri: row.preview_uri,
   };
@@ -141,78 +159,27 @@ export interface SearchArgs {
   style?: string[];
   /** Match records carrying ANY of these meta.keywords (element / use / colour / loop ...). */
   keywords?: string[];
+  /** Facet filters: values within a facet are OR-ed, facets are AND-ed (see facets.ts FACET_NAMES). */
+  filters?: FacetFilters;
   limit?: number;
-}
-
-/** Hybrid weights: cosine of the (hashing) embedding vs. weighted full-text rank. Env-tunable. */
-const W_VEC = Number(process.env.SEARCH_W_VEC ?? 0.3);
-const W_KW = 1 - W_VEC;
-const W_ALL = 0.15; // bonus when EVERY word the user typed is present ("blue fire" prefers blue AND fire)
-const W_EXPANSION = 0.6; // synonym / Vietnamese-alias words count less than the user's own words
-
-/** Words -> an AND tsquery string ("blue & fire"). */
-function andQuery(words: string[]): string {
-  return orQuery(words).split(' | ').filter(Boolean).join(' & ');
-}
-
-/** Words -> a safe OR tsquery string ("bubbl | burst"); empty when nothing usable. */
-function orQuery(words: string[]): string {
-  const ok = [...new Set(words.map((w) => w.replace(/[^\p{L}\p{N}]+/gu, '')).filter((w) => w.length > 1))];
-  return ok.join(' | ');
 }
 
 export async function search(args: SearchArgs): Promise<Card[]> {
   const limit = Math.min(Math.max(args.limit ?? 8, 1), 50);
-  const ex = expandQuery(args.query);
-  const vec = await getEmbedder().embed(ex.text);
-  const literal = vec.map((x) => Number(x.toFixed(6))).join(',');
-  const qOrig = orQuery(ex.original);
-  const qExp = orQuery(ex.expansion);
-  const qAll = ex.original.length > 1 ? andQuery(ex.original) : '';
-  const styles = (args.style ?? []).map((s) => expandQuery(s).styles[0] ?? s.toLowerCase());
-  const keywords = (args.keywords ?? []).map((k) => k.toLowerCase());
+  const r = await ranking(args.query);
+  const f = candidateFilter(args, 8);
 
   const rows = await pool.query<ResourceRow>(
-    `WITH q AS (
-       SELECT $1::vector AS v,
-              CASE WHEN $2 = '' THEN NULL ELSE to_tsquery('english', $2) END AS orig,
-              CASE WHEN $3 = '' THEN NULL ELSE to_tsquery('english', $3) END AS exp,
-              CASE WHEN $12 = '' THEN NULL ELSE to_tsquery('english', $12) END AS allq
-     )
+    `WITH ${r.cte}
      SELECT uri, type, slug, version, name, description, tags, style, category,
             engine, license, visibility, storage_uri, preview_uri, mime, bytes,
             meta, created_by, created_at,
-            (
-              $4::float * GREATEST(0, 1 - (embedding <=> q.v))
-            + (1 - $4::float) * (
-                COALESCE(ts_rank_cd('{0.1,0.2,0.4,1.0}', search_tsv, q.orig, 32), 0)
-              + $5::float * COALESCE(ts_rank_cd('{0.1,0.2,0.4,1.0}', search_tsv, q.exp, 32), 0)
-              + $13::float * (CASE WHEN q.allq IS NOT NULL AND search_tsv @@ q.allq THEN 1 ELSE 0 END))
-            ) AS score
+            ${r.score} AS score
        FROM resource, q
-      WHERE ($6::text IS NULL OR type = $6::text)
-        AND ($7::text[] IS NULL OR tags && $7::text[])
-        AND ($8::text[] IS NULL OR style && $8::text[])
-        AND ($9::text[] IS NULL OR (meta->'keywords') ?| $9::text[])
-        AND visibility = ANY($10::text[])
+      WHERE ${f.sql}
       ORDER BY score DESC, id
-      LIMIT $11`,
-    [
-      `[${literal}]`,
-      qOrig,
-      qExp,
-      W_VEC,
-      W_EXPANSION,
-      args.type ?? null,
-      args.tags && args.tags.length ? args.tags : null,
-      styles.length ? styles : null,
-      keywords.length ? keywords : null,
-      // V0 chưa có auth -> luôn thấy cả 3 mức. Cột đã sẵn sàng cho V0.4.
-      ['project', 'team', 'global'],
-      limit,
-      qAll,
-      W_ALL,
-    ],
+      LIMIT $${8 + f.params.length}`,
+    [...r.params, ...f.params, limit],
   );
 
   return rows.rows.map(toCard);

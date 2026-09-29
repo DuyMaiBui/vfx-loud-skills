@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import { config } from './config.ts';
+import { facets } from './facet-search.ts';
 import * as store from './store.ts';
 
 export async function buildHttp(): Promise<Fastify.FastifyInstance> {
@@ -35,11 +36,19 @@ export async function buildHttp(): Promise<Fastify.FastifyInstance> {
   });
 
   app.post<{
-    Body: { query: string; type?: store.ResourceType; tags?: string[]; style?: string[]; keywords?: string[]; limit?: number };
+    Body: { query: string; type?: store.ResourceType; tags?: string[]; style?: string[]; keywords?: string[]; filters?: unknown; limit?: number };
   }>('/v1/search', async (req) => {
-    const { query, type, tags, style, keywords, limit } = req.body ?? { query: '' };
+    const { query, type, tags, style, keywords, filters, limit } = req.body ?? { query: '' };
     if (!query?.trim()) throw new store.VfxError('query is required');
-    return { cards: await store.search({ query, type, tags, style, keywords, limit }) };
+    return { cards: await store.search({ query, type, tags, style, keywords, filters: store.parseFilters(filters), limit }) };
+  });
+
+  /** Facet value counts over the candidate set matching query + filters (see facet-search.ts for the cut-off). */
+  app.post<{
+    Body: { query?: string; type?: store.ResourceType; filters?: unknown; style?: string[]; keywords?: string[] };
+  }>('/v1/facets', async (req) => {
+    const { query, type, filters, style, keywords } = req.body ?? {};
+    return facets({ query, type, style, keywords, filters: store.parseFilters(filters) });
   });
 
   app.get<{ Params: { type: string; slug: string; version: string } }>(

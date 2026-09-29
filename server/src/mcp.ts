@@ -3,9 +3,20 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { config } from './config.ts';
+import { facets } from './facet-search.ts';
+import { FACET_NAMES } from './facets.ts';
 import * as store from './store.ts';
 
 const ResourceTypeEnum = z.enum(store.RESOURCE_TYPES);
+
+const FILTERS_HELP =
+  `facet filters {facet: [values]}: values within a facet are OR-ed, different facets are AND-ed. Facets: ${FACET_NAMES.join(', ')}. ` +
+  'category (explosion, impact, projectile, muzzle, beam, trail, aura, buff, heal, shield, pickup, portal, weather, ambient, ui, blood, smoke, fire, magic), ' +
+  'subcategory ("<category>/<sub>", e.g. explosion/ground, impact/slash, projectile/missile), ' +
+  'element (fire, water, ice, lightning, poison, earth, wind, light, dark, arcane, blood, smoke, energy), colors, ' +
+  'playback (loop | one-shot), duration (short <0.5s | medium | long >2s), scale (small | medium | large), ' +
+  'motion (radial, upward, downward, directional, orbit, static, spiral, falling), shape, renderMode, cost (low | medium | high), style.';
+const filtersSchema = z.record(z.string(), z.array(z.string())).optional();
 
 /** Stateless: 1 server + 1 transport mới cho mỗi request (đơn giản, không lưu session). */
 export function createMcpServer(): McpServer {
@@ -27,18 +38,22 @@ export function createMcpServer(): McpServer {
         '(element: fire/water/ice/lightning/poison/smoke/blood/earth/wind/magic; ' +
         'use: explosion/impact/muzzle/projectile/beam/buff/heal/shield/trail/pickup/portal/teleport/levelup/slash; ' +
         'weather: rain/snow; colour: red/orange/yellow/green/cyan/blue/purple/pink/white/black/gold; ' +
-        'loop: looping | one-shot).',
+        'loop: looping | one-shot). ' +
+        'Thêm `filters` (facet: category, subcategory, element, colors, playback, duration, scale, motion, shape, renderMode, cost, style) ' +
+        'để thu hẹp; mỗi card trả thêm `facets` và `behavior` (mô tả bằng lời cái người xem thấy). ' +
+        'Không chắc user muốn gì? Gọi vfx_facets trước để hỏi đúng câu.',
       inputSchema: {
         query: z.string().describe('Mô tả tiếng Anh, vd "cartoon ground impact soft dust"'),
         type: ResourceTypeEnum.optional().describe('Chỉ tìm 1 loại resource'),
         tags: z.array(z.string()).optional().describe('Lọc theo tag'),
         style: z.array(z.string()).optional().describe('Lọc theo pack style: toon, stylized, retro, sci-fi, low-poly ("cartoon", "low poly" cũng được)'),
         keywords: z.array(z.string()).optional().describe('Lọc: record có BẤT KỲ keyword nào (fire, explosion, blue, looping...)'),
+        filters: filtersSchema.describe(FILTERS_HELP),
         limit: z.number().int().min(1).max(50).optional(),
       },
     },
-    async ({ query, type, tags, style, keywords, limit }) => {
-      const cards = await store.search({ query, type, tags, style, keywords, limit });
+    async ({ query, type, tags, style, keywords, filters, limit }) => {
+      const cards = await store.search({ query, type, tags, style, keywords, filters: store.parseFilters(filters), limit });
       return {
         content: [
           {
@@ -47,6 +62,32 @@ export function createMcpServer(): McpServer {
           },
         ],
       };
+    },
+  );
+
+  server.registerTool(
+    'vfx_facets',
+    {
+      title: 'Facet counts for a VFX query',
+      description:
+        'Đếm số record theo từng facet (category, subcategory, element, colors, playback, duration, scale, motion, shape, renderMode, cost, style) ' +
+        'trong tập ứng viên khớp `query` + `filters`. Dùng để hỏi user câu hẹp đúng chỗ: facet nào còn nhiều giá trị thì hỏi facet đó, ' +
+        'rồi gọi lại với `filters` đã chọn, đến khi `total` đủ nhỏ thì vfx_search. ' +
+        'Không có `query` = đếm trên toàn bộ record khớp filters. Có `query` = cùng điểm xếp hạng với vfx_search, ' +
+        'chỉ giữ record khớp từ khóa (gồm đồng nghĩa / tiếng Việt), tối đa FACET_CANDIDATES (mặc định 1000). ' +
+        'Output: { total, facets: { <facet>: [{ value, count }] } }, mỗi facet sắp theo count giảm dần. ' +
+        'Record thiếu một facet thì không được đếm ở facet đó.',
+      inputSchema: {
+        query: z.string().optional().describe('Mô tả tiếng Anh/Việt; bỏ trống để đếm toàn corpus'),
+        type: ResourceTypeEnum.optional().describe('Chỉ đếm 1 loại resource (thường "recipe")'),
+        filters: filtersSchema.describe(FILTERS_HELP),
+        style: z.array(z.string()).optional().describe('Lọc pack style: toon, stylized, retro, sci-fi, low-poly'),
+        keywords: z.array(z.string()).optional().describe('Lọc: record có BẤT KỲ keyword nào'),
+      },
+    },
+    async ({ query, type, filters, style, keywords }) => {
+      const result = await facets({ query, type, style, keywords, filters: store.parseFilters(filters) });
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
 

@@ -224,6 +224,8 @@ export async function extractPack(opts: ExtractOptions): Promise<PackSummary> {
           pack: pack.slug,
           style: en.style,
           keywords: en.keywords,
+          facets: en.facets,
+          ...(en.behavior ? { behavior: en.behavior } : {}),
           license_class: licenseClass,
           ai_training: aiTrainingAllowed(pack.license),
           ...(built.kind === 'effect'

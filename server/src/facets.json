@@ -1,0 +1,126 @@
+{
+ "_note": "DATA, not logic. Drives meta.facets and meta.behavior (server/src/facets.ts, seed/extract/facets.ts, seed/extract/behavior.ts). categories.<id>.terms: name / path / tag tokens (after singularising a trailing 's') that assign the category; subcategories.<sub>: tokens that assign '<category>/<sub>' once the category matched. thresholds are the named constants for duration / scale / cost / motion. Edit here to tune; no code change needed, then run `npm run reindex`.",
+ "limits": { "maxCategories": 3 },
+ "thresholds": {
+  "durationSec": { "_doc": "visible duration = max over nodes of startDelay + emit span + longest particle lifetime. short < shortBelow, long > longAbove, else medium.", "shortBelow": 0.5, "longAbove": 2 },
+  "scale": { "_doc": "per node: max startSize x max(1, shape extent) where extent = radius (box: half the largest box side). Effect scale = max over emitting nodes. small < smallBelow, large > largeAbove, else medium.", "smallBelow": 1, "largeAbove": 4 },
+  "cost": { "_doc": "sum of maxNumParticles over emitting nodes + node count. high when particles >= highParticles OR nodes >= highNodes; medium when particles >= mediumParticles OR nodes >= mediumNodes; else low.", "mediumParticles": 2500, "highParticles": 5000, "mediumNodes": 5, "highNodes": 8 },
+  "motion": { "minSpeed": 0.05, "minGravity": 0.05, "radialConeAngle": 30, "verticalDirection": 0.7 }
+ },
+ "elements": ["fire", "water", "ice", "lightning", "poison", "earth", "wind", "light", "dark", "arcane", "blood", "smoke", "energy"],
+ "elementFromConcept": { "magic": "arcane" },
+ "categories": {
+  "explosion": {
+   "terms": ["explosion", "explode", "exploding", "blast", "boom", "bomb", "detonation", "nuke", "grenade", "kaboom", "bang", "nova", "firework"],
+   "subcategories": { "ground": ["ground", "floor", "crater", "landmine", "mine"], "air": ["air", "aerial", "firework", "flak", "midair"], "nuke": ["nuke", "mushroom"], "bomb": ["bomb", "grenade"] }
+  },
+  "impact": {
+   "terms": ["impact", "hit", "punch", "slam", "smash", "strike", "stomp", "landing", "shockwave", "collision", "clash", "slap", "bash", "slash", "swipe", "sword", "blade", "claw", "scratch", "melee", "swing", "stab", "hack", "critical", "damage", "splash", "bite"],
+   "subcategories": {
+    "slash": ["slash", "swipe", "sword", "blade", "claw", "scratch", "melee", "swing", "hack", "cut"],
+    "punch": ["punch", "boxing", "glove", "fist", "slap", "bash"],
+    "stab": ["stab", "pierce", "spike"],
+    "shockwave": ["shockwave", "slam", "stomp", "smash"],
+    "hit": ["hit", "damage", "critical", "clash", "collision", "strike", "bite"],
+    "splash": ["splash"]
+   }
+  },
+  "projectile": {
+   "terms": ["projectile", "missile", "rocket", "bullet", "arrow", "fireball", "bolt", "orb", "ball", "shell", "dart", "barrage", "shuriken", "laserbolt", "plasma", "grenade", "shooting"],
+   "subcategories": { "missile": ["missile", "rocket", "barrage"], "orb": ["orb", "ball", "fireball", "plasma", "bolt", "laserbolt"], "bullet": ["bullet", "shell"], "arrow": ["arrow", "dart", "shuriken"] }
+  },
+  "muzzle": {
+   "terms": ["muzzle", "muzzleflash", "gunshot", "shot", "shoot", "firing", "gun", "rifle", "cannon", "flamethrower"],
+   "subcategories": { "flash": ["muzzle", "muzzleflash", "flash"], "gunshot": ["gunshot", "gun", "rifle", "shot", "firing"], "flamethrower": ["flamethrower"] }
+  },
+  "beam": {
+   "terms": ["beam", "laser", "ray", "stream", "lightbeam", "railgun", "pillar", "column", "jet", "lootray", "beamup", "lightning", "electric", "electricity", "thunder"],
+   "subcategories": { "laser": ["laser", "railgun"], "ray": ["ray", "lightbeam", "lootray"], "column": ["pillar", "column", "beamup"], "jet": ["jet", "stream"], "lightning": ["lightning", "electric", "electricity", "thunder"] }
+  },
+  "trail": {
+   "terms": ["trail", "streak", "ribbon", "tracer", "wake", "swoosh", "dash", "sweep", "speed"],
+   "subcategories": { "ribbon": ["ribbon", "streak", "tracer"], "speed": ["speed", "dash", "swoosh", "wake"] }
+  },
+  "aura": {
+   "terms": ["aura", "field", "zone", "area", "shockfield", "glow", "orbital", "charge"],
+   "subcategories": { "zone": ["zone", "area", "field"], "charge": ["charge", "orbital"] }
+  },
+  "buff": {
+   "terms": ["buff", "powerup", "boost", "enhance", "empower", "bonus", "upgrade", "status", "speedboost", "level", "levelup", "levelled", "enchant", "stun", "stunned", "statu"],
+   "subcategories": { "powerup": ["powerup", "boost", "speedboost", "enhance", "empower", "bonus"], "levelup": ["level", "levelup", "levelled", "upgrade"], "status": ["status", "statu", "stun", "stunned", "enchant"] }
+  },
+  "heal": {
+   "terms": ["heal", "healing", "regen", "regenerate", "restore", "cure", "health", "revive", "medic", "recover"],
+   "subcategories": { "regen": ["regen", "regenerate", "restore", "recover"], "revive": ["revive"] }
+  },
+  "shield": {
+   "terms": ["shield", "barrier", "protect", "defense", "guard", "ward", "dome"],
+   "subcategories": { "barrier": ["barrier", "wall", "dome", "ward"], "bubble": ["bubble", "sphere", "spherical"] }
+  },
+  "pickup": {
+   "terms": ["pickup", "coin", "loot", "collect", "gem", "money", "treasure", "reward", "chest", "powerbox", "cash", "dollar", "rupee", "obtainable", "lootray", "diamond", "crystal", "ore"],
+   "subcategories": { "coin": ["coin", "money", "cash", "dollar", "rupee", "gold"], "loot": ["loot", "lootray", "chest", "treasure", "powerbox", "obtainable", "reward"], "gem": ["gem", "diamond", "crystal", "ore"] }
+  },
+  "portal": {
+   "terms": ["portal", "warp", "gate", "vortex", "wormhole", "rift", "gateway", "teleport", "blink", "hole"],
+   "subcategories": { "vortex": ["vortex", "wormhole", "hole"], "teleport": ["teleport", "blink", "warp"], "gate": ["gate", "gateway", "rift", "portal"] }
+  },
+  "weather": {
+   "terms": ["weather", "rain", "rainstorm", "drizzle", "downpour", "thunderstorm", "raindrop", "snow", "blizzard", "snowfall", "snowstorm", "snowy", "sleet", "hail", "tornado", "storm", "whirlwind", "wind", "fog", "mist", "rainbow", "waterfall", "shower"],
+   "subcategories": {
+    "rain": ["rain", "rainstorm", "drizzle", "downpour", "raindrop", "shower"],
+    "snow": ["snow", "blizzard", "snowfall", "snowstorm", "snowy", "sleet", "hail"],
+    "storm": ["storm", "thunderstorm", "tornado", "whirlwind"],
+    "wind": ["wind", "whirlwind"],
+    "fog": ["fog", "mist"]
+   }
+  },
+  "ambient": {
+   "terms": ["ambient", "background", "environment", "atmosphere", "butterflie", "butterfly", "bird", "firefly", "fireflie", "pollen", "nature", "forest", "sand", "desert", "leave", "leaf", "insect", "candle", "fountain", "drip", "bubble", "sunlight"],
+   "subcategories": { "creatures": ["butterflie", "butterfly", "bird", "firefly", "fireflie", "insect"], "foliage": ["leave", "leaf", "pollen", "forest", "nature"], "water": ["fountain", "drip", "waterfall", "bubble"] }
+  },
+  "ui": {
+   "terms": ["ui", "emoji", "emoticon", "icon", "symbol", "text", "click", "mouseclick", "exclamation", "question", "confetti", "celebration", "sadness", "anger", "fear", "surprise", "disgust", "joy"],
+   "subcategories": { "emoji": ["emoji", "emoticon", "sadness", "anger", "fear", "surprise", "disgust", "joy", "symbol", "exclamation", "question"], "click": ["click", "mouseclick"], "celebration": ["confetti", "celebration", "firework"] }
+  },
+  "blood": {
+   "terms": ["blood", "splat", "splatter", "gore", "giblet", "gib"],
+   "subcategories": { "splat": ["splat", "splatter"], "gib": ["giblet", "gib", "gore"] }
+  },
+  "smoke": {
+   "terms": ["smoke", "fume", "steam", "cloud", "poof", "dust", "puff", "vapor", "fog", "mist"],
+   "subcategories": { "dust": ["dust", "poof", "puff"], "steam": ["steam", "vapor", "fume"] }
+  },
+  "fire": {
+   "terms": ["fire", "flame", "flamethrower", "torch", "burn", "burning", "inferno", "blaze", "lava", "magma", "candle", "ember", "campfire", "fireball", "flare"],
+   "subcategories": { "torch": ["torch", "candle", "campfire"], "lava": ["lava", "magma"], "flamethrower": ["flamethrower"] }
+  },
+  "magic": {
+   "terms": ["magic", "mystic", "enchant", "rune", "spell", "arcane", "elemental", "sparkle", "glitter", "sparkler", "soul", "swirl", "matrix", "hex", "hexagon", "shiny"],
+   "subcategories": { "sparkle": ["sparkle", "glitter", "sparkler", "shiny"], "rune": ["rune", "hex", "hexagon", "matrix"], "spell": ["spell", "enchant", "mystic", "arcane", "elemental", "swirl"], "soul": ["soul"] }
+  }
+ },
+ "shapeTypes": { "0": "sphere", "1": "sphere", "2": "hemisphere", "3": "hemisphere", "4": "cone", "5": "box", "6": "mesh", "7": "cone", "8": "ring", "9": "ring", "10": "edge", "11": "mesh", "12": "mesh", "13": "box", "14": "box", "15": "ring", "16": "box", "17": "mesh", "18": "mesh" },
+ "radialShapes": ["sphere", "hemisphere", "ring"],
+ "renderModes": { "0": "billboard", "1": "stretched", "2": "billboard", "3": "billboard", "4": "mesh" },
+ "effectKindShapes": { "line": "line" },
+ "effectKindRenderModes": { "line": "line", "trail": "trail", "mesh": "mesh" },
+ "behavior": {
+  "loop": { "loop": "looping", "one-shot": "one-shot" },
+  "emission": { "burst": "burst", "stream": "steady stream" },
+  "defaultNoun": "particles",
+  "nounByCategory": { "explosion": "blast fragments", "impact": "impact sparks", "projectile": "projectile particles", "muzzle": "muzzle flash particles", "beam": "beam particles", "trail": "trail particles", "aura": "aura particles", "buff": "power-up particles", "heal": "healing particles", "shield": "shield particles", "pickup": "sparkles", "portal": "portal particles", "weather": "weather particles", "ambient": "ambient particles", "ui": "icon particles", "blood": "blood droplets", "smoke": "smoke puffs", "fire": "flames", "magic": "magic sparkles" },
+  "nounByElement": { "fire": "flames", "water": "water droplets", "ice": "ice shards", "lightning": "electric sparks", "poison": "toxic fumes", "earth": "dirt chunks", "wind": "wisps of air", "light": "glowing motes", "dark": "dark wisps", "arcane": "magic sparkles", "blood": "blood droplets", "smoke": "smoke puffs", "energy": "energy particles" },
+  "motion": { "radial": "spreads outward", "upward": "rises", "downward": "sinks", "directional": "shoots in one direction", "orbit": "circles around its centre", "static": "stays in place", "spiral": "swirls", "falling": "falls under gravity" },
+  "motionPriority": ["spiral", "radial", "directional", "upward", "orbit", "downward", "static"],
+  "shape": { "sphere": "a sphere", "hemisphere": "a dome", "cone": "a cone", "ring": "a ring", "box": "a box", "mesh": "a mesh surface", "edge": "a line", "point": "a single point", "line": "a line" },
+  "fade": "fades out",
+  "grow": "grows",
+  "shrink": "shrinks",
+  "layerNouns": { "smoke": "smoke", "spark": "sparks", "glow": "a soft glow", "debris": "debris", "shockwave": "a shockwave ring", "ring": "a ring", "trail": "a trail", "flash": "a bright flash", "dust": "dust", "fire": "flames", "flame": "flames", "core": "a bright core", "light": "a light", "star": "star shapes", "ember": "embers", "splash": "splashes", "bubble": "bubbles", "drop": "droplets", "stone": "stones", "rock": "rocks", "wave": "waves", "sparkle": "sparkles", "glitter": "glitter", "energy": "energy wisps", "lightning": "lightning arcs", "flare": "lens flares", "impact": "an impact burst", "decal": "a ground mark", "steam": "steam", "fog": "fog" },
+  "effect": {
+   "kinds": { "line": "a stretched line", "trail": "a trail", "mesh": "a mesh", "light": "a light", "animation": "an animation", "audio": "a sound", "script": "script-driven behaviour" },
+   "template": "A non-particle effect built from {kinds}; its motion is driven by components, not particle emission."
+  }
+ }
+}

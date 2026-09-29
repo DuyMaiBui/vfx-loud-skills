@@ -5,10 +5,10 @@
  *
  *   node seed/reindex.ts [--dry-run] [--limit N]
  *
- * Extracted recipes (meta.extracted): description, tags, style, meta.style, meta.keywords are
- * regenerated from pack / path / name / payload parameters (seed/extract/enrich.ts).
+ * Extracted recipes (meta.extracted): description, tags, style, meta.style, meta.keywords, meta.facets and
+ * meta.behavior are regenerated from pack / path / name / payload parameters (seed/extract/enrich.ts).
  * Everything else (hand-written cc0 etc.): tags may GAIN vocabulary keywords, meta.keywords is set;
- * name, description and prose are never rewritten.
+ * name, description and prose are never rewritten; meta.facets is derived from name / category / tags.
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -20,6 +20,8 @@ import { config } from '../server/src/config.ts';
 import { getEmbedder } from '../server/src/embed.ts';
 import { searchDocument } from '../server/src/search-doc.ts';
 import { conceptsForTokens, coloursForTokens, splitName } from '../server/src/vocab.ts';
+import { compactFacets, deriveTextFacets, type Facets } from '../server/src/facets.ts';
+import { behaviorFromLayers } from './extract/behavior.ts';
 import { enrichExtracted } from './extract/enrich.ts';
 import type { PackConfig } from './extract/pipeline.ts';
 
@@ -62,6 +64,8 @@ async function main(): Promise<void> {
       let tags = r.tags;
       let style = r.style;
       let keywords: string[];
+      let facets: Facets;
+      let behavior: string | undefined;
       if (r.meta.extracted === true) {
         const pack = bySlug.get(String(r.meta.pack));
         const src = r.meta.source;
@@ -78,15 +82,21 @@ async function main(): Promise<void> {
           yaml,
           existingTags: r.tags,
         });
-        ({ description, tags, style, keywords } = { description: en.description, tags: en.tags, style: en.style, keywords: en.keywords });
+        ({ description, tags, style, keywords, facets, behavior } = { description: en.description, tags: en.tags, style: en.style, keywords: en.keywords, facets: en.facets, behavior: en.behavior });
       } else {
         const tokens = [...splitName(r.name), ...r.tags.flatMap(splitName)];
         const c = conceptsForTokens(tokens);
         keywords = uniq([...c.element, ...c.use, ...c.weather, ...coloursForTokens(tokens)]);
         tags = uniq([...r.tags, ...keywords]); // additions only; prose untouched
+        const colours = coloursForTokens(tokens);
+        facets = compactFacets({ ...deriveTextFacets([...splitName(r.name), ...splitName(r.category)], r.tags.flatMap(splitName)), colors: colours });
+        if (r.type === 'recipe') {
+          const yaml = await fs.readFile(path.join(config.dataDir, r.storage_uri), 'utf8');
+          behavior = behaviorFromLayers(yaml, r.tags);
+        }
       }
       const doc = searchDocument({ name: r.name, description, category: r.category, tags, keywords });
-      const hash = createHash('sha1').update(JSON.stringify([doc.embedText, doc.searchText, description, tags, style, keywords])).digest('hex');
+      const hash = createHash('sha1').update(JSON.stringify([doc.embedText, doc.searchText, description, tags, style, keywords, facets, behavior ?? null])).digest('hex');
       if (r.meta.index_hash === hash && same(r.tags, tags) && r.description === description && r.search_text === doc.searchText) {
         unchanged++;
         continue;
@@ -97,10 +107,10 @@ async function main(): Promise<void> {
         await pool.query(
           `UPDATE resource
               SET description = $2, tags = $3, style = $4, search_text = $5, embedding = $6::vector,
-                  meta = meta || jsonb_build_object('keywords', $7::jsonb, 'index_hash', $8::text)
+                  meta = (meta - 'facets' - 'behavior') || $7::jsonb || jsonb_build_object('index_hash', $8::text)
                               || CASE WHEN $9::boolean THEN jsonb_build_object('style', $4::text[]) ELSE '{}'::jsonb END
             WHERE id = $1`,
-          [r.id, description, tags, style, doc.searchText, `[${literal}]`, JSON.stringify(keywords), hash, r.meta.extracted === true],
+          [r.id, description, tags, style, doc.searchText, `[${literal}]`, JSON.stringify({ keywords, facets, ...(behavior ? { behavior } : {}) }), hash, r.meta.extracted === true],
         );
       }
       updated++;

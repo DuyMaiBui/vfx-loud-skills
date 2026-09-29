@@ -40,16 +40,52 @@ Skills + MCP cho Unity project đã được bật sẵn:
 - `Unity/.mcp.json` → server `vfx-skill` (⚠️ lần đầu mở `claude` phải approve)
 - `Unity/.claude/skills/vfx-*` → symlink về repo này
 
-## 4 tool (MCP)
+## 5 tool (MCP)
 
 | Tool | Làm gì |
 | --- | --- |
 | `vfx_search` | Semantic + keyword search → Knowledge Card + `vfx://` URI |
+| `vfx_facets` | Đếm record theo từng facet cho `query` + `filters` → biết nên hỏi user câu gì tiếp |
 | `vfx_resolve` | URI → version, `file_name`, `download_url`, `sha256`, `dependencies` |
 | `vfx_fetch` | URL tải payload. `scripts/vfx-fetch.sh <uri> <unity project root>` ghi file + verify sha256, không đụng `.meta` |
 | `vfx_publish` | Payload mới → version mới + `linkDependencies` (cập nhật graph, không overwrite) |
 
-REST kèm: `/healthz`, `/v1/search`, `/v1/resource/:type/:slug/:version[/file]`, `/v1/publish`.
+REST kèm: `/healthz`, `/v1/search`, `/v1/facets`, `/v1/resource/:type/:slug/:version[/file]`, `/v1/publish`.
+
+## Facets, behavior và hỏi-đáp thu hẹp
+
+Mỗi record có `meta.facets` (phân loại mịn) và `meta.behavior` (1–3 câu tiếng Anh thường mô tả **người xem thấy gì theo thời gian**), sinh **deterministic** từ tên/path/pack và payload. Không model, không mạng. Bảng ánh xạ + ngưỡng nằm ở `server/src/facets.json` (data, sửa xong chạy `npm run reindex`), không hardcode trong logic.
+
+| Facet | Kiểu | Giá trị / cách suy ra |
+| --- | --- | --- |
+| `category` | string[] | explosion, impact, projectile, muzzle, beam, trail, aura, buff, heal, shield, pickup, portal, weather, ambient, ui, blood, smoke, fire, magic. Từ tên record trước, không khớp mới xuống token của thư mục/tag; tối đa 3, theo thứ tự xuất hiện trong tên |
+| `subcategory` | string[] | `"<category>/<sub>"`, vd `explosion/ground`, `impact/slash`, `projectile/missile`, `weather/rain` |
+| `element` | string[] | fire, water, ice, lightning, poison, earth, wind, light, dark, arcane, blood, smoke, energy (từ vocab concept, `magic` → `arcane`) |
+| `colors` | string[] | tên màu trong vocab: tên record + màu start chiếm ưu thế của payload |
+| `playback` | `loop` \| `one-shot` | có node nào `looping` |
+| `duration` | `short` \| `medium` \| `long` | **thời gian nhìn thấy** = max mọi node của (startDelay + thời gian emit + lifetime hạt dài nhất), không lấy `duration` mặc định 5 s của Unity. `<0.5s` short, `>2s` long |
+| `scale` | `small` \| `medium` \| `large` | max node của `startSize × max(1, bán kính shape)` (box: nửa cạnh dài nhất). `<1` small, `>4` large |
+| `motion` | string[] | radial, upward, downward, directional, orbit, static, spiral, falling (từ startSpeed + shape + gravity + velocity/force module + hướng xoay của node). Heuristic: cha không có ParticleSystem không được tính |
+| `shape` | string[] | sphere, hemisphere, cone, ring, box, mesh, edge, point (shape module tắt), line |
+| `renderMode` | string[] | billboard, stretched, mesh, line, trail |
+| `cost` | `low` \| `medium` \| `high` | tổng `maxNumParticles` + số node các node đang emit. `high` khi ≥5000 hạt hoặc ≥8 node; `medium` khi ≥2500 hạt hoặc ≥5 node |
+
+Thiếu facet nào thì **bỏ key** (record hand-written chỉ có facet suy ra được từ tên/category/tags; record chỉ có effect component không có playback/duration/scale/motion). `npm run facets:report` in phân bố giá trị và số record thiếu từng facet.
+
+### `POST /v1/facets`
+
+```json
+{ "query": "explosion", "type": "recipe", "filters": { "style": ["toon"], "playback": ["one-shot"] }, "style": [], "keywords": [] }
+```
+→ `{ "total": 309, "facets": { "category": [{ "value": "explosion", "count": 288 }, ...], ... } }`
+
+- Facet name = các key của `meta.facets` + `style` (cột style của record). Tên lạ → 400.
+- Trong một facet các giá trị **OR**; giữa các facet **AND**. `filters.style` gộp OR với `style`.
+- Đếm trên tập ứng viên khớp `query` + `filters` (+ `type`, `style`, `keywords`). Đếm gồm cả giá trị đã lọc, nên "explosion" và `filters.category=[explosion]` cho count nhất quán.
+- **Cut-off khi có `query`**: cùng công thức điểm với `/v1/search`, nhưng chỉ giữ record khớp từ khóa (từ gốc hoặc đồng nghĩa/tiếng Việt), lấy tối đa `FACET_CANDIDATES` (mặc định 1000) record điểm cao nhất. `/v1/search` không cần ngưỡng vì chỉ trả top `limit`; đếm trên mọi record sẽ vô nghĩa (embedder cho mọi record cosine > 0). Không có `query` = mọi record khớp filters.
+- Record thiếu một facet không được đếm ở facet đó.
+
+`POST /v1/search` nhận thêm `filters` (cùng ngữ nghĩa). Mỗi card có thêm `facets` (`{}` nếu không có) và `behavior` (chuỗi, `null` nếu không có). MCP: `vfx_facets` cùng input/output; `vfx_search` có thêm `filters`.
 
 ## Corpus
 

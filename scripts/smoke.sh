@@ -48,8 +48,8 @@ if [[ $PROBE_RC -ne 0 ]]; then
   bad "probe exit $PROBE_RC"
   echo "$PROBE_OUT" | tail -20
 else
-  grep -q 'vfx_search, vfx_resolve, vfx_fetch, vfx_publish' <<<"$PROBE_OUT" \
-    && ok "tools/list: 4 tool" || bad "tools/list sai: $(head -1 <<<"$PROBE_OUT")"
+  grep -q 'vfx_search, vfx_facets, vfx_resolve, vfx_fetch, vfx_publish' <<<"$PROBE_OUT" \
+    && ok "tools/list: 5 tool" || bad "tools/list sai: $(head -1 <<<"$PROBE_OUT")"
 
   grep -q '"uri": "vfx://' <<<"$PROBE_OUT" \
     && ok "G2 search trả Knowledge Card + vfx:// URI" || bad "G2 không có vfx:// URI"
