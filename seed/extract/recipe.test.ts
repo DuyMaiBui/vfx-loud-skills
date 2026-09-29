@@ -77,11 +77,29 @@ test('output is deterministic', () => {
 test('skips (never a partial) for binary, unparseable, no-particle and nested-instance prefabs', () => {
   assert.equal(skipCode('\u0000\u0001BINARYSERIALIZED'), 'binary-serialization');
   assert.equal(skipCode('%YAML 1.1\n--- !u!1 &1\nGameObject:\n  m_A: |\n    x\n'), 'yaml-parse-error');
-  assert.equal(skipCode(prefabYaml({ psCount: 'none' })), 'no-particle-system');
+  assert.equal(skipCode(prefabYaml({ psCount: 'none' })), 'no-effect-component');
   assert.equal(skipCode(prefabYaml({ instance: true })), 'nested-prefab-instance');
 });
 
 test('a sub-emitter pointing outside the prefab is a skip, not a silently dropped edge', () => {
   const broken = prefabYaml().replace('emitter: {fileID: 310}', 'emitter: {fileID: 424242}');
   assert.equal(skipCode(broken), 'dangling-subemitter');
+});
+
+test('effect-only prefab (no ParticleSystem) yields an effect record with references, not a skip', () => {
+  const r = buildRecipe(prefabYaml({ psCount: 'none', effect: true }), PACK, prefab, ctx);
+  assert.equal(r.kind, 'effect');
+  assert.deepEqual(r.effectKinds, ['line', 'script']);
+  assert.equal(r.particleNodeCount, 0);
+  assert.equal(r.effectNodeCount, 1);
+  const y = r.yaml;
+  assert.match(y, /^schema: vfx-extracted-effect\/1$/m);
+  assert.match(y, /type: LineRenderer/);
+  assert.match(y, /widthMultiplier: 0\.5/);
+  assert.match(y, /m_Positions: \[\[0, 0, 0\], \[0, 0, 5\]\]/);
+  assert.match(y, /type: MonoBehaviour/);
+  assert.match(y, /beamLength: 30/);
+  assert.match(y, /beamEndPrefab: \{guid: "?a{32}"?, path: Assets\/Test\/Mat\/Fire\.mat\}/); // field ref -> guid + path
+  assert.match(y, /Assets\/Test\/Tex\/Fire\.png/); // material texture reference
+  assert.doesNotMatch(y, /type: ParticleSystem|particleNodes/);
 });

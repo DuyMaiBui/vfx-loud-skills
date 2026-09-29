@@ -30,6 +30,7 @@ async function main(): Promise<void> {
       out: { type: 'string' },
       'source-dir': { type: 'string' },
       'list-packs': { type: 'boolean' },
+      'only-guids-from': { type: 'string' },
     },
     strict: true,
   });
@@ -52,7 +53,13 @@ async function main(): Promise<void> {
   const packageFile = path.join(values['source-dir'] ?? DEFAULT_SOURCE_DIR, pack.file);
   await fs.access(packageFile); // fail loudly on a missing package
 
+  let onlyGuids: Set<string> | undefined;
+  if (values['only-guids-from']) {
+    const lines = (await fs.readFile(values['only-guids-from'], 'utf8')).split('\n').filter(Boolean);
+    onlyGuids = new Set(lines.map((l) => (JSON.parse(l) as { prefabGuid: string }).prefabGuid));
+  }
   const summary = await extractPack({
+    onlyGuids,
     pack,
     packageFile,
     outDir: path.resolve(values.out),

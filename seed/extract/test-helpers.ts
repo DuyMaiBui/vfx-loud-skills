@@ -73,13 +73,15 @@ export interface FixtureOptions {
   withChild?: boolean;
   psCount?: 'one' | 'none';
   instance?: boolean;
+  /** With psCount 'none': add a LineRenderer + MonoBehaviour so it is an effect-only prefab. */
+  effect?: boolean;
 }
 
 /** A tiny but structurally faithful Unity prefab: root PS + optional child PS wired as a sub-emitter. */
 export function prefabYaml(o: FixtureOptions = {}): string {
   const name = o.name ?? 'Boom';
   const mat = o.materialGuid ?? 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-  const withChild = o.withChild ?? true;
+  const withChild = o.psCount === 'none' ? false : (o.withChild ?? true);
   const ps = (goId: number, trId: number, psId: number, rdId: number, sub: number | null): string => `--- !u!198 &${psId}
 ParticleSystem:
   m_ObjectHideFlags: 0
@@ -203,7 +205,7 @@ Transform:
 `;
   let out = '%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n';
   if (o.instance) out += '--- !u!1001 &900\nPrefabInstance:\n  m_ObjectHideFlags: 0\n';
-  out += go(100, name, o.psCount === 'none' ? [400] : [400, 300, 350]);
+  out += go(100, name, o.psCount === 'none' ? (o.effect ? [400, 500, 501] : [400]) : [400, 300, 350]);
   out += tr(400, 100, 0, withChild ? [401] : [], '{x: 0, y: 1, z: 0}');
   if (o.psCount !== 'none') {
     out += ps(100, 400, 300, 350, withChild ? 310 : null);
@@ -212,6 +214,29 @@ Transform:
       out += tr(401, 101, 400, [], '{x: 0, y: 0, z: 2}');
       out += ps(101, 401, 310, 360, null);
     }
+  }
+  if (o.effect && o.psCount === 'none') {
+    out += `--- !u!120 &500
+LineRenderer:
+  m_GameObject: {fileID: 100}
+  m_Enabled: 1
+  m_Materials:
+  - {fileID: 2100000, guid: ${mat}, type: 2}
+  m_Positions:
+  - {x: 0, y: 0, z: 0}
+  - {x: 0, y: 0, z: 5}
+  m_Parameters:
+    serializedVersion: 3
+    widthMultiplier: 0.5
+--- !u!114 &501
+MonoBehaviour:
+  m_GameObject: {fileID: 100}
+  m_Enabled: 1
+  m_Script: {fileID: 11500000, guid: ffffffffffffffffffffffffffffffff, type: 3}
+  beamLength: 30
+  beamEndPrefab: {fileID: 1234, guid: ${mat}, type: 3}
+  beamCollides: 1
+`;
   }
   return out;
 }

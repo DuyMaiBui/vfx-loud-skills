@@ -20,6 +20,8 @@ export interface ExtractOptions {
   packageFile: string;
   outDir: string;
   limit?: number;
+  /** When set, only these prefab GUIDs are considered (slugs are still computed over the full eligible set). */
+  onlyGuids?: Set<string>;
   /** Prefab assets above this many bytes are skipped with a logged reason. */
   maxPrefabBytes?: number;
   log?: (line: string) => void;
@@ -102,13 +104,13 @@ export function assignSlugs(
 
 const STOP = new Set(['the', 'and', 'fx', 'vfx', 'prefab', 'prefabs']);
 
-export function tagsFor(prefabPath: string, pack: PackConfig): string[] {
+export function tagsFor(prefabPath: string, pack: PackConfig, kind: 'particle' | 'effect' = 'particle'): string[] {
   const rel = prefabPath.split('/Prefabs/').slice(1).join('/Prefabs/') || prefabPath;
   const segs = rel.replace(/\.prefab$/, '').split('/');
   const tokens = segs
     .flatMap((s) => slugify(s).split('-'))
     .filter((t) => t.length >= 3 && !STOP.has(t) && !/^\d+$/.test(t));
-  return [...new Set([...tokens, ...pack.tags, 'extracted', 'particle'])].slice(0, 8);
+  return [...new Set([...tokens, ...pack.tags, 'extracted', kind === 'effect' ? 'effect' : 'particle'])].slice(0, 8);
 }
 
 /* ---------------------------------------------------------------- pipeline */
@@ -144,7 +146,8 @@ export async function extractPack(opts: ExtractOptions): Promise<PackSummary> {
   }
   eligible.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const slugs = assignSlugs(pack.slug, eligible);
-  const selected = opts.limit === undefined ? eligible : eligible.slice(0, opts.limit);
+  const candidates = opts.onlyGuids ? eligible.filter((e) => opts.onlyGuids?.has(e.guid)) : eligible;
+  const selected = opts.limit === undefined ? candidates : candidates.slice(0, opts.limit);
   const selectedGuids = new Map(selected.map((s) => [s.guid, s.path]));
   const eligibleBytes = eligible.reduce((n, e) => n + (assetSizes.get(e.guid) ?? 0), 0);
   log(`[${pack.slug}] indexed ${paths.size} assets, eligible prefabs=${eligible.length}, selected=${selected.length}`);
@@ -195,10 +198,14 @@ export async function extractPack(opts: ExtractOptions): Promise<PackSummary> {
         slug,
         name: `${built.prefabName} (${pack.name})`,
         description:
-          `Extracted particle recipe of ${pack.vendor} "${pack.name}" prefab ${built.prefabName}: ` +
-          `${built.particleNodeCount} particle node(s), duration ${built.summary.durationMax}s, ` +
-          `${built.summary.loops ? 'looping' : 'one-shot'}. Parameters only; textures, materials and shaders are guid + path references.`,
-        tags: tagsFor(prefabPath, pack),
+          built.kind === 'effect'
+            ? `Extracted effect recipe of ${pack.vendor} "${pack.name}" prefab ${built.prefabName}: ` +
+              `${built.effectNodeCount} effect node(s) (${built.effectKinds.join(', ')}). ` +
+              'Parameters only; meshes, materials, shaders, textures, clips and scripts are guid + path references.'
+            : `Extracted particle recipe of ${pack.vendor} "${pack.name}" prefab ${built.prefabName}: ` +
+              `${built.particleNodeCount} particle node(s), duration ${built.summary.durationMax}s, ` +
+              `${built.summary.loops ? 'looping' : 'one-shot'}. Parameters only; textures, materials and shaders are guid + path references.`,
+        tags: tagsFor(prefabPath, pack, built.kind),
         style: pack.style,
         category: 'recipe',
         license: pack.license,
@@ -211,7 +218,9 @@ export async function extractPack(opts: ExtractOptions): Promise<PackSummary> {
           pack: pack.slug,
           license_class: licenseClass,
           ai_training: aiTrainingAllowed(pack.license),
-          particle_nodes: built.particleNodeCount,
+          ...(built.kind === 'effect'
+            ? { effect_nodes: built.effectNodeCount, effectKinds: built.effectKinds }
+            : { particle_nodes: built.particleNodeCount }),
         },
         inline: built.yaml,
       };

@@ -82,7 +82,7 @@ test('end-to-end: records, provenance meta, licence, skips, exclusions, no asset
     assert.equal(s.extracted, 2);
     assert.deepEqual(
       s.skipped.map((k) => [path.basename(k.prefabPath), k.code]),
-      [['Binary.prefab', 'binary-serialization'], ['NoPs.prefab', 'no-particle-system']],
+      [['Binary.prefab', 'binary-serialization'], ['NoPs.prefab', 'no-effect-component']],
     );
 
     const dir = path.join(out, 'test-pack');
@@ -132,6 +132,28 @@ test('--limit takes the first N by path (skips count toward N); output is byte-i
         await fs.readFile(path.join(out, 'b', 'test-pack', n), 'utf8'),
       );
     }
+  });
+});
+
+test('effect-only prefab becomes an effect record: no "particle recipe" wording, effectKinds set, onlyGuids filter', async () => {
+  const assets: FakeAsset[] = [
+    { guid: '1'.repeat(32), path: 'Assets/T/Prefabs/Beam.prefab', asset: prefabYaml({ name: 'Beam', psCount: 'none', effect: true }) },
+    { guid: '2'.repeat(32), path: 'Assets/T/Prefabs/Boom.prefab', asset: prefabYaml() },
+    { guid: MAT, path: 'Assets/T/Mat/Fire.mat', asset: materialYaml(SHADER, TEX) },
+  ];
+  await withPackage(assets, async (file, out) => {
+    const s = await extractPack({ pack: PACK, packageFile: file, outDir: out, onlyGuids: new Set(['1'.repeat(32)]) });
+    assert.equal(s.selected, 1);
+    assert.equal(s.extracted, 1);
+    const rec = JSON.parse(await fs.readFile(path.join(out, 'test-pack', `${s.records[0].slug}.json`), 'utf8'));
+    assert.deepEqual(rec.meta.effectKinds, ['line', 'script']);
+    assert.equal(rec.meta.extracted, true);
+    assert.equal(rec.meta.license_class, 'proprietary-commercial');
+    assert.equal(rec.meta.ai_training, false);
+    assert.equal(rec.visibility, 'project');
+    assert.doesNotMatch(rec.description, /particle recipe/i);
+    assert.match(rec.description, /effect recipe/);
+    assert.ok(rec.tags.includes('effect') && !rec.tags.includes('particle'));
   });
 });
 

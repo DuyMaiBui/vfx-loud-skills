@@ -39,8 +39,15 @@ export interface PackInfo {
   vendor: string;
 }
 
+export type RecipeKind = 'particle' | 'effect';
+
 export interface RecipePayload {
   yaml: string;
+  /** 'particle' = has a ParticleSystem; 'effect' = only other effect components (line/mesh/light/...). */
+  kind: RecipeKind;
+  /** Sorted effect kinds present (effect records only; empty for particle records). */
+  effectKinds: string[];
+  effectNodeCount: number;
   particleNodeCount: number;
   nodeCount: number;
   prefabName: string;
@@ -294,8 +301,9 @@ export function buildRecipe(text: string, pack: PackInfo, prefab: { path: string
     throw new SkipError('nested-prefab-instance', 'prefab embeds a PrefabInstance (variant/nested); source not flattened');
   }
   const byId = new Map(docs.map((d) => [d.fileId, d]));
-  if (!docs.some((d) => d.type === 'ParticleSystem')) {
-    throw new SkipError('no-particle-system', 'prefab has no ParticleSystem component');
+  const effectOnly = !docs.some((d) => d.type === 'ParticleSystem');
+  if (effectOnly && !docs.some((d) => d.type in EFFECT_KIND)) {
+    throw new SkipError('no-effect-component', 'prefab has neither a ParticleSystem nor another effect component');
   }
 
   // --- walk the transform hierarchy depth-first, in m_Children order
@@ -343,6 +351,7 @@ export function buildRecipe(text: string, pack: PackInfo, prefab: { path: string
   const psNodeByPsId = new Map<string, string>();
   for (const n of nodes) for (const c of n.components) if (c.type === 'ParticleSystem') psNodeByPsId.set(c.fileId, n.path);
   const conv = new Converter(ctx, (id) => psNodeByPsId.get(id));
+  if (effectOnly) return buildEffectPayload(nodes, conv, ctx, pack, prefab);
 
   // --- particle nodes
   const particleNodes: Record<string, unknown>[] = [];
@@ -459,6 +468,9 @@ export function buildRecipe(text: string, pack: PackInfo, prefab: { path: string
   };
   return {
     yaml: toYaml(payload),
+    kind: 'particle',
+    effectKinds: [],
+    effectNodeCount: 0,
     particleNodeCount: particleNodes.length,
     nodeCount: nodes.length,
     prefabName: rootName,
@@ -472,4 +484,93 @@ function componentLabel(c: UnityDoc, ctx: BuildContext): string {
   if (!s?.guid) return 'MonoBehaviour';
   const path = ctx.pathOf(s.guid);
   return path ? `MonoBehaviour(${path})` : `MonoBehaviour(guid:${s.guid})`;
+}
+
+/* ------------------------------------------------- effect-only (no ParticleSystem) */
+
+/** Serialized component type -> effect kind. Order defines the order of `effectKinds`. */
+const EFFECT_KIND: Record<string, string> = {
+  LineRenderer: 'line',
+  TrailRenderer: 'trail',
+  MeshFilter: 'mesh',
+  MeshRenderer: 'mesh',
+  SkinnedMeshRenderer: 'mesh',
+  Light: 'light',
+  Animator: 'animation',
+  Animation: 'animation',
+  AudioSource: 'audio',
+  MonoBehaviour: 'script',
+};
+const KIND_ORDER = ['line', 'trail', 'mesh', 'light', 'animation', 'audio', 'script'];
+
+function buildEffectPayload(
+  nodes: Node[],
+  conv: Converter,
+  ctx: BuildContext,
+  pack: PackInfo,
+  prefab: { path: string; guid: string },
+): RecipePayload {
+  const kinds = new Set<string>();
+  const effectNodes: Record<string, unknown>[] = [];
+  for (const n of nodes) {
+    const comps: Record<string, unknown>[] = [];
+    for (const c of n.components) {
+      const kind = EFFECT_KIND[c.type];
+      if (!kind) continue;
+      kinds.add(kind);
+      const params = conv.conv(c.body) as Record<string, unknown>;
+      // Materials get the same guid + path (+ shader / texture slots) treatment as particle renderers.
+      if ('m_Materials' in c.body) {
+        const mats: unknown[] = [];
+        for (const m of asSeq(c.body.m_Materials)) {
+          const ref = asRef(m);
+          if (!ref || ref.fileId === '0') continue;
+          mats.push(ref.guid ? materialRef(conv, ctx, ref.guid) : { fileId: ref.fileId });
+        }
+        params.m_Materials = mats;
+      }
+      comps.push({ type: c.type, ...params });
+    }
+    if (comps.length === 0) continue;
+    effectNodes.push({
+      path: n.path,
+      active: n.go.body.m_IsActive === 1,
+      transform: {
+        position: conv.conv(n.transform.body.m_LocalPosition),
+        rotation: conv.conv(n.transform.body.m_LocalRotation),
+        scale: conv.conv(n.transform.body.m_LocalScale),
+      },
+      components: comps,
+    });
+  }
+  const effectKinds = KIND_ORDER.filter((k) => kinds.has(k));
+  const hierarchy = nodes.map((n) => ({
+    path: n.path,
+    parent: n.parent,
+    active: n.go.body.m_IsActive === 1,
+    components: n.components.map((c) => componentLabel(c, ctx)),
+  }));
+  const rootName = nodes[0]?.path ?? '';
+  const payload = {
+    schema: 'vfx-extracted-effect/1',
+    source: { pack: pack.name, vendor: pack.vendor, prefabPath: prefab.path, prefabGuid: prefab.guid },
+    prefab: { name: rootName, gameObjectCount: nodes.length, effectNodeCount: effectNodes.length, effectKinds },
+    notes: [
+      'Prefab has no ParticleSystem; effect components (line/trail/mesh/light/animation/audio/script) are captured.',
+      'Values are Unity serialized parameters; enum fields keep Unity numeric codes.',
+      'Meshes, materials, shaders, textures, controllers, clips, audio clips and scripts are references (guid + source path) only; no asset bytes are included.',
+    ],
+    effectNodes,
+    hierarchy,
+  };
+  return {
+    yaml: toYaml(payload),
+    kind: 'effect',
+    effectKinds,
+    effectNodeCount: effectNodes.length,
+    particleNodeCount: 0,
+    nodeCount: nodes.length,
+    prefabName: rootName,
+    summary: { durationMax: 0, loops: false, renderModes: [] },
+  };
 }
