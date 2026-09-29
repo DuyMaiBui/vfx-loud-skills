@@ -31,6 +31,7 @@ interface Entry {
   contentFile?: string;
   inline?: string;
   fileName?: string;
+  meta?: Record<string, unknown>;
 }
 
 async function exists(type: string, slug: string): Promise<boolean> {
@@ -155,6 +156,7 @@ async function main(): Promise<void> {
           pack: e.source ? 'synty-polygon-particle-fx' : 'vfx-skill-cloud-authored',
           license_class: e.licenseClass ?? licenseClassOf(license),
           ai_training: e.aiTraining ?? aiTrainingAllowed(license),
+          ...(e.meta ?? {}),
         },
       };
 

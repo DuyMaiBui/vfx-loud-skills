@@ -29,7 +29,8 @@ Nên phần "hiện đúng trong Editor" + 3 request thật phải làm tay tron
 npm run seed                    # seed corpus (idempotent)
 
 ./scripts/fetch-kenney.sh       # (tuỳ chọn) tải lại Kenney từ kenney.nl nếu bị xoá
-npm run seed                    # ingest 80 texture Kenney — đã vendored ở seed/vendor/kenney
+./scripts/fetch-flipbooks.sh    # (tuỳ chọn) tải lại 5 spritesheet CC0 từ OpenGameArt
+npm run seed                    # ingest — Kenney + flipbook đã vendored ở seed/vendor/
 
 ./scripts/smoke.sh              # chạy đủ 4 gate
 ```
@@ -52,11 +53,11 @@ REST kèm: `/healthz`, `/v1/search`, `/v1/resource/:type/:slug/:version[/file]`,
 
 ## Corpus
 
-**159 resource · 90 edge (knowledge graph)**
+**164 resource · 90 edge (knowledge graph)**
 
 | type | số | nguồn |
 | --- | --- | --- |
-| `texture` | 108 | 28 Synty (EULA) + 80 Kenney (CC0) |
+| `texture` | 113 | 28 Synty (EULA) + 80 Kenney (CC0) + 5 OpenGameArt flipbook (CC0) |
 | `vfx` | 21 | Synty prefab |
 | `recipe` | 8 | tự viết (inline YAML) |
 | `technique` | 9 | tự viết |
@@ -74,10 +75,33 @@ Graph được dựng lại mỗi lần `npm run seed` (`relinkAll`) bằng các
 Xem **[LICENSES.md](LICENSES.md)** — taxonomy đầy đủ. Mỗi record mang
 `license` + `meta.license_class` + `meta.ai_training`.
 
-- `cc0` → 110 record (Kenney 80 + nội dung tự viết 30)
+- `cc0` → 115 record (Kenney 80 + flipbook OpenGameArt 5 + nội dung tự viết 30)
 - `synty-store-eula` → 49 record (`proprietary-commercial`, `ai_training=false`)
 
 `license="unknown"` **bị server từ chối** (ingest gate, có test).
+
+## Flipbook schema
+
+Texture flipbook mang `meta.flipbook` có cấu trúc để agent set đúng Texture Sheet
+Animation mà không cần mở file đoán lưới:
+
+```json
+{ "columns": 6, "rows": 5, "frames": 30, "cell": [256, 256],
+  "order": "row-major", "loop": false, "background": "transparent" }
+```
+
+`background` ∈ `transparent` | `opaque-black` (nếu `opaque-black` thì **bắt buộc**
+blend additive). Grid được kiểm chứng bằng gutter alpha, không phải đọc tên file:
+
+| URI | lưới | frame | cell |
+| --- | --- | --- | --- |
+| `vfx://texture/oga-explosion-atlas/1` | 3×3 | 9 | 512² |
+| `vfx://texture/oga-smoke-sheet/1` | 5×5 | 25 | 256² |
+| `vfx://texture/oga-firework-sheet/1` | 6×5 | 30 | 256² |
+| `vfx://texture/oga-flame-sheet/1` | 5×5 | 25 | 128² |
+| `vfx://texture/oga-flame-strip/1` | 25×1 | 25 | 128² |
+
+Nguồn/author/license đầy đủ: `seed/vendor/flipbooks/SOURCES.md`.
 
 ## Skills
 
@@ -104,5 +128,6 @@ extraction AI, usage/feedback ranking, visibility enforcement, R2 storage, previ
 image, visibility phân quyền, `feedback` tool. Nằm ở ladder V0.1–V0.5 trong
 `plans/260928-1659-vfx-skill-cloud-v0/plan.md`.
 
-Chưa làm: ingestion Brackeys/OpenGameArt (mới có Kenney + Synty), texture semantic
-schema (provenance fields), `preview_uri` (toàn NULL).
+Chưa làm: ingestion Brackeys (đã có Kenney + Synty + OpenGameArt flipbook), texture
+semantic schema mở rộng ngoài flipbook (provenance/UV hints cho texture thường),
+`preview_uri` (toàn NULL).
