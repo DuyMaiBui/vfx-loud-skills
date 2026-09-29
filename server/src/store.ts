@@ -344,6 +344,12 @@ function licenseMeta(
   return out;
 }
 
+/** Idempotency probe shared by seed scripts: is there already a resource with this type+slug? */
+export async function resourceExists(type: string, slug: string): Promise<boolean> {
+  const r = await pool.query('SELECT 1 FROM resource WHERE type = $1 AND slug = $2 LIMIT 1', [type, slug]);
+  return r.rowCount !== 0;
+}
+
 export async function publish(
   args: PublishArgs,
 ): Promise<{ uri: string; version: number; dependencies: number }> {

@@ -6,6 +6,7 @@ import {
   licenseClassOf,
   publish,
   relinkAll,
+  resourceExists,
   type ResourceType,
 } from '../server/src/store.ts';
 import { pool } from '../server/src/db.ts';
@@ -34,13 +35,7 @@ interface Entry {
   meta?: Record<string, unknown>;
 }
 
-async function exists(type: string, slug: string): Promise<boolean> {
-  const r = await pool.query(
-    'SELECT 1 FROM resource WHERE type = $1 AND slug = $2 LIMIT 1',
-    [type, slug],
-  );
-  return r.rowCount !== 0;
-}
+const exists = resourceExists;
 
 interface KenneyGroup {
   name: string;
