@@ -10,6 +10,7 @@ import { VfxError } from './errors.ts';
 interface GraphConfig {
   relWeights: Record<string, number>;
   seeds: number;
+  seedMinRatio: number;
   poolMultiplier: number;
   minPool: number;
   maxPairsWith: number;
@@ -40,6 +41,8 @@ export interface RowKey {
   uri: string;
   family: string | null;
   score: number;
+  /** row matched the query lexically (original words or expansion). */
+  lexical: boolean;
 }
 
 /** Card identity: the family when variants are collapsed, else the record itself. */
@@ -53,9 +56,13 @@ export const keyOf = (r: Pick<RowKey, 'uri' | 'family'>, collapse: boolean): str
 export async function graphBonus(rows: RowKey[], w: number, collapse: boolean): Promise<Map<string, number>> {
   const bonus = new Map<string, number>();
   if (w <= 0 || rows.length < 2) return bonus;
-  const seeds = rows.slice(0, GRAPH.seeds);
+  // Seeds must be real matches: lexical hits scoring close to the best hit. A weak neighbour is not a seed.
+  const top = rows[0].score;
+  const seeds = rows.filter((r) => r.lexical && r.score >= GRAPH.seedMinRatio * top).slice(0, GRAPH.seeds);
+  if (!seeds.length) return bonus;
   const seedScore = new Map(seeds.map((s) => [keyOf(s, collapse), s.score]));
   const keys = [...seedScore.keys()];
+  const lexicalKeys = new Set(rows.filter((r) => r.lexical).map((r) => keyOf(r, collapse)));
   const e = await pool.query<{ ak: string; bk: string; rel: string }>(
     `SELECT COALESCE(a.meta->>'family', a.uri) AS ak, COALESCE(b.meta->>'family', b.uri) AS bk, e.rel
        FROM resource_edge e JOIN resource a ON a.id = e.src JOIN resource b ON b.id = e.dst
@@ -64,7 +71,7 @@ export async function graphBonus(rows: RowKey[], w: number, collapse: boolean): 
     [Object.keys(GRAPH.relWeights), keys],
   );
   const put = (neighbour: string, seed: string, rel: string): void => {
-    if (neighbour === seed) return;
+    if (neighbour === seed || !lexicalKeys.has(neighbour)) return; // boost only neighbours that already match the query
     const v = GRAPH.relWeights[rel] * (seedScore.get(seed) ?? 0);
     if (v > (bonus.get(neighbour) ?? 0)) bonus.set(neighbour, v);
   };

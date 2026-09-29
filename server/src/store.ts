@@ -180,7 +180,7 @@ export async function search(args: SearchArgs): Promise<Card[]> {
      s AS (
        SELECT id, uri, type, slug, version, name, description, tags, style, category,
               engine, license, visibility, storage_uri, preview_uri, mime, bytes,
-              meta, created_by, created_at, ${key} AS card_key,
+              meta, created_by, created_at, ${key} AS card_key, ${r.lexical} AS lex,
               ${r.score} AS score
          FROM resource, q
         WHERE ${f.sql}
@@ -193,7 +193,7 @@ export async function search(args: SearchArgs): Promise<Card[]> {
   let picked = rows.rows;
   if (wGraph > 0 && picked.length > 1) {
     const bonus = await graphBonus(
-      picked.map((x) => ({ id: x.id, uri: x.uri, family: (x.meta?.family as string | undefined) ?? null, score: x.score ?? 0 })),
+      picked.map((x) => ({ id: x.id, uri: x.uri, family: (x.meta?.family as string | undefined) ?? null, score: x.score ?? 0, lexical: (x as unknown as { lex: boolean }).lex === true })),
       wGraph,
       collapse,
     );

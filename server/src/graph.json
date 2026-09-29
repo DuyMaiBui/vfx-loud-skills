@@ -1,7 +1,8 @@
 {
- "_note": "DATA, not logic. Search-time use of the knowledge graph (server/src/graph.ts). relWeights: how strongly a neighbour of a strong hit is boosted, per relation. seeds: how many top hits count as strong. The boost weight itself is env SEARCH_W_GRAPH (default in graph.ts); 0 = graph expansion off.",
- "relWeights": { "variant_of": 1, "pairs_with": 0.6, "similar_to": 0.5 },
+ "_note": "DATA, not logic. Search-time use of the knowledge graph (server/src/graph.ts). relWeights: how strongly a neighbour of a strong hit is boosted, per relation. seeds: how many top hits count as strong; a seed must also be a lexical match scoring >= seedMinRatio x the best score. Only neighbours that themselves match the query lexically are boosted. The boost weight itself is env SEARCH_W_GRAPH (default in graph.ts); 0 = graph expansion off.",
+ "relWeights": { "variant_of": 1, "pairs_with": 0.6, "similar_to": 0.25 },
  "seeds": 3,
+ "seedMinRatio": 0.85,
  "poolMultiplier": 6,
  "minPool": 40,
  "maxPairsWith": 6,
