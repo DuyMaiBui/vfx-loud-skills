@@ -3,3 +3,5 @@ data/
 *.log
 .DS_Store
 tools/preview/targets.json
+# preview media + index are produced by the Unity lane and served from data/previews (already covered by data/)
+data/previews/*

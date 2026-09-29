@@ -57,4 +57,23 @@ if (!recolorable) {
   console.log('\n== G5 recolor ==', good ? 'PASS' : 'FAIL', recolorable.uri, good ? `${j.changes.length} keys` : r.text.slice(0, 200));
 }
 
+// G6 — visual review: create a set session, "pick" through the page endpoint, read it back via vfx_review_result.
+const rv = await call('vfx_review', { q: 'fire', set: ['muzzle', 'projectile', 'impact'], per: 3 });
+if (rv.isError) {
+  console.log('\n== G6 review == FAIL', rv.text.slice(0, 200));
+} else {
+  const made = JSON.parse(rv.text);
+  const pick = (await (await fetch(`${base}/v1/review/selection?session=${made.session}`, { headers: { 'x-vfx-key': process.env.VFX_API_KEY ?? '' } })).json()).uris[0];
+  await fetch(`${base}/review/selection`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ session: made.session, uris: [pick], roles: { [pick]: 'muzzle' } }),
+  });
+  const rr = await call('vfx_review_result', { session: made.session });
+  const got = rr.isError ? {} : JSON.parse(rr.text);
+  const good = made.url.includes(`/review?session=${made.session}`) && got.selection?.length === 1 && got.selection[0].uri === pick;
+  console.log('\n== vfx_review ==\n' + rv.text);
+  console.log('\n== G6 review ==', good ? 'PASS' : 'FAIL', `session=${made.session}`);
+}
+
 await client.close();

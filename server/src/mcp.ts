@@ -6,6 +6,7 @@ import { config } from './config.ts';
 import { facets } from './facet-search.ts';
 import { FACET_NAMES } from './facets.ts';
 import { recolorRecord } from './recolor-service.ts';
+import * as review from './review.ts';
 import * as store from './store.ts';
 
 const ResourceTypeEnum = z.enum(store.RESOURCE_TYPES);
@@ -255,6 +256,48 @@ export function createMcpServer(): McpServer {
     },
     async (args) => {
       const result = await recolorRecord(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'vfx_review',
+    {
+      title: 'Open a visual review page for candidates',
+      description:
+        'Tạo phiên REVIEW để user xem các ứng viên dạng lưới card (video preview lặp nếu có, hành vi, màu, cùng bộ) và bấm chọn. ' +
+        'Dùng khi user muốn SO SÁNH bằng mắt, hoặc xin cả BỘ skill (vd "bộ lửa: muzzle, projectile, impact"). ' +
+        'Input: `uris` (danh sách vfx:// đã chọn tay) HOẶC `q` (+ `type`, `filters`) — `set: ["muzzle","projectile","impact"]` chia thành cột theo role (category), ' +
+        'mỗi role top `per` ứng viên, effect cùng bộ (pairs_with) nằm cùng hàng. Trả `{session, url, count}`: đưa `url` cho user, ' +
+        'hỏi user xác nhận khi đã chọn xong, rồi gọi vfx_review_result. Chưa có preview thì card ghi "chưa có preview" — vẫn dùng được.',
+      inputSchema: {
+        uris: z.array(z.string()).optional().describe('vfx:// URI cần so sánh (tối đa 80); phải tồn tại'),
+        q: z.string().optional().describe('Truy vấn (khi không có uris)'),
+        type: ResourceTypeEnum.optional().describe('mặc định recipe'),
+        filters: filtersSchema.describe(FILTERS_HELP),
+        set: z.array(z.string()).max(6).optional().describe('Role/category của bộ, theo thứ tự cột: ["muzzle","projectile","impact"]'),
+        limit: z.number().int().min(1).max(50).optional().describe('Số card khi không có set (mặc định 24)'),
+        per: z.number().int().min(1).max(12).optional().describe('Số ứng viên mỗi role khi có set (mặc định 6)'),
+      },
+    },
+    async (args) => {
+      const result = await review.createSession(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    'vfx_review_result',
+    {
+      title: 'Read what the user picked on a review page',
+      description:
+        'Đọc lựa chọn của user trên trang review: `{session, query, uris, selection: [{uri, role, chosen_at}]}`. ' +
+        '`selection` rỗng = user chưa gửi (hoặc chưa chọn gì). Mỗi role một pick khi review theo `set`. ' +
+        'Sau đó xử lý từng pick: vfx_recolor (nếu recolorable và user muốn màu khác) hoặc vfx_resolve/vfx_fetch.',
+      inputSchema: { session: z.string().describe('session id từ vfx_review') },
+    },
+    async ({ session }) => {
+      const result = await review.getSelection(session);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );

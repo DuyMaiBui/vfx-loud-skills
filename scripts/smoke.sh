@@ -48,8 +48,8 @@ if [[ $PROBE_RC -ne 0 ]]; then
   bad "probe exit $PROBE_RC"
   echo "$PROBE_OUT" | tail -20
 else
-  grep -q 'vfx_search, vfx_facets, vfx_related, vfx_resolve, vfx_fetch, vfx_publish, vfx_recolor$' <<<"$PROBE_OUT" \
-    && ok "tools/list: 7 tool" || bad "tools/list sai: $(head -1 <<<"$PROBE_OUT")"
+  grep -q 'vfx_search, vfx_facets, vfx_related, vfx_resolve, vfx_fetch, vfx_publish, vfx_recolor, vfx_review, vfx_review_result$' <<<"$PROBE_OUT" \
+    && ok "tools/list: 9 tool" || bad "tools/list sai: $(head -1 <<<"$PROBE_OUT")"
 
   grep -q '"uri": "vfx://' <<<"$PROBE_OUT" \
     && ok "G2 search trả Knowledge Card + vfx:// URI" || bad "G2 không có vfx:// URI"
@@ -62,6 +62,10 @@ else
 
   grep -q '== G5 recolor == PASS' <<<"$PROBE_OUT" \
     && ok "G5 vfx_recolor đổi màu recipe recolorable" || bad "G5 vfx_recolor: $(grep 'G5 recolor' <<<"$PROBE_OUT")"
+
+  grep -q '== G6 review == PASS' <<<"$PROBE_OUT" \
+    && ok "G6 vfx_review -> chọn -> vfx_review_result" || bad "G6 review: $(grep 'G6 review' <<<"$PROBE_OUT")"
+  REVIEW_SESSION="$(grep -o 'G6 review == [A-Z]* session=[0-9a-f-]*' <<<"$PROBE_OUT" | sed 's/.*session=//')"
 fi
 
 step "G3. fetch về Unity project + GUID giữ nguyên"
@@ -117,6 +121,10 @@ import('./server/src/store.ts').then(async (s) => {
 step "cleanup canary"
 podman exec vfx-pg psql -U vfx -d vfxcloud -tAc "DELETE FROM resource WHERE slug LIKE 'probe-%' OR slug = 'smoke-unknown-license'" >/dev/null 2>&1 \
   && ok "đã dọn probe rows" || echo "  (bỏ qua: không gọi được psql)"
+if [[ -n "${REVIEW_SESSION:-}" ]]; then
+  podman exec vfx-pg psql -U vfx -d vfxcloud -tAc "DELETE FROM review_session WHERE id = '$REVIEW_SESSION'" >/dev/null 2>&1 \
+    && ok "đã dọn review session" || echo "  (bỏ qua: không xoá được review session $REVIEW_SESSION)"
+fi
 
 echo
 echo "RESULT: PASS=$PASS FAIL=$FAIL"

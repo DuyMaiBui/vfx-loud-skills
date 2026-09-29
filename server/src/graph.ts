@@ -96,6 +96,23 @@ export async function variantsOf(families: string[]): Promise<Map<string, Varian
   return out;
 }
 
+/**
+ * Canonical member (lowest slug, the same base graph:build links variant_of to) of each record's variant family, by
+ * record uri. A record with no family is absent from the map.
+ */
+export async function canonicalSlugs(uris: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (!uris.length) return out;
+  const r = await pool.query<{ uri: string; canon: string }>(
+    `SELECT r.uri,
+            (SELECT c.slug FROM resource c WHERE c.meta->>'family' = r.meta->>'family' ORDER BY c.slug, c.version LIMIT 1) AS canon
+       FROM resource r WHERE r.uri = ANY($1::text[]) AND r.meta->>'family' IS NOT NULL`,
+    [uris],
+  );
+  for (const x of r.rows) out.set(x.uri, x.canon);
+  return out;
+}
+
 /** Companions (pairs_with) of each record id: at most maxPairsWith, round-robin across roles. */
 export async function pairsOf(ids: number[]): Promise<Map<number, PairsWith[]>> {
   const out = new Map<number, PairsWith[]>();

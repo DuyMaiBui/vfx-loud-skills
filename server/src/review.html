@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="vi" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+:root{--bg:#14161a;--fg:#e8eaed;--muted:#9aa0a6;--card:#1e2126;--line:#2f343b;--media:#000;--accent:#4c8dff;--ok:#30a46c}
+[data-theme=light]{--bg:#f4f5f7;--fg:#1b1e22;--muted:#5f6670;--card:#fff;--line:#d9dde3;--media:#fff;--accent:#2563eb;--ok:#15803d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,sans-serif}
+header{position:sticky;top:0;z-index:5;display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:10px 16px;background:var(--bg);border-bottom:1px solid var(--line)}
+header h1{font-size:16px;margin:0;flex:1 1 200px}
+header .stat{color:var(--muted)}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:6px;padding:6px 12px}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button:disabled{opacity:.5;cursor:default}
+main{padding:16px;display:grid;grid-template-columns:repeat(__COLS__,minmax(0,1fr));gap:16px;align-items:start}
+.flat{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+.rolecol{display:contents}
+.role{grid-column:var(--c);grid-row:1;margin:0;text-transform:capitalize;font-size:15px;border-bottom:2px solid var(--accent);padding-bottom:4px}
+.role small{color:var(--muted);font-weight:400}
+.rolecol .card{grid-column:var(--c);grid-row:var(--r)}
+.card{background:var(--card);border:2px solid var(--line);border-radius:10px;overflow:hidden;content-visibility:auto;contain-intrinsic-size:auto 420px}
+.card.picked{border-color:var(--ok)}
+.media{position:relative;aspect-ratio:1;background:var(--media);display:flex;align-items:center;justify-content:center}
+.media video,.media img{width:100%;height:100%;object-fit:contain}
+.noprev{color:var(--muted);font-style:italic}
+.famnote{position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.6);color:#fff;font-size:11px;padding:1px 6px;border-radius:4px}
+.body{padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+h3{margin:0;font-size:14px;word-break:break-word}
+.sub,.facts{color:var(--muted);font-size:12px}
+.behavior{margin:0}
+.chips{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.chip{width:16px;height:16px;border-radius:50%;border:1px solid var(--line);display:inline-block}
+.chip.txt{width:auto;height:auto;border-radius:4px;padding:0 5px;font-size:11px}
+.badge{background:var(--accent);color:#fff;border-radius:4px;padding:0 6px;font-size:11px}
+.pairs{font-size:12px;display:flex;flex-wrap:wrap;gap:4px 10px}
+.pairs span{color:var(--muted)}.pairs a{color:var(--accent)}
+.pick{margin-top:4px}
+.card.picked .pick{background:var(--ok);border-color:var(--ok);color:#fff}
+@media (max-width:800px){main{grid-template-columns:1fr}.role,.rolecol .card{grid-column:auto;grid-row:auto}.role{margin-top:12px}}
+</style>
+</head>
+<body data-session="__SESSION__" data-exclusive="__EXCLUSIVE__">
+<header>
+  <h1>__TITLE__</h1>
+  <span class="stat">__COUNT__ effect · __PREVIEWS__ có preview · đã chọn <b id="n">0</b></span>
+  <button type="button" id="theme">Nền sáng/tối</button>
+  <button type="button" id="send" class="primary">Gửi lựa chọn</button>
+  <span id="msg" class="stat" role="status"></span>
+</header>
+<main>__BODY__</main>
+<script>
+(function(){
+  var body=document.body,session=body.dataset.session,exclusive=body.dataset.exclusive==='1';
+  var root=document.documentElement,saved=null;
+  try{saved=localStorage.getItem('vfx-review-theme')}catch(e){}
+  if(saved)root.dataset.theme=saved;
+  document.getElementById('theme').onclick=function(){
+    root.dataset.theme=root.dataset.theme==='dark'?'light':'dark';
+    try{localStorage.setItem('vfx-review-theme',root.dataset.theme)}catch(e){}
+  };
+  history.replaceState(null,'','?session='+encodeURIComponent(session));
+
+  // lazy video: load + play only while on screen
+  var vids=document.querySelectorAll('video[data-src]');
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){es.forEach(function(e){
+      var v=e.target;
+      if(e.isIntersecting){
+        if(!v.src)v.src=v.dataset.src;
+        var p=v.play();if(p&&p.catch)p.catch(function(){});
+      }else if(v.src){v.pause()}
+    })},{rootMargin:'200px'});
+    vids.forEach(function(v){io.observe(v)});
+  }else{vids.forEach(function(v){v.src=v.dataset.src;v.autoplay=true})}
+
+  var n=document.getElementById('n'),msg=document.getElementById('msg');
+  function count(){n.textContent=document.querySelectorAll('.card.picked').length}
+  function mark(c,on){c.classList.toggle('picked',on);var b=c.querySelector('.pick');b.setAttribute('aria-pressed',on);b.textContent=on?'Đã chọn':'Chọn'}
+  document.addEventListener('click',function(e){
+    var b=e.target.closest&&e.target.closest('.pick');if(!b)return;
+    var c=b.closest('.card'),on=!c.classList.contains('picked');
+    if(on&&exclusive){document.querySelectorAll('.card.picked').forEach(function(o){if(o.dataset.role===c.dataset.role)mark(o,false)})}
+    mark(c,on);count();msg.textContent='';
+  });
+  count();
+  document.getElementById('send').onclick=function(){
+    var uris=[],roles={};
+    document.querySelectorAll('.card.picked').forEach(function(c){uris.push(c.dataset.uri);roles[c.dataset.uri]=c.dataset.role});
+    var btn=this;btn.disabled=true;msg.textContent='Đang gửi…';
+    fetch('/review/selection',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({session:session,uris:uris,roles:roles})})
+      .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||r.status);return j})})
+      .then(function(j){msg.textContent='Đã gửi '+j.count+' lựa chọn. Quay lại chat để tiếp tục.'})
+      .catch(function(err){msg.textContent='Lỗi: '+err.message})
+      .then(function(){btn.disabled=false});
+  };
+})();
+</script>
+</body>
+</html>

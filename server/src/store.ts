@@ -76,6 +76,8 @@ export interface Card {
   recolorable: boolean | null;
   /** Why not recolourable (params | texture | no-keys | no-base-keys | material), or "ok". */
   recolorReason: string | null;
+  /** meta.pack: the pack the effect comes from; null when unknown. */
+  pack: string | null;
   /** Colour / version variants of the same effect (collapsed into this one card), this card included. [] when none. */
   variants: Variant[];
   /** Effects of the same set (muzzle + projectile + impact ...). [] when none. */
@@ -151,6 +153,7 @@ function toCard(row: ResourceRow): Card {
     preview_uri: row.preview_uri,
     recolorable: typeof row.meta?.recolorable === 'boolean' ? row.meta.recolorable : null,
     recolorReason: typeof row.meta?.recolorReason === 'string' ? row.meta.recolorReason : null,
+    pack: typeof row.meta?.pack === 'string' ? row.meta.pack : null,
     variants: [],
     pairsWith: [],
   };
@@ -223,6 +226,26 @@ export async function search(args: SearchArgs): Promise<Card[]> {
     const fam = x.meta?.family as string | undefined;
     // rep first, then the rest in name order
     if (collapse && fam) cards[i].variants = [...(variants.get(fam) ?? [])].sort((a, b) => Number(b.uri === x.uri) - Number(a.uri === x.uri)).slice(0, GRAPH.maxVariants);
+    cards[i].pairsWith = pairs.get(x.id) ?? [];
+  });
+  return cards;
+}
+
+/** Cards for the given URIs, in the given order (variants NOT collapsed: each URI is its own card, family shown in `variants`). */
+export async function cardsByUris(uris: string[]): Promise<Card[]> {
+  const rows = await pool.query<ResourceRow>('SELECT * FROM resource WHERE uri = ANY($1::text[])', [uris]);
+  const byUri = new Map(rows.rows.map((r) => [r.uri, r]));
+  const missing = uris.filter((u) => !byUri.has(u));
+  if (missing.length) throw new VfxError(`Not found: ${missing.join(', ')}`, 'not_found');
+  const picked = uris.map((u) => byUri.get(u)!);
+  const cards = picked.map(toCard);
+  const [variants, pairs] = await Promise.all([
+    variantsOf([...new Set(picked.map((x) => x.meta?.family as string | undefined).filter((x): x is string => !!x))]),
+    pairsOf(picked.map((x) => x.id)),
+  ]);
+  picked.forEach((x, i) => {
+    const fam = x.meta?.family as string | undefined;
+    if (fam) cards[i].variants = [...(variants.get(fam) ?? [])].sort((a, b) => Number(b.uri === x.uri) - Number(a.uri === x.uri)).slice(0, GRAPH.maxVariants);
     cards[i].pairsWith = pairs.get(x.id) ?? [];
   });
   return cards;
