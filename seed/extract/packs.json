@@ -13,6 +13,9 @@
       ],
       "tags": [
         "hovl"
+      ],
+      "metaStyle": [
+        "stylized"
       ]
     },
     {
@@ -28,6 +31,10 @@
       "tags": [
         "hovl",
         "toon"
+      ],
+      "metaStyle": [
+        "toon",
+        "stylized"
       ]
     },
     {
@@ -44,6 +51,9 @@
         "environment",
         "weather",
         "nature"
+      ],
+      "metaStyle": [
+        "stylized"
       ]
     },
     {
@@ -58,6 +68,10 @@
       ],
       "tags": [
         "toon"
+      ],
+      "metaStyle": [
+        "toon",
+        "stylized"
       ]
     },
     {
@@ -72,6 +86,10 @@
       ],
       "tags": [
         "retro"
+      ],
+      "metaStyle": [
+        "retro",
+        "stylized"
       ]
     },
     {
@@ -86,6 +104,10 @@
       ],
       "tags": [
         "sci-fi"
+      ],
+      "metaStyle": [
+        "sci-fi",
+        "stylized"
       ]
     },
     {
@@ -104,6 +126,10 @@
       ],
       "prefabRoots": [
         "Assets/Synty/PolygonParticleFX/"
+      ],
+      "metaStyle": [
+        "low-poly",
+        "stylized"
       ]
     },
     {
@@ -124,6 +150,9 @@
       "pathPrefix": "Assets/NamuFX",
       "prefabRoots": [
         "Assets/NamuFX/StylizedWaterEffects/Prefabs/"
+      ],
+      "metaStyle": [
+        "stylized"
       ]
     }
   ]

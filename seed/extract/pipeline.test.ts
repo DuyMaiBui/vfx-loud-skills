@@ -152,7 +152,9 @@ test('effect-only prefab becomes an effect record: no "particle recipe" wording,
     assert.equal(rec.meta.ai_training, false);
     assert.equal(rec.visibility, 'project');
     assert.doesNotMatch(rec.description, /particle recipe/i);
-    assert.match(rec.description, /effect recipe/);
+    assert.match(rec.description, /beam effect/);
+    assert.deepEqual(rec.meta.style, ['stylized']);
+    assert.ok(rec.meta.keywords.includes('effect') && rec.meta.keywords.includes('line-effect'));
     assert.ok(rec.tags.includes('effect') && !rec.tags.includes('particle'));
   });
 });

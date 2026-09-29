@@ -1,0 +1,48 @@
+query                        R  rec@5  mrr@10
+fire                       328   0.40    0.25 
+water                       99   0.60    0.50 
+ice                         14   0.20    0.50 
+lightning                  139   0.80    0.50 
+poison                      43   0.80    0.50 
+smoke                       47   0.40    1.00 
+blood                       69   1.00    1.00 
+bubble                      37   0.60    0.33 
+explosion                  474   0.40    1.00 
+hit                        198   0.20    0.25 
+impact                     198   0.60    1.00 
+muzzle                     254   1.00    1.00 
+projectile                 484   0.40    1.00 
+missile                    371   1.00    1.00 
+beam                       193   0.20    1.00 
+laser                      173   1.00    1.00 
+buff                        92   0.20    1.00 
+aura                        49   0.20    1.00 
+heal                        31   0.20    1.00 
+shield                      52   0.60    1.00 
+trail                       32   0.00    0.11 
+pickup                     103   0.80    1.00 
+coin                        28   0.20    1.00 
+portal                      59   0.80    1.00 
+teleport                    59   0.80    1.00 
+level up                    13   0.80    1.00 
+rain                        17   0.40    1.00 
+snow                        18   0.60    0.50 
+toon                      1318   1.00    1.00 
+stylized                    12   1.00    1.00 
+retro                     1064   1.00    1.00 
+pixel art                 1064   0.40    1.00 
+sci-fi                     582   1.00    1.00 
+low poly                   201   0.00    0.00 
+blue fire                   47   0.40    0.33 
+green poison                 4   1.00    1.00 
+nổ                         474   0.00    0.00 
+lửa                        328   0.00    0.00 
+nước                        99   0.00    0.00 
+sét                        139   0.00    0.00 
+mưa                         17   0.00    0.00 
+hồi máu                     31   0.00    0.00 
+trúng đòn                  198   0.00    0.00 
+nổ lửa                      46   0.00    0.00 
+cartoon ground impact      121   0.60    1.00 
+water splash                12   0.60    0.33 
+OVERALL (46/46 judged)  recall@5=0.483  MRR@10=0.655

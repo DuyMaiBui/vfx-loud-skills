@@ -1,0 +1,1153 @@
+{
+ "_note": "DATA, not logic. concepts.terms: name/path tokens that assign the concept to a record (exact match after singularising a trailing 's'). synonyms: extra English words indexed and used for query expansion. vi: Vietnamese aliases (phrases ok, longest match wins) for query expansion and the search text. Edit here to tune; no code change needed.",
+ "concepts": {
+  "fire": {
+   "kind": "element",
+   "terms": [
+    "fire",
+    "flame",
+    "fireball",
+    "burn",
+    "burning",
+    "inferno",
+    "blaze",
+    "torch",
+    "ember",
+    "lava",
+    "magma",
+    "molten"
+   ],
+   "synonyms": [
+    "fire",
+    "flame",
+    "burning",
+    "blaze",
+    "inferno"
+   ],
+   "vi": [
+    "lửa",
+    "ngọn lửa",
+    "cháy",
+    "hỏa",
+    "bỏng",
+    "nham thạch"
+   ]
+  },
+  "water": {
+   "kind": "element",
+   "terms": [
+    "water",
+    "splash",
+    "wave",
+    "aqua",
+    "bubble",
+    "liquid",
+    "droplet",
+    "drop",
+    "puddle",
+    "ripple",
+    "geyser"
+   ],
+   "synonyms": [
+    "water",
+    "liquid",
+    "splash",
+    "aqua"
+   ],
+   "vi": [
+    "nước",
+    "chất lỏng",
+    "bọt",
+    "giọt nước",
+    "sóng"
+   ]
+  },
+  "ice": {
+   "kind": "element",
+   "terms": [
+    "ice",
+    "icy",
+    "frost",
+    "freeze",
+    "frozen",
+    "icicle",
+    "glacial",
+    "snowflake",
+    "cold"
+   ],
+   "synonyms": [
+    "ice",
+    "frost",
+    "freeze",
+    "frozen",
+    "cold"
+   ],
+   "vi": [
+    "băng",
+    "đóng băng",
+    "lạnh",
+    "sương giá"
+   ]
+  },
+  "lightning": {
+   "kind": "element",
+   "terms": [
+    "lightning",
+    "thunder",
+    "electric",
+    "electricity",
+    "shock",
+    "bolt",
+    "spark",
+    "thunderbolt",
+    "tesla"
+   ],
+   "synonyms": [
+    "lightning",
+    "thunder",
+    "electric",
+    "electricity",
+    "shock",
+    "bolt"
+   ],
+   "vi": [
+    "sét",
+    "điện",
+    "tia sét",
+    "sấm"
+   ]
+  },
+  "poison": {
+   "kind": "element",
+   "terms": [
+    "poison",
+    "toxic",
+    "venom",
+    "acid",
+    "virus",
+    "plague",
+    "slime",
+    "gas"
+   ],
+   "synonyms": [
+    "poison",
+    "toxic",
+    "venom",
+    "acid"
+   ],
+   "vi": [
+    "độc",
+    "chất độc",
+    "axit",
+    "độc tố"
+   ]
+  },
+  "smoke": {
+   "kind": "element",
+   "terms": [
+    "smoke",
+    "fume",
+    "steam",
+    "fog",
+    "mist",
+    "vapor",
+    "cloud",
+    "dust"
+   ],
+   "synonyms": [
+    "smoke",
+    "steam",
+    "fog",
+    "mist",
+    "dust"
+   ],
+   "vi": [
+    "khói",
+    "hơi nước",
+    "sương mù",
+    "bụi"
+   ]
+  },
+  "blood": {
+   "kind": "element",
+   "terms": [
+    "blood",
+    "gore",
+    "bleed",
+    "splatter",
+    "wound"
+   ],
+   "synonyms": [
+    "blood",
+    "gore",
+    "bleed",
+    "splatter"
+   ],
+   "vi": [
+    "máu",
+    "huyết",
+    "chảy máu"
+   ]
+  },
+  "earth": {
+   "kind": "element",
+   "terms": [
+    "earth",
+    "rock",
+    "stone",
+    "dirt",
+    "debris",
+    "ground",
+    "crack",
+    "sand",
+    "mud",
+    "boulder",
+    "rubble"
+   ],
+   "synonyms": [
+    "earth",
+    "rock",
+    "stone",
+    "dirt",
+    "debris",
+    "ground"
+   ],
+   "vi": [
+    "đất",
+    "đá",
+    "bụi đất",
+    "mặt đất",
+    "nứt"
+   ]
+  },
+  "wind": {
+   "kind": "element",
+   "terms": [
+    "wind",
+    "air",
+    "tornado",
+    "gust",
+    "breeze",
+    "whirl",
+    "swirl",
+    "leaves",
+    "leaf",
+    "cyclone"
+   ],
+   "synonyms": [
+    "wind",
+    "air",
+    "gust",
+    "tornado",
+    "swirl"
+   ],
+   "vi": [
+    "gió",
+    "lốc xoáy",
+    "không khí",
+    "lá"
+   ]
+  },
+  "magic": {
+   "kind": "element",
+   "terms": [
+    "magic",
+    "magical",
+    "arcane",
+    "spell",
+    "rune",
+    "mystic",
+    "enchant",
+    "curse",
+    "sorcery"
+   ],
+   "synonyms": [
+    "magic",
+    "arcane",
+    "spell",
+    "rune"
+   ],
+   "vi": [
+    "phép thuật",
+    "ma thuật",
+    "bùa",
+    "phép"
+   ]
+  },
+  "light": {
+   "kind": "element",
+   "terms": [
+    "light",
+    "glow",
+    "shine",
+    "radiant",
+    "holy",
+    "divine",
+    "sparkle",
+    "glitter",
+    "flare",
+    "star",
+    "shimmer"
+   ],
+   "synonyms": [
+    "light",
+    "glow",
+    "shine",
+    "radiant",
+    "sparkle"
+   ],
+   "vi": [
+    "ánh sáng",
+    "sáng",
+    "lấp lánh",
+    "tỏa sáng",
+    "thánh"
+   ]
+  },
+  "dark": {
+   "kind": "element",
+   "terms": [
+    "dark",
+    "shadow",
+    "void",
+    "curse",
+    "evil",
+    "abyss",
+    "necro",
+    "demon",
+    "black"
+   ],
+   "synonyms": [
+    "dark",
+    "shadow",
+    "void",
+    "evil"
+   ],
+   "vi": [
+    "bóng tối",
+    "tối",
+    "hắc ám",
+    "bóng"
+   ]
+  },
+  "energy": {
+   "kind": "element",
+   "terms": [
+    "energy",
+    "plasma",
+    "power",
+    "nova",
+    "force",
+    "psionic",
+    "pulse",
+    "electro",
+    "ion"
+   ],
+   "synonyms": [
+    "energy",
+    "plasma",
+    "power",
+    "pulse"
+   ],
+   "vi": [
+    "năng lượng",
+    "plasma"
+   ]
+  },
+  "explosion": {
+   "kind": "use",
+   "terms": [
+    "explosion",
+    "explode",
+    "blast",
+    "boom",
+    "bomb",
+    "detonation",
+    "nuke",
+    "burst",
+    "grenade",
+    "kaboom",
+    "bang"
+   ],
+   "synonyms": [
+    "explosion",
+    "blast",
+    "boom",
+    "detonation",
+    "burst"
+   ],
+   "vi": [
+    "nổ",
+    "vụ nổ",
+    "bom",
+    "phát nổ",
+    "nổ tung"
+   ]
+  },
+  "impact": {
+   "kind": "use",
+   "terms": [
+    "hit",
+    "impact",
+    "punch",
+    "slam",
+    "smash",
+    "strike",
+    "stomp",
+    "landing",
+    "shockwave",
+    "collision",
+    "clash",
+    "slap",
+    "bash"
+   ],
+   "synonyms": [
+    "hit",
+    "impact",
+    "strike",
+    "punch",
+    "smash"
+   ],
+   "vi": [
+    "trúng đòn",
+    "va chạm",
+    "đòn đánh",
+    "va đập",
+    "đấm",
+    "đập",
+    "cú đánh",
+    "trúng"
+   ]
+  },
+  "muzzle": {
+   "kind": "use",
+   "terms": [
+    "muzzle",
+    "gunshot",
+    "shot",
+    "shoot",
+    "firing",
+    "gun",
+    "rifle",
+    "cannon"
+   ],
+   "synonyms": [
+    "muzzle",
+    "gunshot",
+    "shot",
+    "flash"
+   ],
+   "vi": [
+    "đầu nòng",
+    "bắn",
+    "tiếng súng",
+    "súng",
+    "chớp nòng"
+   ]
+  },
+  "projectile": {
+   "kind": "use",
+   "terms": [
+    "projectile",
+    "missile",
+    "rocket",
+    "bullet",
+    "arrow",
+    "fireball",
+    "bolt",
+    "orb",
+    "ball",
+    "shell",
+    "dart",
+    "barrage"
+   ],
+   "synonyms": [
+    "projectile",
+    "missile",
+    "rocket",
+    "bullet",
+    "arrow"
+   ],
+   "vi": [
+    "đạn",
+    "tên lửa",
+    "mũi tên",
+    "đạn bay",
+    "quả cầu"
+   ]
+  },
+  "beam": {
+   "kind": "use",
+   "terms": [
+    "beam",
+    "laser",
+    "ray",
+    "stream",
+    "lightbeam",
+    "railgun",
+    "column",
+    "pillar"
+   ],
+   "synonyms": [
+    "beam",
+    "laser",
+    "ray"
+   ],
+   "vi": [
+    "tia",
+    "tia laser",
+    "chùm tia",
+    "laze"
+   ]
+  },
+  "buff": {
+   "kind": "use",
+   "terms": [
+    "buff",
+    "aura",
+    "powerup",
+    "boost",
+    "enhance",
+    "empower",
+    "bonus",
+    "upgrade",
+    "status"
+   ],
+   "synonyms": [
+    "buff",
+    "aura",
+    "powerup",
+    "boost"
+   ],
+   "vi": [
+    "tăng sức mạnh",
+    "hào quang",
+    "cường hóa",
+    "buff",
+    "tăng cường"
+   ]
+  },
+  "heal": {
+   "kind": "use",
+   "terms": [
+    "heal",
+    "healing",
+    "regen",
+    "restore",
+    "cure",
+    "health",
+    "revive",
+    "medic",
+    "recover",
+    "life"
+   ],
+   "synonyms": [
+    "heal",
+    "healing",
+    "regen",
+    "restore",
+    "health"
+   ],
+   "vi": [
+    "hồi máu",
+    "hồi phục",
+    "chữa lành",
+    "hồi sinh",
+    "hồi hp",
+    "chữa trị"
+   ]
+  },
+  "shield": {
+   "kind": "use",
+   "terms": [
+    "shield",
+    "barrier",
+    "protect",
+    "defense",
+    "guard",
+    "ward",
+    "dome"
+   ],
+   "synonyms": [
+    "shield",
+    "barrier",
+    "protect",
+    "defense"
+   ],
+   "vi": [
+    "khiên",
+    "lá chắn",
+    "bảo vệ",
+    "phòng thủ",
+    "chắn"
+   ]
+  },
+  "trail": {
+   "kind": "use",
+   "terms": [
+    "trail",
+    "streak",
+    "ribbon",
+    "tracer",
+    "wake",
+    "swoosh",
+    "dash",
+    "sweep"
+   ],
+   "synonyms": [
+    "trail",
+    "streak",
+    "ribbon",
+    "tracer"
+   ],
+   "vi": [
+    "vệt",
+    "đường mòn",
+    "vệt sáng",
+    "vệt đuôi",
+    "đuôi"
+   ]
+  },
+  "pickup": {
+   "kind": "use",
+   "terms": [
+    "pickup",
+    "coin",
+    "loot",
+    "collect",
+    "gem",
+    "crystal",
+    "money",
+    "treasure",
+    "reward",
+    "chest",
+    "powerbox",
+    "item",
+    "gold",
+    "diamond",
+    "cash"
+   ],
+   "synonyms": [
+    "pickup",
+    "coin",
+    "loot",
+    "collect",
+    "reward",
+    "treasure"
+   ],
+   "vi": [
+    "nhặt",
+    "nhặt đồ",
+    "đồng xu",
+    "tiền",
+    "vật phẩm",
+    "kho báu",
+    "phần thưởng",
+    "thu thập",
+    "kim cương"
+   ]
+  },
+  "portal": {
+   "kind": "use",
+   "terms": [
+    "portal",
+    "warp",
+    "gate",
+    "vortex",
+    "wormhole",
+    "rift",
+    "gateway",
+    "door"
+   ],
+   "synonyms": [
+    "portal",
+    "warp",
+    "gate",
+    "vortex"
+   ],
+   "vi": [
+    "cổng",
+    "cổng dịch chuyển",
+    "xoáy",
+    "cổng không gian"
+   ]
+  },
+  "teleport": {
+   "kind": "use",
+   "terms": [
+    "teleport",
+    "warp",
+    "blink",
+    "portal",
+    "appear",
+    "disappear",
+    "vanish",
+    "recall",
+    "summon",
+    "spawn"
+   ],
+   "synonyms": [
+    "teleport",
+    "warp",
+    "blink",
+    "summon",
+    "spawn"
+   ],
+   "vi": [
+    "dịch chuyển",
+    "tức thời",
+    "triệu hồi",
+    "biến mất",
+    "xuất hiện"
+   ]
+  },
+  "levelup": {
+   "kind": "use",
+   "terms": [
+    "level",
+    "levelup",
+    "lvl",
+    "evolve",
+    "rank",
+    "promote",
+    "upgrade",
+    "ascend",
+    "victory",
+    "win"
+   ],
+   "synonyms": [
+    "level up",
+    "levelup",
+    "upgrade",
+    "evolve",
+    "promotion"
+   ],
+   "vi": [
+    "lên cấp",
+    "thăng cấp",
+    "nâng cấp",
+    "tiến hóa",
+    "lên level"
+   ]
+  },
+  "slash": {
+   "kind": "use",
+   "terms": [
+    "slash",
+    "swipe",
+    "sword",
+    "cut",
+    "claw",
+    "scratch",
+    "blade",
+    "melee",
+    "swing"
+   ],
+   "synonyms": [
+    "slash",
+    "swipe",
+    "sword",
+    "cut",
+    "claw"
+   ],
+   "vi": [
+    "chém",
+    "vết chém",
+    "kiếm",
+    "cào",
+    "chém kiếm",
+    "vung"
+   ]
+  },
+  "death": {
+   "kind": "use",
+   "terms": [
+    "death",
+    "die",
+    "dead",
+    "kill",
+    "destroy",
+    "destruction",
+    "break",
+    "shatter",
+    "disintegrate",
+    "ghost",
+    "skull"
+   ],
+   "synonyms": [
+    "death",
+    "kill",
+    "destroy",
+    "shatter"
+   ],
+   "vi": [
+    "chết",
+    "tiêu diệt",
+    "phá hủy",
+    "vỡ",
+    "tan biến"
+   ]
+  },
+  "emoji": {
+   "kind": "use",
+   "terms": [
+    "emoji",
+    "emoticon",
+    "joy",
+    "love",
+    "heart",
+    "angry",
+    "sad",
+    "cry",
+    "smile",
+    "laugh",
+    "kiss",
+    "confetti",
+    "celebration"
+   ],
+   "synonyms": [
+    "emoji",
+    "emoticon",
+    "heart",
+    "celebration",
+    "confetti"
+   ],
+   "vi": [
+    "biểu tượng cảm xúc",
+    "trái tim",
+    "tình yêu",
+    "ăn mừng",
+    "hoa giấy"
+   ]
+  },
+  "rain": {
+   "kind": "weather",
+   "terms": [
+    "rain",
+    "rainstorm",
+    "drizzle",
+    "downpour",
+    "storm",
+    "thunderstorm",
+    "wet",
+    "raindrop"
+   ],
+   "synonyms": [
+    "rain",
+    "drizzle",
+    "downpour",
+    "storm",
+    "raindrop"
+   ],
+   "vi": [
+    "mưa",
+    "trời mưa",
+    "cơn mưa",
+    "mưa rào",
+    "bão"
+   ]
+  },
+  "snow": {
+   "kind": "weather",
+   "terms": [
+    "snow",
+    "blizzard",
+    "snowfall",
+    "snowstorm",
+    "winter",
+    "snowy",
+    "sleet",
+    "hail"
+   ],
+   "synonyms": [
+    "snow",
+    "snowfall",
+    "blizzard",
+    "winter",
+    "snowy"
+   ],
+   "vi": [
+    "tuyết",
+    "bão tuyết",
+    "tuyết rơi",
+    "mùa đông"
+   ]
+  },
+  "ambient": {
+   "kind": "weather",
+   "terms": [
+    "ambient",
+    "background",
+    "environment",
+    "atmosphere",
+    "butterflies",
+    "butterfly",
+    "birds",
+    "fireflies",
+    "embers",
+    "pollen",
+    "weather",
+    "nature",
+    "forest",
+    "sand",
+    "desert"
+   ],
+   "synonyms": [
+    "ambient",
+    "environment",
+    "atmosphere",
+    "weather",
+    "nature"
+   ],
+   "vi": [
+    "môi trường",
+    "thời tiết",
+    "thiên nhiên",
+    "bầu không khí",
+    "bướm",
+    "chim"
+   ]
+  }
+ },
+ "colours": {
+  "red": {
+   "terms": [
+    "red",
+    "crimson",
+    "scarlet"
+   ],
+   "vi": [
+    "đỏ"
+   ]
+  },
+  "orange": {
+   "terms": [
+    "orange",
+    "amber"
+   ],
+   "vi": [
+    "cam"
+   ]
+  },
+  "yellow": {
+   "terms": [
+    "yellow"
+   ],
+   "vi": [
+    "vàng"
+   ]
+  },
+  "green": {
+   "terms": [
+    "green",
+    "emerald",
+    "lime"
+   ],
+   "vi": [
+    "xanh lá",
+    "xanh lục",
+    "lục"
+   ]
+  },
+  "cyan": {
+   "terms": [
+    "cyan",
+    "aqua",
+    "turquoise",
+    "teal"
+   ],
+   "vi": [
+    "xanh ngọc",
+    "lam"
+   ]
+  },
+  "blue": {
+   "terms": [
+    "blue",
+    "azure",
+    "navy",
+    "cobalt"
+   ],
+   "vi": [
+    "xanh dương",
+    "xanh lam",
+    "xanh biển"
+   ]
+  },
+  "purple": {
+   "terms": [
+    "purple",
+    "violet",
+    "magenta"
+   ],
+   "vi": [
+    "tím"
+   ]
+  },
+  "pink": {
+   "terms": [
+    "pink",
+    "rose"
+   ],
+   "vi": [
+    "hồng"
+   ]
+  },
+  "white": {
+   "terms": [
+    "white"
+   ],
+   "vi": [
+    "trắng"
+   ]
+  },
+  "black": {
+   "terms": [
+    "black",
+    "dark"
+   ],
+   "vi": [
+    "đen"
+   ]
+  },
+  "gold": {
+   "terms": [
+    "gold",
+    "golden"
+   ],
+   "vi": [
+    "vàng kim",
+    "kim"
+   ]
+  },
+  "grey": {
+   "terms": [
+    "grey",
+    "gray",
+    "silver"
+   ],
+   "vi": [
+    "xám"
+   ]
+  }
+ },
+ "styles": {
+  "toon": {
+   "terms": [
+    "toon",
+    "cartoon",
+    "cartoony",
+    "cute",
+    "chibi"
+   ],
+   "synonyms": [
+    "toon",
+    "cartoon",
+    "cartoony",
+    "stylized"
+   ],
+   "vi": [
+    "hoạt hình",
+    "toon",
+    "phong cách hoạt hình",
+    "dễ thương"
+   ]
+  },
+  "stylized": {
+   "terms": [
+    "stylized",
+    "stylised"
+   ],
+   "synonyms": [
+    "stylized",
+    "stylised"
+   ],
+   "vi": [
+    "cách điệu",
+    "phong cách hóa"
+   ]
+  },
+  "retro": {
+   "terms": [
+    "retro",
+    "pixel",
+    "arcade",
+    "8bit",
+    "16bit",
+    "oldschool"
+   ],
+   "synonyms": [
+    "retro",
+    "pixel",
+    "pixel art",
+    "arcade",
+    "8bit"
+   ],
+   "vi": [
+    "cổ điển",
+    "pixel",
+    "hoài cổ",
+    "chấm điểm ảnh"
+   ]
+  },
+  "sci-fi": {
+   "terms": [
+    "scifi",
+    "sci-fi",
+    "cyber",
+    "futuristic",
+    "space",
+    "alien",
+    "laser"
+   ],
+   "synonyms": [
+    "sci-fi",
+    "scifi",
+    "futuristic",
+    "space",
+    "cyber"
+   ],
+   "vi": [
+    "khoa học viễn tưởng",
+    "tương lai",
+    "vũ trụ",
+    "viễn tưởng"
+   ]
+  },
+  "low-poly": {
+   "terms": [
+    "lowpoly",
+    "low-poly",
+    "polygon",
+    "poly",
+    "faceted"
+   ],
+   "synonyms": [
+    "low poly",
+    "lowpoly",
+    "polygon",
+    "faceted"
+   ],
+   "vi": [
+    "low poly",
+    "đa giác thấp",
+    "ít đa giác"
+   ]
+  },
+  "realistic": {
+   "terms": [
+    "realistic",
+    "photoreal",
+    "real"
+   ],
+   "synonyms": [
+    "realistic",
+    "photoreal"
+   ],
+   "vi": [
+    "chân thực",
+    "thực tế"
+   ]
+  }
+ }
+}

@@ -4,6 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "eval:search": "node seed/search-eval.ts",
+    "reindex": "node seed/reindex.ts",
     "test": "node --test seed/extract/*.test.ts server/src/*.test.ts",
     "extract": "node seed/extract-unitypackage.ts",
     "dev": "node --watch server/src/index.ts",

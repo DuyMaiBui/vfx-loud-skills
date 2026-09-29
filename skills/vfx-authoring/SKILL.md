@@ -67,9 +67,14 @@ Kèm: không sửa file generated/derived khi chưa rõ ownership; sau khi text 
 
 ### 1. Tìm
 
-`vfx_search(query, type?, tags?, limit?)` → `{count, cards[]}`.
+`vfx_search(query, type?, tags?, style?, keywords?, limit?)` → `{count, cards[]}` (mỗi card có `style[]` và `keywords[]`).
 
-Query bằng tiếng Anh, mô tả hành vi: `"cartoon ground impact soft dust"`, `"reward burst confetti coins"`.
+Query tiếng Anh hoặc tiếng Việt, ngắn và cụ thể: `"water splash"`, `"blue fire"`, `"nổ lửa"`, `"hồi máu"`, `"mưa"`. Từ đồng nghĩa được mở rộng tự động (vocab ở `server/src/vocab.json`).
+
+- `style` lọc theo pack style: `toon | stylized | retro | sci-fi | low-poly` (`"cartoon"`, `"low poly"` cũng được). Vd `vfx_search("explosion", type="recipe", style=["retro"])`.
+- `keywords` lọc record có BẤT KỲ keyword: element (`fire water ice lightning poison smoke blood earth wind magic`), use (`explosion impact muzzle projectile beam buff heal shield trail pickup portal teleport levelup slash`), weather (`rain snow`), màu (`red orange yellow green cyan blue purple pink white black gold`), loop (`looping | one-shot`). Vd `keywords=["blue","one-shot"]`.
+- Muốn RECIPE tham số hoá thì đặt `type="recipe"`; nếu không, texture cùng tên (vd `bubble-01`) có thể đứng trước.
+- Đo chất lượng: `npm run eval:search` (`--type recipe`). Index lại sau khi đổi vocab: `npm run reindex` (idempotent, không đụng payload/sha256/version).
 
 Lọc `type` ∈ `texture | shader | code | recipe | component | vfx` nếu biết muốn gì.
 

@@ -85,7 +85,7 @@ function parseBody(lines: Line[]): YamlMap {
   return v;
 }
 
-const KEY_RE = /^([^\s:#\-\[\]{},&*!|>'"%@`][^:]*?|-[^\s:][^:]*?):(?:\s+(.*)|)$/;
+const KEY_RE = /^("[^"]*"|[^\s:#\-\[\]{},&*!|>'"%@`][^:]*?|-[^\s:][^:]*?):(?:\s+(.*)|)$/;
 
 class BlockParser {
   pos = 0;
@@ -111,7 +111,7 @@ class BlockParser {
       if (line.text === '-' || line.text.startsWith('- ')) break; // sibling seq of a parent
       const m = KEY_RE.exec(line.text);
       if (!m) throw new UnityYamlError(`line ${line.no}: cannot parse "${line.text}"`);
-      const key = m[1];
+      const key = m[1].startsWith('"') ? m[1].slice(1, -1) : m[1];
       const rest = m[2];
       this.pos++;
       if (rest !== undefined && rest !== '') {

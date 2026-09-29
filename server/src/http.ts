@@ -35,11 +35,11 @@ export async function buildHttp(): Promise<Fastify.FastifyInstance> {
   });
 
   app.post<{
-    Body: { query: string; type?: store.ResourceType; tags?: string[]; limit?: number };
+    Body: { query: string; type?: store.ResourceType; tags?: string[]; style?: string[]; keywords?: string[]; limit?: number };
   }>('/v1/search', async (req) => {
-    const { query, type, tags, limit } = req.body ?? { query: '' };
+    const { query, type, tags, style, keywords, limit } = req.body ?? { query: '' };
     if (!query?.trim()) throw new store.VfxError('query is required');
-    return { cards: await store.search({ query, type, tags, limit }) };
+    return { cards: await store.search({ query, type, tags, style, keywords, limit }) };
   });
 
   app.get<{ Params: { type: string; slug: string; version: string } }>(

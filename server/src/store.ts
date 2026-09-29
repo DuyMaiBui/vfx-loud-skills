@@ -7,6 +7,8 @@ import { pool } from './db.ts';
 import { getEmbedder } from './embed.ts';
 import { aiTrainingAllowed, extractedLicenseProblem, licenseClassOf } from './license.ts';
 import { SLUG_RE } from './slug.ts';
+import { searchDocument } from './search-doc.ts';
+import { expandQuery } from './vocab.ts';
 
 export { aiTrainingAllowed, licenseClassOf };
 
@@ -54,6 +56,7 @@ export interface Card {
   description: string;
   tags: string[];
   style: string[];
+  keywords: string[];
   license: string;
   preview_uri: string | null;
 }
@@ -122,6 +125,7 @@ function toCard(row: ResourceRow): Card {
     description: row.description,
     tags: row.tags ?? [],
     style: row.style ?? [],
+    keywords: Array.isArray(row.meta?.keywords) ? (row.meta.keywords as string[]) : [],
     license: row.license,
     preview_uri: row.preview_uri,
   };
@@ -133,40 +137,81 @@ export interface SearchArgs {
   query: string;
   type?: ResourceType;
   tags?: string[];
+  /** Pack-level style ids (toon, stylized, retro, sci-fi, low-poly); aliases like "cartoon" / "low poly" are normalised. */
+  style?: string[];
+  /** Match records carrying ANY of these meta.keywords (element / use / colour / loop ...). */
+  keywords?: string[];
   limit?: number;
+}
+
+/** Hybrid weights: cosine of the (hashing) embedding vs. weighted full-text rank. Env-tunable. */
+const W_VEC = Number(process.env.SEARCH_W_VEC ?? 0.3);
+const W_KW = 1 - W_VEC;
+const W_ALL = 0.15; // bonus when EVERY word the user typed is present ("blue fire" prefers blue AND fire)
+const W_EXPANSION = 0.6; // synonym / Vietnamese-alias words count less than the user's own words
+
+/** Words -> an AND tsquery string ("blue & fire"). */
+function andQuery(words: string[]): string {
+  return orQuery(words).split(' | ').filter(Boolean).join(' & ');
+}
+
+/** Words -> a safe OR tsquery string ("bubbl | burst"); empty when nothing usable. */
+function orQuery(words: string[]): string {
+  const ok = [...new Set(words.map((w) => w.replace(/[^\p{L}\p{N}]+/gu, '')).filter((w) => w.length > 1))];
+  return ok.join(' | ');
 }
 
 export async function search(args: SearchArgs): Promise<Card[]> {
   const limit = Math.min(Math.max(args.limit ?? 8, 1), 50);
-  const embedder = getEmbedder();
-  const vec = await embedder.embed(args.query);
+  const ex = expandQuery(args.query);
+  const vec = await getEmbedder().embed(ex.text);
   const literal = vec.map((x) => Number(x.toFixed(6))).join(',');
+  const qOrig = orQuery(ex.original);
+  const qExp = orQuery(ex.expansion);
+  const qAll = ex.original.length > 1 ? andQuery(ex.original) : '';
+  const styles = (args.style ?? []).map((s) => expandQuery(s).styles[0] ?? s.toLowerCase());
+  const keywords = (args.keywords ?? []).map((k) => k.toLowerCase());
 
   const rows = await pool.query<ResourceRow>(
-    `SELECT uri, type, slug, version, name, description, tags, style, category,
+    `WITH q AS (
+       SELECT $1::vector AS v,
+              CASE WHEN $2 = '' THEN NULL ELSE to_tsquery('english', $2) END AS orig,
+              CASE WHEN $3 = '' THEN NULL ELSE to_tsquery('english', $3) END AS exp,
+              CASE WHEN $12 = '' THEN NULL ELSE to_tsquery('english', $12) END AS allq
+     )
+     SELECT uri, type, slug, version, name, description, tags, style, category,
             engine, license, visibility, storage_uri, preview_uri, mime, bytes,
             meta, created_by, created_at,
             (
-              0.65 * (1 - (embedding <=> $1::vector))
-            + 0.35 * (CASE
-                        WHEN search_tsv @@ plainto_tsquery('simple', $2)
-                        THEN ts_rank(search_tsv, plainto_tsquery('simple', $2))
-                        ELSE 0 END)
+              $4::float * GREATEST(0, 1 - (embedding <=> q.v))
+            + (1 - $4::float) * (
+                COALESCE(ts_rank_cd('{0.1,0.2,0.4,1.0}', search_tsv, q.orig, 32), 0)
+              + $5::float * COALESCE(ts_rank_cd('{0.1,0.2,0.4,1.0}', search_tsv, q.exp, 32), 0)
+              + $13::float * (CASE WHEN q.allq IS NOT NULL AND search_tsv @@ q.allq THEN 1 ELSE 0 END))
             ) AS score
-       FROM resource
-      WHERE ($3::text IS NULL OR type = $3::text)
-        AND ($4::text[] IS NULL OR tags && $4::text[])
-        AND visibility = ANY($5::text[])
+       FROM resource, q
+      WHERE ($6::text IS NULL OR type = $6::text)
+        AND ($7::text[] IS NULL OR tags && $7::text[])
+        AND ($8::text[] IS NULL OR style && $8::text[])
+        AND ($9::text[] IS NULL OR (meta->'keywords') ?| $9::text[])
+        AND visibility = ANY($10::text[])
       ORDER BY score DESC, id
-      LIMIT $6`,
+      LIMIT $11`,
     [
       `[${literal}]`,
-      args.query,
+      qOrig,
+      qExp,
+      W_VEC,
+      W_EXPANSION,
       args.type ?? null,
       args.tags && args.tags.length ? args.tags : null,
+      styles.length ? styles : null,
+      keywords.length ? keywords : null,
       // V0 chưa có auth -> luôn thấy cả 3 mức. Cột đã sẵn sàng cho V0.4.
       ['project', 'team', 'global'],
       limit,
+      qAll,
+      W_ALL,
     ],
   );
 
@@ -390,7 +435,9 @@ export async function publish(
 
   const embedder = getEmbedder();
   const description = args.description ?? '';
-  const text = [args.name, description, args.category ?? '', (args.tags ?? []).join(' ')].join(' ');
+  const keywords = Array.isArray(args.meta?.keywords) ? (args.meta.keywords as string[]) : [];
+  const doc = searchDocument({ name: args.name, description, category: args.category ?? '', tags: args.tags ?? [], keywords });
+  const text = doc.embedText;
   const vec = await embedder.embed(text);
   const literal = vec.map((x) => Number(x.toFixed(6))).join(',');
 
@@ -441,7 +488,7 @@ export async function publish(
         `[${literal}]`,
         JSON.stringify(licenseMeta(license, args.meta ?? {})),
         args.createdBy ?? 'api',
-        (args.tags ?? []).join(' '),
+        doc.searchText,
       ],
     );
 

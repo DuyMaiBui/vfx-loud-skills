@@ -1,0 +1,393 @@
+{
+ "note": "Relevance is judged ONLY from a row's slug (regex), its pack (meta.pack) and type recipe|vfx, never from enrichment fields (meta.keywords/tags/style), so the set does not depend on what is being tuned. 'slugAlso' must also match. No 'realistic' query: no pack in the corpus is realistic-style, so nothing could be judged relevant. Written before any ranking change; see git history for edits.",
+ "types": [
+  "recipe",
+  "vfx"
+ ],
+ "queries": [
+  {
+   "id": "fire",
+   "q": "fire",
+   "group": "element",
+   "relevant": {
+    "slug": "(^|-)(fire|flame|flames|fireball|burn|burning|inferno|blaze|torch)(-|$)"
+   }
+  },
+  {
+   "id": "water",
+   "q": "water",
+   "group": "element",
+   "relevant": {
+    "slug": "(^|-)(water|splash|wave|waves|aqua)(-|$)"
+   }
+  },
+  {
+   "id": "ice",
+   "q": "ice",
+   "group": "element",
+   "relevant": {
+    "slug": "(^|-)(ice|icy|frost|freeze|frozen|icicle)(-|$)"
+   }
+  },
+  {
+   "id": "lightning",
+   "q": "lightning",
+   "group": "element",
+   "relevant": {
+    "slug": "(^|-)(lightning|thunder|electric|electricity|shock|bolt)(-|$)"
+   }
+  },
+  {
+   "id": "poison",
+   "q": "poison",
+   "group": "element",
+   "relevant": {
+    "slug": "(^|-)(poison|toxic|venom|acid)(-|$)"
+   }
+  },
+  {
+   "id": "smoke",
+   "q": "smoke",
+   "group": "element",
+   "relevant": {
+    "slug": "(^|-)(smoke|fumes|fume)(-|$)"
+   }
+  },
+  {
+   "id": "blood",
+   "q": "blood",
+   "group": "element",
+   "relevant": {
+    "slug": "(^|-)(blood|gore|bleed)(-|$)"
+   }
+  },
+  {
+   "id": "bubble",
+   "q": "bubble",
+   "group": "element",
+   "relevant": {
+    "slug": "(^|-)(bubble|bubbles)(-|$)"
+   }
+  },
+  {
+   "id": "explosion",
+   "q": "explosion",
+   "group": "use",
+   "relevant": {
+    "slug": "(^|-)(explosion|explosions|explode|blast|boom|bomb|detonation|nuke)(-|$)"
+   }
+  },
+  {
+   "id": "hit",
+   "q": "hit",
+   "group": "use",
+   "relevant": {
+    "slug": "(^|-)(hit|hits|impact|punch|slam|smash|strike)(-|$)"
+   }
+  },
+  {
+   "id": "impact",
+   "q": "impact",
+   "group": "use",
+   "relevant": {
+    "slug": "(^|-)(hit|hits|impact|punch|slam|smash|strike)(-|$)"
+   }
+  },
+  {
+   "id": "muzzle",
+   "q": "muzzle",
+   "group": "use",
+   "relevant": {
+    "slug": "(^|-)(muzzle|gunshot)(-|$)"
+   }
+  },
+  {
+   "id": "projectile",
+   "q": "projectile",
+   "group": "use",
+   "relevant": {
+    "slug": "(^|-)(projectile|missile|rocket|bullet|arrow|fireball)(-|$)"
+   }
+  },
+  {
+   "id": "missile",
+   "q": "missile",
+   "group": "use",
+   "relevant": {
+    "slug": "(^|-)(missile|rocket|projectile)(-|$)"
+   }
+  },
+  {
+   "id": "beam",
+   "q": "beam",
+   "group": "use",
+   "relevant": {
+    "slug": "(^|-)(beam|laser|ray)(-|$)"
+   }
+  },
+  {
+   "id": "laser",
+   "q": "laser",
+   "group": "use",
+   "relevant": {
+    "slug": "(^|-)(laser|beam)(-|$)"
+   }
+  },
+  {
+   "id": "buff",
+   "q": "buff",
+   "group": "use",
+   "relevant": {
+    "slug": "(^|-)(buff|aura|powerup|boost)(-|$)"
+   }
+  },
+  {
+   "id": "aura",
+   "q": "aura",
+   "group": "use",
+   "relevant": {
+    "slug": "(^|-)(aura|buff)(-|$)"
+   }
+  },
+  {
+   "id": "heal",
+   "q": "heal",
+   "group": "use",
+   "relevant": {
+    "slug": "(^|-)(heal|healing|regen|restore|cure|health)(-|$)"
+   }
+  },
+  {
+   "id": "shield",
+   "q": "shield",
+   "group": "use",
+   "relevant": {
+    "slug": "(^|-)(shield|barrier)(-|$)"
+   }
+  },
+  {
+   "id": "trail",
+   "q": "trail",
+   "group": "use",
+   "relevant": {
+    "slug": "(^|-)(trail|streak|ribbon|tracer)(-|$)"
+   }
+  },
+  {
+   "id": "pickup",
+   "q": "pickup",
+   "group": "use",
+   "relevant": {
+    "slug": "(^|-)(pickup|coin|coins|loot|collect)(-|$)"
+   }
+  },
+  {
+   "id": "coin",
+   "q": "coin",
+   "group": "use",
+   "relevant": {
+    "slug": "(^|-)(coin|coins|money)(-|$)"
+   }
+  },
+  {
+   "id": "portal",
+   "q": "portal",
+   "group": "use",
+   "relevant": {
+    "slug": "(^|-)(portal|warp|gate)(-|$)"
+   }
+  },
+  {
+   "id": "teleport",
+   "q": "teleport",
+   "group": "use",
+   "relevant": {
+    "slug": "(^|-)(teleport|warp|portal)(-|$)"
+   }
+  },
+  {
+   "id": "level up",
+   "q": "level up",
+   "group": "use",
+   "relevant": {
+    "slug": "(^|-)(level|levelup|upgrade|evolve)(-|$)"
+   }
+  },
+  {
+   "id": "rain",
+   "q": "rain",
+   "group": "weather",
+   "relevant": {
+    "slug": "(^|-)(rain|rainstorm|drizzle|downpour)(-|$)"
+   }
+  },
+  {
+   "id": "snow",
+   "q": "snow",
+   "group": "weather",
+   "relevant": {
+    "slug": "(^|-)(snow|blizzard|snowfall)(-|$)"
+   }
+  },
+  {
+   "id": "toon",
+   "q": "toon",
+   "group": "style",
+   "relevant": {
+    "packs": [
+     "epic-toon-fx",
+     "epic-toon-vfx-2"
+    ]
+   }
+  },
+  {
+   "id": "stylized",
+   "q": "stylized",
+   "group": "style",
+   "relevant": {
+    "packs": [
+     "namufx-stylized-water"
+    ]
+   }
+  },
+  {
+   "id": "retro",
+   "q": "retro",
+   "group": "style",
+   "relevant": {
+    "packs": [
+     "retro-arsenal"
+    ]
+   }
+  },
+  {
+   "id": "pixel",
+   "q": "pixel art",
+   "group": "style",
+   "relevant": {
+    "packs": [
+     "retro-arsenal"
+    ]
+   }
+  },
+  {
+   "id": "sci-fi",
+   "q": "sci-fi",
+   "group": "style",
+   "relevant": {
+    "packs": [
+     "sci-fi-arsenal"
+    ]
+   }
+  },
+  {
+   "id": "low poly",
+   "q": "low poly",
+   "group": "style",
+   "relevant": {
+    "packs": [
+     "synty-polygon-particle-fx"
+    ]
+   }
+  },
+  {
+   "id": "blue fire",
+   "q": "blue fire",
+   "group": "colour",
+   "relevant": {
+    "slug": "(^|-)(fire|flame|flames|fireball|burn|burning|inferno|blaze|torch)(-|$)",
+    "slugAlso": "(blue|cyan|azure)"
+   }
+  },
+  {
+   "id": "green poison",
+   "q": "green poison",
+   "group": "colour",
+   "relevant": {
+    "slug": "(^|-)(poison|toxic|acid|venom)(-|$)",
+    "slugAlso": "(green)"
+   }
+  },
+  {
+   "id": "vi nổ",
+   "q": "nổ",
+   "group": "vietnamese",
+   "relevant": {
+    "slug": "(^|-)(explosion|explosions|explode|blast|boom|bomb|detonation|nuke)(-|$)"
+   }
+  },
+  {
+   "id": "vi lửa",
+   "q": "lửa",
+   "group": "vietnamese",
+   "relevant": {
+    "slug": "(^|-)(fire|flame|flames|fireball|burn|burning|inferno|blaze|torch)(-|$)"
+   }
+  },
+  {
+   "id": "vi nước",
+   "q": "nước",
+   "group": "vietnamese",
+   "relevant": {
+    "slug": "(^|-)(water|splash|wave|waves|aqua)(-|$)"
+   }
+  },
+  {
+   "id": "vi sét",
+   "q": "sét",
+   "group": "vietnamese",
+   "relevant": {
+    "slug": "(^|-)(lightning|thunder|electric|electricity|shock|bolt)(-|$)"
+   }
+  },
+  {
+   "id": "vi mưa",
+   "q": "mưa",
+   "group": "vietnamese",
+   "relevant": {
+    "slug": "(^|-)(rain|rainstorm|drizzle|downpour)(-|$)"
+   }
+  },
+  {
+   "id": "vi hồi máu",
+   "q": "hồi máu",
+   "group": "vietnamese",
+   "relevant": {
+    "slug": "(^|-)(heal|healing|regen|restore|cure|health)(-|$)"
+   }
+  },
+  {
+   "id": "vi trúng đòn",
+   "q": "trúng đòn",
+   "group": "vietnamese",
+   "relevant": {
+    "slug": "(^|-)(hit|hits|impact|punch|slam|smash|strike)(-|$)"
+   }
+  },
+  {
+   "id": "vi nổ lửa",
+   "q": "nổ lửa",
+   "group": "vietnamese",
+   "relevant": {
+    "slug": "(^|-)(explosion|explosions|explode|blast|boom|bomb|detonation|nuke)(-|$)",
+    "slugAlso": "(^|-)(fire|flame|flames|fireball|burn|burning|inferno|blaze|torch)(-|$)"
+   }
+  },
+  {
+   "id": "cartoon ground impact",
+   "q": "cartoon ground impact",
+   "group": "multi",
+   "relevant": {
+    "slug": "(^|-)(ground|impact|landing|slam|stomp)(-|$)"
+   }
+  },
+  {
+   "id": "water splash",
+   "q": "water splash",
+   "group": "multi",
+   "relevant": {
+    "slug": "(^|-)(splash|splashes)(-|$)"
+   }
+  }
+ ]
+}

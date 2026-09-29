@@ -21,16 +21,24 @@ export function createMcpServer(): McpServer {
       description:
         'Tìm asset/knowledge VFX (texture, shader, code, recipe, component, vfx). ' +
         'Trả về Knowledge Card + vfx:// URI, KHÔNG trả binary. ' +
-        'Bước đầu tiên của mọi yêu cầu tạo/sửa VFX: tìm cái đã có trước khi tạo mới.',
+        'Bước đầu tiên của mọi yêu cầu tạo/sửa VFX: tìm cái đã có trước khi tạo mới. ' +
+        'Query hiểu tiếng Anh + tiếng Việt (vd "nổ lửa", "mưa", "hồi máu") và từ đồng nghĩa. ' +
+        'Lọc `style` (toon | stylized | retro | sci-fi | low-poly) và `keywords` ' +
+        '(element: fire/water/ice/lightning/poison/smoke/blood/earth/wind/magic; ' +
+        'use: explosion/impact/muzzle/projectile/beam/buff/heal/shield/trail/pickup/portal/teleport/levelup/slash; ' +
+        'weather: rain/snow; colour: red/orange/yellow/green/cyan/blue/purple/pink/white/black/gold; ' +
+        'loop: looping | one-shot).',
       inputSchema: {
         query: z.string().describe('Mô tả tiếng Anh, vd "cartoon ground impact soft dust"'),
         type: ResourceTypeEnum.optional().describe('Chỉ tìm 1 loại resource'),
         tags: z.array(z.string()).optional().describe('Lọc theo tag'),
+        style: z.array(z.string()).optional().describe('Lọc theo pack style: toon, stylized, retro, sci-fi, low-poly ("cartoon", "low poly" cũng được)'),
+        keywords: z.array(z.string()).optional().describe('Lọc: record có BẤT KỲ keyword nào (fire, explosion, blue, looping...)'),
         limit: z.number().int().min(1).max(50).optional(),
       },
     },
-    async ({ query, type, tags, limit }) => {
-      const cards = await store.search({ query, type, tags, limit });
+    async ({ query, type, tags, style, keywords, limit }) => {
+      const cards = await store.search({ query, type, tags, style, keywords, limit });
       return {
         content: [
           {

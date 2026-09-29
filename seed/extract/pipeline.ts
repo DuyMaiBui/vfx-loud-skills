@@ -3,6 +3,7 @@ import path from 'node:path';
 import { extractedLicenseProblem, licenseClassOf, aiTrainingAllowed } from '../../server/src/license.ts';
 import { SLUG_RE } from '../../server/src/slug.ts';
 import { tarSource, type PackageSource } from './source.ts';
+import { enrichExtracted } from './enrich.ts';
 import { buildRecipe, SkipError, type PackInfo } from './recipe.ts';
 
 export interface PackConfig extends PackInfo {
@@ -19,6 +20,8 @@ export interface PackConfig extends PackInfo {
   tags: string[];
   /** When set, only prefabs under one of these path prefixes are eligible. */
   prefabRoots?: string[];
+  /** Pack-level style words stored as meta.style (toon / retro / sci-fi / low-poly / stylized). */
+  metaStyle?: string[];
 }
 
 export interface ExtractOptions {
@@ -191,20 +194,25 @@ export async function extractPack(opts: ExtractOptions): Promise<PackSummary> {
     try {
       const built = buildRecipe(e.data.toString('utf8'), pack, { path: prefabPath, guid }, ctx);
       const slug = slugs.get(guid) as string;
+      const recordName = `${built.prefabName} (${pack.name})`;
+      const en = enrichExtracted({
+        name: recordName,
+        prefabPath,
+        packName: pack.name,
+        vendor: pack.vendor,
+        metaStyle: pack.metaStyle ?? pack.style,
+        kind: built.kind,
+        effectKinds: built.effectKinds,
+        yaml: built.yaml,
+        existingTags: tagsFor(prefabPath, pack, built.kind),
+      });
       const record = {
         type: 'recipe',
         slug,
-        name: `${built.prefabName} (${pack.name})`,
-        description:
-          built.kind === 'effect'
-            ? `Extracted effect recipe of ${pack.vendor} "${pack.name}" prefab ${built.prefabName}: ` +
-              `${built.effectNodeCount} effect node(s) (${built.effectKinds.join(', ')}). ` +
-              'Parameters only; meshes, materials, shaders, textures, clips and scripts are guid + path references.'
-            : `Extracted particle recipe of ${pack.vendor} "${pack.name}" prefab ${built.prefabName}: ` +
-              `${built.particleNodeCount} particle node(s), duration ${built.summary.durationMax}s, ` +
-              `${built.summary.loops ? 'looping' : 'one-shot'}. Parameters only; textures, materials and shaders are guid + path references.`,
-        tags: tagsFor(prefabPath, pack, built.kind),
-        style: pack.style,
+        name: recordName,
+        description: en.description,
+        tags: en.tags,
+        style: en.style,
         category: 'recipe',
         license: pack.license,
         visibility: 'project',
@@ -214,6 +222,8 @@ export async function extractPack(opts: ExtractOptions): Promise<PackSummary> {
           extracted: true,
           extractor: 'unitypackage-recipe/1',
           pack: pack.slug,
+          style: en.style,
+          keywords: en.keywords,
           license_class: licenseClass,
           ai_training: aiTrainingAllowed(pack.license),
           ...(built.kind === 'effect'
