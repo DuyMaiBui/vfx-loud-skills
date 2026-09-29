@@ -41,15 +41,15 @@ else
   bad "claude mcp add thất bại"
 fi
 
-step "G2/G4. MCP tools qua client thật (scripts/mcp-probe.mjs)"
+step "G2/G4/G5. MCP tools qua client thật (scripts/mcp-probe.mjs)"
 PROBE_OUT="$(node scripts/mcp-probe.mjs 2>&1)"
 PROBE_RC=$?
 if [[ $PROBE_RC -ne 0 ]]; then
   bad "probe exit $PROBE_RC"
   echo "$PROBE_OUT" | tail -20
 else
-  grep -q 'vfx_search, vfx_facets, vfx_related, vfx_resolve, vfx_fetch, vfx_publish' <<<"$PROBE_OUT" \
-    && ok "tools/list: 5 tool" || bad "tools/list sai: $(head -1 <<<"$PROBE_OUT")"
+  grep -q 'vfx_search, vfx_facets, vfx_related, vfx_resolve, vfx_fetch, vfx_publish, vfx_recolor$' <<<"$PROBE_OUT" \
+    && ok "tools/list: 7 tool" || bad "tools/list sai: $(head -1 <<<"$PROBE_OUT")"
 
   grep -q '"uri": "vfx://' <<<"$PROBE_OUT" \
     && ok "G2 search trả Knowledge Card + vfx:// URI" || bad "G2 không có vfx:// URI"
@@ -59,6 +59,9 @@ else
 
   grep -q 'G4 re-search hit == PASS' <<<"$PROBE_OUT" \
     && ok "G4 publish -> search thấy ngay" || bad "G4 không thấy resource vừa publish"
+
+  grep -q '== G5 recolor == PASS' <<<"$PROBE_OUT" \
+    && ok "G5 vfx_recolor đổi màu recipe recolorable" || bad "G5 vfx_recolor: $(grep 'G5 recolor' <<<"$PROBE_OUT")"
 fi
 
 step "G3. fetch về Unity project + GUID giữ nguyên"

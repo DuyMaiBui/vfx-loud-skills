@@ -5,6 +5,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { config } from './config.ts';
 import { facets } from './facet-search.ts';
 import { FACET_NAMES } from './facets.ts';
+import { recolorRecord } from './recolor-service.ts';
 import * as store from './store.ts';
 
 const ResourceTypeEnum = z.enum(store.RESOURCE_TYPES);
@@ -227,6 +228,34 @@ export function createMcpServer(): McpServer {
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
       };
+    },
+  );
+
+  server.registerTool(
+    'vfx_recolor',
+    {
+      title: 'Recolor a VFX recipe',
+      description:
+        'Đổi màu một recipe bằng phép biến đổi xác định (KHÔNG cần fetch bản màu khác): xoay hue trong OKLCh mọi màu trong params ' +
+        '(startColor, colorOverLifetime, trail, line...) rồi trả `payload` mới + `tint` (material cần nhuộm trên BẢN SAO: {materialGuid, property, from, to}) + `changes` (từng key: path, from, to). ' +
+        'Chỉ dùng khi card có `recolorable: true` (họ biến thể đã kiểm chứng: recolor base ≈ bản màu thật, dE≤10); ' +
+        'nếu false (`recolorReason`: texture = màu nằm trong ảnh, params, no-keys...) thì fetch bản biến thể thật. ' +
+        'Cho `targetColor` (hex #rrggbb — màu đích) HOẶC `hueShiftDeg` (-360..360, +90 = lục → lam; đỏ ≈ 0/360), không cả hai. ' +
+        '`preserveLuminance` (mặc định true) giữ độ sáng từng màu. ' +
+        '`publish:true` tạo record MỚI derived_from record gốc (license kế thừa, visibility=project, slug <gốc>-recolor-<hex>), idempotent: cùng đầu vào trả lại record cũ (`published.created:false`). ' +
+        'Record gốc không bị sửa. `includePayload:false` bỏ payload khỏi output (dùng với publish rồi vfx_fetch).',
+      inputSchema: {
+        uri: z.string().describe('vd vfx://recipe/retro-arsenal-fire-muzzle-blue/1'),
+        targetColor: z.string().optional().describe('Hex #rrggbb — màu mọi key sẽ dịch tới'),
+        hueShiftDeg: z.number().min(-360).max(360).optional().describe('Góc xoay hue, độ; dùng khi không có targetColor'),
+        preserveLuminance: z.boolean().optional().describe('mặc định true'),
+        publish: z.boolean().optional().describe('true = tạo/tìm record derived_from; mặc định false (chỉ tính)'),
+        includePayload: z.boolean().optional().describe('mặc định true'),
+      },
+    },
+    async (args) => {
+      const result = await recolorRecord(args);
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
 

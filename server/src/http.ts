@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import { config } from './config.ts';
 import { facets } from './facet-search.ts';
+import { recolorRecord, type RecolorRequest } from './recolor-service.ts';
 import * as store from './store.ts';
 
 export async function buildHttp(): Promise<Fastify.FastifyInstance> {
@@ -84,6 +85,25 @@ export async function buildHttp(): Promise<Fastify.FastifyInstance> {
       return reply.send(buffer);
     },
   );
+
+  /**
+   * Deterministic recolour of a stored recipe: derived payload + material tint list + per-key `changes`.
+   * With publish:true also creates (idempotently) a NEW record derived_from the base.
+   */
+  app.post<{ Body: RecolorRequest }>('/v1/recolor', async (req) => {
+    const b = req.body;
+    if (!b || typeof b !== 'object') throw new store.VfxError('body is required');
+    const opt = (v: unknown, t: string, name: string): void => {
+      if (v !== undefined && typeof v !== t) throw new store.VfxError(`${name} must be a ${t}`);
+    };
+    opt(b.uri, 'string', 'uri');
+    opt(b.targetColor, 'string', 'targetColor');
+    opt(b.hueShiftDeg, 'number', 'hueShiftDeg');
+    opt(b.preserveLuminance, 'boolean', 'preserveLuminance');
+    opt(b.publish, 'boolean', 'publish');
+    opt(b.includePayload, 'boolean', 'includePayload');
+    return recolorRecord(b);
+  });
 
   app.post<{ Body: store.PublishArgs }>('/v1/publish', async (req) => {
     if (!req.body) throw new store.VfxError('body is required');

@@ -230,6 +230,9 @@ function normaliseOptions(o: RecolorOptions): { mode: 'target' | 'hueShift'; tar
   return { mode: 'hueShift', target: null, shift, preserve: o.preserveLuminance ?? true };
 }
 
+/** Unity stores colour components to ~5 decimals; keep the emitted file the same shape as the source. */
+const r5 = (x: number): number => Math.round(x * 1e5) / 1e5;
+
 const clone = <T>(v: T): T => (v === undefined ? v : (JSON.parse(JSON.stringify(v)) as T));
 
 /**
@@ -261,7 +264,7 @@ export function recolor(payload: unknown, options: RecolorOptions): RecolorResul
       const c = toColour(leaf.value);
       if (!c) continue;
       const shifted = shiftOne(c);
-      const next = [shifted.r, shifted.g, shifted.b, (leaf.value as number[])[3] ?? 1];
+      const next = [r5(shifted.r), r5(shifted.g), r5(shifted.b), (leaf.value as number[])[3] ?? 1];
       if (Array.isArray(leaf.owner)) leaf.owner[leaf.key as number] = next;
       else (leaf.owner as Record<string, unknown>)[leaf.key as string] = next;
       record(leaf.path, c, shifted);
@@ -280,7 +283,7 @@ export function recolor(payload: unknown, options: RecolorOptions): RecolorResul
         if (!c) return;
         const shifted = shiftOne(c);
         const time = (row as number[])[0];
-        rows[i] = [time, shifted.r, shifted.g, shifted.b];
+        rows[i] = [time, r5(shifted.r), r5(shifted.g), r5(shifted.b)];
         record(`${leaf.path}[${i}]`, c, shifted);
       });
     }

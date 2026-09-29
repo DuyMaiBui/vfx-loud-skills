@@ -68,6 +68,14 @@ export interface Card {
   behavior: string | null;
   license: string;
   preview_uri: string | null;
+  /**
+   * true when recolouring the family base reproduces every real colour variant (graph:build verdict
+   * `good`), so a recolour is a substitute for fetching one. false = fetch the real variant. null = a
+   * lone recipe / not measured (no flag).
+   */
+  recolorable: boolean | null;
+  /** Why not recolourable (params | texture | no-keys | no-base-keys | material), or "ok". */
+  recolorReason: string | null;
   /** Colour / version variants of the same effect (collapsed into this one card), this card included. [] when none. */
   variants: Variant[];
   /** Effects of the same set (muzzle + projectile + impact ...). [] when none. */
@@ -141,6 +149,8 @@ function toCard(row: ResourceRow): Card {
     behavior: typeof row.meta?.behavior === 'string' ? row.meta.behavior : null,
     license: row.license,
     preview_uri: row.preview_uri,
+    recolorable: typeof row.meta?.recolorable === 'boolean' ? row.meta.recolorable : null,
+    recolorReason: typeof row.meta?.recolorReason === 'string' ? row.meta.recolorReason : null,
     variants: [],
     pairsWith: [],
   };
@@ -281,6 +291,18 @@ export async function getByUri(uri: string): Promise<ResourceRow> {
   return row.rows[0];
 }
 
+/** Newest version of type+slug, or null. */
+export async function latestBySlug(type: ResourceType, slug: string): Promise<ResourceRow | null> {
+  const r = await pool.query<ResourceRow>('SELECT * FROM resource WHERE type = $1 AND slug = $2 ORDER BY version DESC LIMIT 1', [type, slug]);
+  return r.rows[0] ?? null;
+}
+
+/** sha256 of a record's stored payload file (hex). */
+export async function payloadSha256(row: ResourceRow): Promise<string> {
+  const abs = path.resolve(config.dataDir, row.storage_uri);
+  return createHash('sha256').update(await fs.readFile(abs)).digest('hex');
+}
+
 export async function resolve(uri: string): Promise<Manifest> {
   const r = await getByUri(uri);
 
@@ -361,6 +383,8 @@ export interface PublishArgs {
   b64?: string;
   localPath?: string;
   dependencies?: string[];
+  /** vfx:// URI this record was derived from -> a `derived_from` edge (new record -> base). */
+  derivedFrom?: string;
   meta?: Record<string, unknown>;
   createdBy?: string;
 }
@@ -527,6 +551,12 @@ export async function publish(
       ...(args.name.match(URI_REF) ?? []),
       ...(isTextMime(mime) ? (bytes.toString('utf8').match(URI_REF) ?? []) : []),
     ]);
+
+    if (args.derivedFrom) {
+      const from = await client.query<{ id: number }>('SELECT id FROM resource WHERE uri = $1', [args.derivedFrom]);
+      if (!from.rowCount) throw new VfxError(`derivedFrom not found: ${args.derivedFrom}`, 'not_found');
+      await client.query(`INSERT INTO resource_edge (src, dst, rel) VALUES ($1, $2, 'derived_from') ON CONFLICT DO NOTHING`, [ins.rows[0].id, from.rows[0].id]);
+    }
 
     await client.query('COMMIT');
     return { uri: ins.rows[0].uri, version, dependencies: linked };

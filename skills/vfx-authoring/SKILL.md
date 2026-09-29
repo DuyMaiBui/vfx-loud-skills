@@ -5,7 +5,7 @@ description: Author or fix Unity VFX through the VFX Skill Cloud — search exis
 
 # VFX Skill Cloud authoring
 
-Cloud MCP server cung cấp 4 tool. Unity client chỉ là thin writer. Agent là orchestrator.
+Cloud MCP server cung cấp 7 tool (`vfx_search`, `vfx_facets`, `vfx_related`, `vfx_resolve`, `vfx_fetch`, `vfx_publish`, `vfx_recolor`). Unity client chỉ là thin writer. Agent là orchestrator.
 
 ## Precondition
 
@@ -83,6 +83,17 @@ Lọc `type` ∈ `texture | shader | code | recipe | component | vfx` nếu bi�
 `vfx_resolve(uri)` → metadata, `dependencies`, `download_url`, `file_name`, `sha256`.
 
 `vfx_fetch(uri)` → thêm `target_hint` và `fetch_command`. Dùng cái này khi đã quyết định lấy.
+
+### 2b. Cần màu khác? Recolor hay lấy biến thể
+
+Card/record có `recolorable` (`vfx_search` card, hoặc `meta.recolorable` trong `vfx_resolve`):
+
+| `recolorable` | Làm gì |
+| --- | --- |
+| `true` | `vfx_recolor({uri, targetColor \| hueShiftDeg, publish: true, includePayload: false})` → record mới `derived_from` (license kế thừa, `visibility=project`, slug `<gốc>-recolor-<hex>`), rồi `vfx_fetch(published.uri)`. Cùng đầu vào chạy lại trả record cũ (`published.created:false`), không tạo thêm. |
+| `false` / `null` | **Không recolor.** Lấy biến thể thật (`variants` của card, hoặc `vfx_related(uri, rel:"variant_of")`). `recolorReason`: `texture` (màu nằm trong ảnh), `params` (khác hue ở chỗ khác), `no-keys` / `no-base-keys` (không có key màu để dịch). |
+
+Recolor chỉ đổi màu params của particle; `tint` là material cần nhuộm trên BẢN SAO ở Unity (không sửa material dùng chung). Record gốc không bị sửa. Không có `targetColor`/`hueShiftDeg` thì hỏi user; đỏ ≈ `#ff2020`. CLI tương đương: `npm run recolor -- <uri> --target '#ff2020' [--publish]`.
 
 ### 3. Tải về
 

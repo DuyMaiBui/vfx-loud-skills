@@ -3,6 +3,8 @@
  *
  * Derives, deterministically and only from data in the DB + seed/graph/*.json:
  *   variant_of  recipe -> canonical member of its colour/version family   (+ meta.family on every member)
+ *   recolorable family verdict (recolorable.ts, same as recolor:validate) -> meta.recolorable / meta.recolorReason
+ *               on every member of a family; a lone recipe gets neither
  *   pairs_with  muzzle / projectile / impact of one weapon set             (+ meta.pairRole, meta.pairSet)
  *   uses        recipe -> asset (material / texture / shader / mesh by GUID), asset table
  *   similar_to  recipe -> top-K recipes sharing materials/textures (Jaccard, weight)
@@ -10,7 +12,7 @@
  *
  * It computes the full desired state and applies only the DIFF, so a re-run changes nothing. It never
  * touches payload files, sha256, version, name, description, tags, search text or embedding of a record;
- * the only record column written is `meta` (family / pairRole / pairSet keys).
+ * the only record column written is `meta` (family / pairRole / pairSet / recolorable / recolorReason keys).
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -18,9 +20,11 @@ import { parseArgs } from 'node:util';
 import type { PoolClient } from 'pg';
 import { config } from '../../server/src/config.ts';
 import { migrate, pool } from '../../server/src/db.ts';
+import { parsePayload } from '../extract/enrich.ts';
 import { buildFamilies, type FamilyInput } from './family.ts';
 import { pickTargets, type LinkableRecipe } from './knowledge.ts';
 import { buildPairSets } from './pairs.ts';
+import { evaluateFamily, recolorFlag, type FamilyMember, type Verdict } from './recolorable.ts';
 import { analysePayload, type AssetRef } from './payload.ts';
 import { loadKnowledgeLinks, loadRules } from './rules.ts';
 import { topSimilar } from './similar.ts';
@@ -42,7 +46,7 @@ interface KnowledgeRow {
 }
 
 const OWNED_RELS = ['variant_of', 'pairs_with', 'similar_to', 'applies_to'] as const;
-const META_KEYS = ['family', 'pairRole', 'pairSet'] as const;
+const META_KEYS = ['family', 'pairRole', 'pairSet', 'recolorable', 'recolorReason'] as const;
 
 interface Delta {
   inserted: number;
@@ -76,7 +80,9 @@ async function main(): Promise<void> {
   const rules = loadRules();
   await migrate();
 
-  const recipes = (await pool.query<RecipeRow>("SELECT id, uri, slug, name, storage_uri, license, meta FROM resource WHERE type = 'recipe' ORDER BY id")).rows;
+  // Records made by the recolor transform (meta.derived) are outputs, not corpus: they carry a derived_from
+  // edge of their own and must not be pulled into families, similarity or knowledge links.
+  const recipes = (await pool.query<RecipeRow>("SELECT id, uri, slug, name, storage_uri, license, meta FROM resource WHERE type = 'recipe' AND NOT (meta ? 'derived') ORDER BY id")).rows;
   const byUri = new Map(recipes.map((r) => [r.uri, r]));
   const extracted = recipes.filter((r) => r.meta.extracted === true && r.meta.source?.prefabPath && r.meta.pack);
 
@@ -192,12 +198,29 @@ async function main(): Promise<void> {
   for (const s of similar) desiredEdges.set(`${s.src}|${s.dst}|similar_to`, s.jaccard);
   for (const [k, r] of appliesTo) addEdge(k, r, 'applies_to', null);
 
+  /* ---- recolour verdict per family (shared with recolor:validate) ---- */
+  const byUriExtracted = new Map(extracted.map((r) => [r.uri, r]));
+  const loadMember = async (uri: string): Promise<FamilyMember> => {
+    const r = byUriExtracted.get(uri)!;
+    const yaml = await fs.readFile(path.join(config.dataDir, r.storage_uri), 'utf8');
+    return { uri, parsed: parsePayload(yaml), facts: facts.get(r.id)! };
+  };
+  const recolorOf = new Map<string, { recolorable: boolean; recolorReason: string }>(); // family key -> flag
+  const verdicts: Record<Verdict, number> = { good: 0, partial: 0, poor: 0, unmeasured: 0 };
+  for (const f of families) {
+    // canonical is the lowest slug, and members[0] — the same base the study recolours.
+    const [base, ...rest] = await Promise.all(f.members.map(loadMember));
+    const { family } = evaluateFamily(f.key, base, rest);
+    verdicts[family.verdict]++;
+    recolorOf.set(f.key, recolorFlag(family));
+  }
+
   /* ---- desired meta patches ---- */
-  const desiredMeta = new Map<number, Record<string, string>>();
+  const desiredMeta = new Map<number, Record<string, string | boolean>>();
   for (const r of extracted) {
-    const p: Record<string, string> = {};
+    const p: Record<string, string | boolean> = {};
     const fam = familyOf.get(r.uri);
-    if (fam) p.family = fam;
+    if (fam) Object.assign(p, { family: fam }, recolorOf.get(fam));
     const pr = pairRole.get(r.uri);
     if (pr) Object.assign(p, { pairRole: pr.role, pairSet: pr.set });
     desiredMeta.set(r.id, p);
@@ -238,6 +261,7 @@ async function main(): Promise<void> {
           families: families.length,
           familyCandidates: familyStats,
           familyMembers: families.reduce((s, f) => s + f.members.length, 0),
+          recolorVerdicts: verdicts,
           pairSets: sets.length,
           pairSetsSkippedTooLarge: skippedTooLarge,
           assets: desiredAssets.size,
@@ -360,7 +384,7 @@ async function applyEdges(c: PoolClient, desired: Map<string, number | null>, d:
   d.deleted += del.length;
 }
 
-async function applyMeta(c: PoolClient, recipes: RecipeRow[], desired: Map<number, Record<string, string>>, d: Delta): Promise<void> {
+async function applyMeta(c: PoolClient, recipes: RecipeRow[], desired: Map<number, Record<string, string | boolean>>, d: Delta): Promise<void> {
   const ids: number[] = [];
   const patches: string[] = [];
   for (const r of recipes) {
@@ -373,7 +397,7 @@ async function applyMeta(c: PoolClient, recipes: RecipeRow[], desired: Map<numbe
   }
   for (let i = 0; i < ids.length; i += 1000) {
     await c.query(
-      `UPDATE resource r SET meta = (r.meta - 'family' - 'pairRole' - 'pairSet') || v.patch
+      `UPDATE resource r SET meta = (r.meta - 'family' - 'pairRole' - 'pairSet' - 'recolorable' - 'recolorReason') || v.patch
          FROM unnest($1::bigint[], $2::jsonb[]) AS v(id, patch) WHERE r.id = v.id`,
       [ids.slice(i, i + 1000), patches.slice(i, i + 1000)],
     );

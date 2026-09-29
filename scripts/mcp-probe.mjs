@@ -45,4 +45,16 @@ const s2 = await call('vfx_search', { query: 'probe canary', limit: 3 });
 const found = JSON.parse(s2.text).cards.some((c) => c.uri === publishedUri);
 console.log('\n== G4 re-search hit ==', found ? 'PASS' : 'FAIL', publishedUri);
 
+// G5 — recolor (compute only, nothing written): pick a recolorable card and shift its hue.
+const rs = await call('vfx_search', { query: 'fire muzzle flash', limit: 20 });
+const recolorable = JSON.parse(rs.text).cards.find((c) => c.recolorable === true);
+if (!recolorable) {
+  console.log('\n== G5 recolor == FAIL no recolorable card in search results');
+} else {
+  const r = await call('vfx_recolor', { uri: recolorable.uri, hueShiftDeg: 120, includePayload: false });
+  const j = r.isError ? {} : JSON.parse(r.text);
+  const good = !r.isError && Array.isArray(j.changes) && j.changes.length > 0 && Array.isArray(j.tint);
+  console.log('\n== G5 recolor ==', good ? 'PASS' : 'FAIL', recolorable.uri, good ? `${j.changes.length} keys` : r.text.slice(0, 200));
+}
+
 await client.close();

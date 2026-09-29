@@ -9,11 +9,14 @@ import { createHash } from 'node:crypto';
 import { config } from '../server/src/config.ts';
 import { pool } from '../server/src/db.ts';
 
-const rows = (await pool.query<{ uri: string; version: number; bytes: number; storage_uri: string }>('SELECT uri, version, bytes, storage_uri FROM resource ORDER BY id')).rows;
+/** Records published by the recolor transform (meta.derived) are outputs, not corpus: excluded, counted apart. */
+
+const rows = (await pool.query<{ uri: string; version: number; bytes: number; storage_uri: string }>("SELECT uri, version, bytes, storage_uri FROM resource WHERE NOT (meta ? 'derived') ORDER BY id")).rows;
+const derived = Number((await pool.query<{ n: string }>("SELECT COUNT(*) AS n FROM resource WHERE meta ? 'derived'")).rows[0].n);
 const h = createHash('sha256');
 for (const r of rows) {
   const payload = createHash('sha256').update(fs.readFileSync(path.join(config.dataDir, r.storage_uri))).digest('hex');
   h.update(`${r.uri} ${r.version} ${r.bytes} ${payload}\n`);
 }
-console.log(`rows=${rows.length} sha256=${h.digest('hex')}`);
+console.log(`rows=${rows.length} sha256=${h.digest('hex')} derived-excluded=${derived}`);
 await pool.end();
