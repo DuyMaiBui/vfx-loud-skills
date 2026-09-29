@@ -131,3 +131,9 @@ image, visibility phân quyền, `feedback` tool. Nằm ở ladder V0.1–V0.5 t
 Chưa làm: ingestion Brackeys (đã có Kenney + Synty + OpenGameArt flipbook), texture
 semantic schema mở rộng ngoài flipbook (provenance/UV hints cho texture thường),
 `preview_uri` (toàn NULL).
+
+## Extractor (unitypackage -> recipe)
+
+`node seed/extract-unitypackage.ts --pack <slug> --out <dir> [--limit N]` (`--list-packs` để xem slug).
+Đọc thẳng `.unitypackage`, ghi `<dir>/<pack>/<slug>.{json,yaml}` + `skipped.jsonl`; **không** seed DB.
+Test: `npm test`.

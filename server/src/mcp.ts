@@ -114,7 +114,7 @@ export function createMcpServer(): McpServer {
         tags: z.array(z.string()).optional(),
         style: z.array(z.string()).optional(),
         category: z.string().optional(),
-        license: z.string().describe('cc0 | mit | synty-store-eula | internal | ...'),
+        license: z.string().describe('cc0 | mit | synty-store-eula | asset-store-eula | internal | ...'),
         file_path: z
           .string()
           .optional()

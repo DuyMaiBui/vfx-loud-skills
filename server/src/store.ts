@@ -5,6 +5,10 @@ import type { PoolClient } from 'pg';
 import { config } from './config.ts';
 import { pool } from './db.ts';
 import { getEmbedder } from './embed.ts';
+import { aiTrainingAllowed, extractedLicenseProblem, licenseClassOf } from './license.ts';
+import { SLUG_RE } from './slug.ts';
+
+export { aiTrainingAllowed, licenseClassOf };
 
 export const RESOURCE_TYPES = [
   'texture',
@@ -288,7 +292,7 @@ export interface PublishArgs {
 }
 
 function assertSlug(slug: string): void {
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+  if (!SLUG_RE.test(slug)) {
     throw new VfxError(
       `Invalid slug "${slug}" — dùng a-z, 0-9, dấu "-" (vd: soft-dust-03)`,
       'invalid',
@@ -330,22 +334,6 @@ async function linkDependencies(
   return linked;
 }
 
-/** Xem LICENSES.md — trục "dùng lại được tới đâu". */
-export function licenseClassOf(license: string): string {
-  const l = license.toLowerCase();
-  if (l === 'cc0') return 'cc0';
-  if (l.startsWith('cc-by')) return 'cc-attribution';
-  if (l === 'synty-store-eula') return 'proprietary-commercial';
-  if (l === 'restricted') return 'restricted';
-  return 'unknown';
-}
-
-/** Trục độc lập: dữ liệu này có dùng huấn luyện model được không. Thiếu bằng chứng → false. */
-export function aiTrainingAllowed(license: string): boolean {
-  const l = license.toLowerCase();
-  return l === 'cc0' || l.startsWith('cc-by') || l === 'ai-training-allowed';
-}
-
 function licenseMeta(
   license: string,
   meta: Record<string, unknown>,
@@ -366,6 +354,19 @@ export async function publish(
       'license "unknown" bị từ chối — ingest gate (xem phase-0-contract.md)',
       'invalid',
     );
+  }
+  if (args.meta?.extracted === true) {
+    const m = args.meta;
+    const problem =
+      extractedLicenseProblem(license) ??
+      (m.license_class !== undefined && m.license_class !== 'proprietary-commercial'
+        ? `meta.license_class "${String(m.license_class)}" must be proprietary-commercial`
+        : m.ai_training === true
+          ? 'meta.ai_training must be false'
+          : null);
+    if (problem) {
+      throw new VfxError(`extracted record refused: ${problem}`, 'invalid');
+    }
   }
   assertSlug(args.slug);
 
