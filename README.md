@@ -50,6 +50,20 @@ Skills + MCP cho Unity project đã được bật sẵn:
 | `vfx_fetch` | URL tải payload. `scripts/vfx-fetch.sh <uri> <unity project root>` ghi file + verify sha256, không đụng `.meta` |
 | `vfx_publish` | Payload mới → version mới + `linkDependencies` (cập nhật graph, không overwrite) |
 
+## Knowledge graph
+
+`npm run graph:build` (idempotent, chỉ ghi phần chênh lệch; luật + ngưỡng ở `seed/graph/rules.json`, `seed/graph/knowledge-links.json`) dựng:
+
+| rel | ý nghĩa |
+| --- | --- |
+| `variant_of` | cùng effect khác màu/version: cùng pack + folder + tên đã bỏ từ màu/version, **và** cùng số node + cùng node path/module. `meta.family` trên mọi thành viên, edge tới thành viên canonical (slug nhỏ nhất) |
+| `pairs_with` | cùng bộ muzzle + projectile + impact (pack Archanor), theo stem tên + màu. `meta.pairRole`, `meta.pairSet` |
+| `uses` (recipe → asset) | bảng `asset` + `resource_asset`: material/texture/shader/mesh theo GUID, chỉ metadata (không bytes). Tách bảng riêng, không phải `resource`, để không lọt vào search/facets/healthz |
+| `similar_to` | dùng chung material/texture, Jaccard, top-10 mỗi recipe (`weight`) |
+| `applies_to` | technique/component/shader/code → recipe áp dụng, theo mapping facet trong JSON |
+
+`/v1/search`: mỗi họ biến thể một card (`variants`, `collapseVariants:false` để tắt), `pairsWith`; graph expansion boost hàng xóm của top hit, `SEARCH_W_GRAPH` (mặc định 0.3, 0 = tắt). `GET|POST /v1/related` + MCP `vfx_related`. `vfx_resolve` trả thêm `assets`. `npm run corpus:sha` = fingerprint payload của mọi record (không đổi qua graph:build).
+
 REST kèm: `/healthz`, `/v1/search`, `/v1/facets`, `/v1/resource/:type/:slug/:version[/file]`, `/v1/publish`.
 
 ## Facets, behavior và hỏi-đáp thu hẹp

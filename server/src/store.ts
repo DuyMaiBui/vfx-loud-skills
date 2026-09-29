@@ -10,9 +10,12 @@ import { SLUG_RE } from './slug.ts';
 import { searchDocument } from './search-doc.ts';
 import { candidateFilter, FilterError, normalizeFilters, type FacetFilters } from './facet-query.ts';
 import { ranking } from './rank.ts';
+import { VfxError } from './errors.ts';
+import { W_GRAPH, GRAPH, graphBonus, keyOf, pairsOf, variantsOf, type PairsWith, type Variant } from './graph.ts';
 import type { Facets } from './facets.ts';
 
-export { aiTrainingAllowed, licenseClassOf };
+export { aiTrainingAllowed, licenseClassOf, VfxError };
+export { related } from './graph.ts';
 
 export const RESOURCE_TYPES = [
   'texture',
@@ -65,18 +68,10 @@ export interface Card {
   behavior: string | null;
   license: string;
   preview_uri: string | null;
-}
-
-export class VfxError extends Error {
-  readonly code: 'not_found' | 'invalid' | 'conflict';
-
-  constructor(
-    message: string,
-    code: 'not_found' | 'invalid' | 'conflict' = 'invalid',
-  ) {
-    super(message);
-    this.code = code;
-  }
+  /** Colour / version variants of the same effect (collapsed into this one card), this card included. [] when none. */
+  variants: Variant[];
+  /** Effects of the same set (muzzle + projectile + impact ...). [] when none. */
+  pairsWith: PairsWith[];
 }
 
 /** Untrusted `filters` -> validated FacetFilters; a bad shape / unknown facet is a 400. */
@@ -146,6 +141,8 @@ function toCard(row: ResourceRow): Card {
     behavior: typeof row.meta?.behavior === 'string' ? row.meta.behavior : null,
     license: row.license,
     preview_uri: row.preview_uri,
+    variants: [],
+    pairsWith: [],
   };
 }
 
@@ -162,30 +159,84 @@ export interface SearchArgs {
   /** Facet filters: values within a facet are OR-ed, facets are AND-ed (see facets.ts FACET_NAMES). */
   filters?: FacetFilters;
   limit?: number;
+  /** One card per variant family (default true). false = every record is its own card. */
+  collapseVariants?: boolean;
+  /** Graph-expansion boost weight for this request; default env SEARCH_W_GRAPH (0 = off). */
+  graphWeight?: number;
 }
 
 export async function search(args: SearchArgs): Promise<Card[]> {
   const limit = Math.min(Math.max(args.limit ?? 8, 1), 50);
+  const collapse = args.collapseVariants !== false;
+  const wGraph = Math.max(0, args.graphWeight ?? W_GRAPH);
+  const poolSize = wGraph > 0 ? Math.max(limit * GRAPH.poolMultiplier, GRAPH.minPool) : limit;
   const r = await ranking(args.query);
   const f = candidateFilter(args, 8);
+  const key = collapse ? `COALESCE(meta->>'family', uri)` : 'uri';
 
+  // One row per card: the best-scoring member of each variant family (or every record when not collapsing).
   const rows = await pool.query<ResourceRow>(
-    `WITH ${r.cte}
-     SELECT uri, type, slug, version, name, description, tags, style, category,
-            engine, license, visibility, storage_uri, preview_uri, mime, bytes,
-            meta, created_by, created_at,
-            ${r.score} AS score
-       FROM resource, q
-      WHERE ${f.sql}
-      ORDER BY score DESC, id
-      LIMIT $${8 + f.params.length}`,
-    [...r.params, ...f.params, limit],
+    `WITH ${r.cte},
+     s AS (
+       SELECT id, uri, type, slug, version, name, description, tags, style, category,
+              engine, license, visibility, storage_uri, preview_uri, mime, bytes,
+              meta, created_by, created_at, ${key} AS card_key,
+              ${r.score} AS score
+         FROM resource, q
+        WHERE ${f.sql}
+     ),
+     w AS (SELECT s.*, ROW_NUMBER() OVER (PARTITION BY card_key ORDER BY score DESC, id) AS rn FROM s)
+     SELECT * FROM w WHERE rn = 1 ORDER BY score DESC, id LIMIT $${8 + f.params.length}`,
+    [...r.params, ...f.params, poolSize],
   );
 
-  return rows.rows.map(toCard);
+  let picked = rows.rows;
+  if (wGraph > 0 && picked.length > 1) {
+    const bonus = await graphBonus(
+      picked.map((x) => ({ id: x.id, uri: x.uri, family: (x.meta?.family as string | undefined) ?? null, score: x.score ?? 0 })),
+      wGraph,
+      collapse,
+    );
+    if (bonus.size) {
+      for (const x of picked) x.score = (x.score ?? 0) + wGraph * (bonus.get(keyOf({ uri: x.uri, family: (x.meta?.family as string | undefined) ?? null }, collapse)) ?? 0);
+      picked = [...picked].sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.id - b.id);
+    }
+  }
+  picked = picked.slice(0, limit);
+
+  const cards = picked.map(toCard);
+  const [variants, pairs] = await Promise.all([
+    collapse ? variantsOf([...new Set(picked.map((x) => x.meta?.family as string | undefined).filter((x): x is string => !!x))]) : Promise.resolve(new Map<string, Variant[]>()),
+    pairsOf(picked.map((x) => x.id)),
+  ]);
+  picked.forEach((x, i) => {
+    const fam = x.meta?.family as string | undefined;
+    // rep first, then the rest in name order
+    if (collapse && fam) cards[i].variants = [...(variants.get(fam) ?? [])].sort((a, b) => Number(b.uri === x.uri) - Number(a.uri === x.uri)).slice(0, GRAPH.maxVariants);
+    cards[i].pairsWith = pairs.get(x.id) ?? [];
+  });
+  return cards;
 }
 
 /* ----------------------------------------------------------------- resolve */
+
+export interface AssetRef {
+  kind: 'material' | 'texture' | 'shader' | 'mesh';
+  guid: string;
+  name: string;
+  path: string | null;
+  pack: string;
+  license: string;
+  external: boolean;
+}
+export interface ManifestAsset extends AssetRef {
+  /** Unity built-in resource (no file to pull). */
+  builtin: boolean;
+  /** material: guid of the shader it uses. */
+  shader?: string;
+  /** material: texture guids by slot. */
+  textures?: Array<{ slot: string; guid: string }>;
+}
 
 export interface Manifest {
   uri: string;
@@ -203,7 +254,10 @@ export interface Manifest {
   bytes: number;
   file_name: string;
   sha256: string;
+  /** vfx:// URIs this record uses (rel=uses). */
   dependencies: string[];
+  /** Extracted recipes: the materials / textures / shaders / meshes (by GUID) to pull from the pack alongside it. Metadata only. */
+  assets: ManifestAsset[];
   download_url: string;
   preview_url: string | null;
   meta: Record<string, unknown>;
@@ -233,7 +287,14 @@ export async function resolve(uri: string): Promise<Manifest> {
   const edges = await pool.query<{ dst_uri: string }>(
     `SELECT d.uri AS dst_uri
        FROM resource_edge e JOIN resource d ON d.id = e.dst
-      WHERE e.src = $1`,
+      WHERE e.src = $1 AND e.rel = 'uses'`,
+    [r.id],
+  );
+  const assets = await pool.query<AssetRef & { meta: { builtin?: boolean; shader?: string; textures?: Array<{ slot: string; guid: string }> } }>(
+    `SELECT a.kind, a.guid, a.name, a.path, a.pack, a.license, a.external, a.meta
+       FROM resource_asset ra JOIN asset a ON a.id = ra.asset_id
+      WHERE ra.resource_id = $1
+      ORDER BY array_position(ARRAY['material','shader','texture','mesh'], a.kind), a.name, a.guid`,
     [r.id],
   );
 
@@ -265,6 +326,7 @@ export async function resolve(uri: string): Promise<Manifest> {
     file_name: `${r.slug}${path.posix.extname(path.posix.basename(r.storage_uri))}`,
     sha256,
     dependencies: edges.rows.map((e) => e.dst_uri),
+    assets: assets.rows.map(({ meta, ...a }) => ({ ...a, builtin: meta.builtin === true, ...(meta.shader ? { shader: meta.shader } : {}), ...(meta.textures ? { textures: meta.textures } : {}) })),
     download_url: absoluteUrl(fileUrl)!,
     preview_url: absoluteUrl(r.preview_uri),
     meta: r.meta ?? {},

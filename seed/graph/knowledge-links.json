@@ -1,0 +1,26 @@
+{
+ "_note": "DATA. applies_to: knowledge record (type/slug, latest version) -> recipes whose meta.facets match. `match`: facet name -> values; values within a facet are OR-ed, facets are AND-ed (same semantics as /v1/search filters). Special key `keywords` matches meta.keywords. Edit, then `npm run graph:build`.",
+ "links": [
+  { "ref": "technique/radial-burst", "match": { "category": ["explosion", "impact", "pickup"], "motion": ["radial"] } },
+  { "ref": "technique/shockwave-ring", "match": { "subcategory": ["impact/shockwave"] } },
+  { "ref": "technique/stretched-particle", "match": { "renderMode": ["stretched"], "category": ["projectile", "trail", "beam", "muzzle"] } },
+  { "ref": "technique/flipbook-smoke", "match": { "category": ["smoke"] } },
+  { "ref": "technique/dissolve-particle", "match": { "category": ["magic", "portal"] } },
+  { "ref": "technique/mesh-particle", "match": { "renderMode": ["mesh"] } },
+  { "ref": "technique/trail-streak", "match": { "category": ["trail"] } },
+  { "ref": "technique/surface-decal-impact", "match": { "subcategory": ["impact/hit", "impact/slash"] } },
+  { "ref": "technique/depth-fade-particle", "match": { "category": ["smoke", "ambient"], "renderMode": ["billboard"] } },
+  { "ref": "component/soft-dust", "match": { "subcategory": ["smoke/dust"] } },
+  { "ref": "component/shockwave-ring", "match": { "subcategory": ["impact/shockwave"] } },
+  { "ref": "component/spark-burst", "match": { "subcategory": ["impact/hit"], "element": ["lightning", "energy"] } },
+  { "ref": "component/debris-burst", "match": { "category": ["explosion"], "element": ["earth"] } },
+  { "ref": "component/screen-flash", "match": { "category": ["ui"] } },
+  { "ref": "component/glow-particle", "match": { "category": ["aura", "heal", "pickup"], "element": ["light"] } },
+  { "ref": "shader/particle-soft-alpha", "match": { "category": ["smoke"], "renderMode": ["billboard"] } },
+  { "ref": "shader/particle-additive-glow", "match": { "element": ["light", "energy"], "renderMode": ["billboard"] } },
+  { "ref": "shader/particle-dissolve", "match": { "category": ["magic"] } },
+  { "ref": "code/surface-impact-controller", "match": { "subcategory": ["impact/hit"] } },
+  { "ref": "code/vfx-pool", "match": { "cost": ["high"] } },
+  { "ref": "code/particle-orient-normal", "match": { "subcategory": ["impact/hit", "impact/slash"] } }
+ ]
+}

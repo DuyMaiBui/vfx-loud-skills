@@ -106,7 +106,7 @@ test('behavior: plain deterministic sentences, at most three, no licence / guid 
   const { nodes } = payloadNodes(layered);
   const ctx = { category: ['explosion'], element: ['fire'], colors: ['orange'] };
   const text = behaviorFromNodes(nodes, undefined, ctx) as string;
-  assert.equal(text, 'A one-shot burst of orange flames spreads outward from a sphere, falls under gravity and fades out within 0.9 s. Extra layers add smoke. Loops: no.');
+  assert.equal(text, 'A one-shot burst of orange flames spreads outward from a sphere, falls under gravity and fades out over 0.9 s. Extra layers add smoke. Loops: no.');
   assert.equal(text, behaviorFromNodes(nodes, undefined, ctx));
   assert.ok(text.split(/(?<=\.)\s/).length <= 3);
   assert.doesNotMatch(text, /licen[cs]e|guid|Unity|Assets\//i);

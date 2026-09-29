@@ -7,12 +7,14 @@
     "eval:search": "node seed/search-eval.ts",
     "reindex": "node seed/reindex.ts",
     "facets:report": "node seed/facet-report.ts",
-    "test": "node --test seed/extract/*.test.ts server/src/*.test.ts",
+    "test": "node --test seed/extract/*.test.ts seed/graph/*.test.ts server/src/*.test.ts",
     "extract": "node seed/extract-unitypackage.ts",
     "dev": "node --watch server/src/index.ts",
     "start": "node server/src/index.ts",
     "check": "tsc --noEmit",
-    "seed": "node seed/run.ts"
+    "seed": "node seed/run.ts",
+    "graph:build": "node seed/graph/build.ts",
+    "corpus:sha": "node seed/corpus-sha.ts"
   },
   "keywords": [],
   "author": "",

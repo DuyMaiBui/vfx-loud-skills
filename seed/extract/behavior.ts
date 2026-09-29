@@ -40,20 +40,24 @@ export function behaviorFromNodes(nodes: NodeInfo[], effect: EffectInfo | undefi
   }
   const primary = nodes.reduce((best, n) => (n.weight > best.weight ? n : best), nodes[0]);
   const looping = nodes.some((n) => n.looping);
-  const noun = (ctx.element[0] && b.nounByElement[ctx.element[0]]) || (ctx.category[0] && b.nounByCategory[ctx.category[0]]) || b.defaultNoun;
+  // A role category (muzzle, projectile...) beats a theme word taken from the name (storm -> weather).
+  const nounCat = b.nounCategoryPriority.find((c) => ctx.category.includes(c)) ?? ctx.category[0];
+  const noun = (ctx.element[0] && b.nounByElement[ctx.element[0]]) || (nounCat && b.nounByCategory[nounCat]) || b.defaultNoun;
   const colour = ctx.colors[0] ? `${ctx.colors[0]} ` : '';
   const emission = primary.burst ? b.emission.burst : b.emission.stream;
   const main = b.motionPriority.find((m) => primary.motion.includes(m)) ?? 'static';
   const extra = primary.motion.includes('falling') && main !== 'falling' ? [b.motion.falling] : [];
   const shape = main === 'static' ? '' : ` from ${b.shape[primary.shape] ?? b.shape.point}`;
 
-  const trends = [...(primary.fade ? [b.fade] : []), ...(primary.sizeTrend === 'grow' ? [b.grow] : primary.sizeTrend === 'shrink' ? [b.shrink] : [])];
+  const trends = [...(primary.sizeTrend === 'grow' ? [b.grow] : primary.sizeTrend === 'shrink' ? [b.shrink] : []), ...(primary.fade ? [b.fade] : [])];
+  const trendText = trends.join(b.trendJoin);
+  const fill = (tpl: string, x: number): string => tpl.replace('{sec}', sec(x));
   const t = Math.max(...nodes.map((n) => n.visibleSec));
   const tail = looping
-    ? [...trends, `repeats every ${sec(t)}`]
+    ? [...(trendText ? [trendText] : []), fill(b.repeat, t)]
     : t > 0
-      ? [trends.length ? `${joinList(trends)} within ${sec(t)}` : `lasts about ${sec(t)}`]
-      : trends;
+      ? [trendText ? `${trendText} ${fill(b.span, t)}` : fill(b.lasts, t)]
+      : trendText ? [trendText] : [];
   const clauses = [`${b.motion[main]}${shape}`, ...extra, ...tail];
   const first = `A ${b.loop[looping ? 'loop' : 'one-shot']} ${emission} of ${colour}${noun} ${joinList(clauses)}.`;
 

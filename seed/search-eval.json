@@ -389,5 +389,111 @@
     "slug": "(^|-)(splash|splashes)(-|$)"
    }
   }
+ ],
+ "graphQueries": [
+  {
+   "id": "g-set-rocket",
+   "q": "rocket muzzle missile impact",
+   "group": "graph",
+   "relevant": {
+    "packs": [
+     "retro-arsenal",
+     "sci-fi-arsenal",
+     "epic-toon-fx"
+    ],
+    "slug": "(^|-)rocket(-|$)"
+   }
+  },
+  {
+   "id": "g-set-bullet",
+   "q": "bullet muzzle projectile explosion",
+   "group": "graph",
+   "relevant": {
+    "packs": [
+     "retro-arsenal",
+     "sci-fi-arsenal",
+     "epic-toon-fx"
+    ],
+    "slug": "(^|-)bullet(-|$)",
+    "slugAlso": "(muzzle|missile|explosion|impact)"
+   }
+  },
+  {
+   "id": "g-set-laser",
+   "q": "laser weapon muzzle missile impact",
+   "group": "graph",
+   "relevant": {
+    "packs": [
+     "retro-arsenal",
+     "sci-fi-arsenal",
+     "epic-toon-fx"
+    ],
+    "slug": "(^|-)laser(-|$)",
+    "slugAlso": "(muzzle|missile|explosion|impact)"
+   }
+  },
+  {
+   "id": "g-set-energy",
+   "q": "energy weapon muzzle missile explosion",
+   "group": "graph",
+   "relevant": {
+    "packs": [
+     "epic-toon-fx"
+    ],
+    "slug": "(^|-)energy(-|$)",
+    "slugAlso": "(muzzle|missile|explosion)"
+   }
+  },
+  {
+   "id": "g-set-mystic",
+   "q": "mystic weapon effects",
+   "group": "graph",
+   "relevant": {
+    "packs": [
+     "epic-toon-fx"
+    ],
+    "slug": "(^|-)mystic(-|$)"
+   }
+  },
+  {
+   "id": "g-variant-blackhole",
+   "q": "black hole",
+   "group": "graph",
+   "relevant": {
+    "packs": [
+     "retro-arsenal",
+     "sci-fi-arsenal",
+     "epic-toon-fx"
+    ],
+    "slug": "(^|-)black-hole(-|$)"
+   }
+  },
+  {
+   "id": "g-variant-spiky",
+   "q": "spiky explosion",
+   "group": "graph",
+   "relevant": {
+    "packs": [
+     "retro-arsenal",
+     "sci-fi-arsenal",
+     "epic-toon-fx"
+    ],
+    "slug": "(^|-)spiky(-|$)"
+   }
+  },
+  {
+   "id": "g-variant-shockwave",
+   "q": "shockwave missile impact",
+   "group": "graph",
+   "relevant": {
+    "packs": [
+     "retro-arsenal",
+     "sci-fi-arsenal",
+     "epic-toon-fx"
+    ],
+    "slug": "(^|-)shockwave(-|$)",
+    "slugAlso": "(missile|impact)"
+   }
+  }
  ]
 }

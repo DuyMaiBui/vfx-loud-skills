@@ -14,7 +14,8 @@ Trả lời bằng **ngôn ngữ của user** (Việt hoặc Anh). Facet/URI/tê
 - Mỗi record: `meta.facets` (mọi key tuỳ chọn), `meta.style` (string[]), `meta.behavior` (1–3 câu tiếng Anh: người xem thấy gì theo thời gian).
 - `meta.facets`: `category[]`, `subcategory[]` (`"<category>/<sub>"`), `element[]`, `colors[]`, `playback` (`loop|one-shot`), `duration` (`short|medium|long`), `scale` (`small|medium|large`), `motion[]`, `shape[]`, `renderMode[]`, `cost` (`low|medium|high`).
 - `vfx_facets({query?, type?, filters?, style?, keywords?})` → `{total, facets: {<tên>: [{value, count}]}}`. Tên facet = key của `meta.facets` + `"style"`.
-- `vfx_search` nhận cùng `filters`; mỗi card có `uri, name, score, description, facets, behavior`.
+- `vfx_search` nhận cùng `filters`; mỗi card có `uri, name, score, description, facets, behavior`, `variants: [{uri, colors, name}]` (các biến thể màu/version của cùng effect đã gộp vào card, gồm chính nó; `[]` nếu không có) và `pairsWith: [{uri, name, category}]` (effect cùng bộ: muzzle / projectile / impact). `collapseVariants:false` để tắt gộp.
+- `vfx_related({uri, rel?, limit?})` → hàng xóm trong graph (`variant_of`, `pairs_with`, `similar_to`, `applies_to`).
 - Lọc: **OR trong một facet, AND giữa các facet**.
 
 ## Flow
@@ -50,15 +51,22 @@ Dùng tool hỏi có cấu trúc của host (Claude Code: `AskUserQuestion`; n�
 ```
 <n>. <name>  —  <style, cách nhau bằng " / ">
    Hành vi: <1 dòng lấy từ `behavior`, dịch sang ngôn ngữ user>
+   Màu: <colors của variants, cách nhau " / ">        (chỉ khi variants có ≥2 màu; bỏ dòng nếu không)
    <playback> · <duration> · <scale> · cost <cost>
    <vfx:// URI>
 ```
+
+- Dòng "Màu" lấy từ `variants[].colors` của server (vd `Màu: blue / red / green`), không tự suy. Một card = một họ biến thể; user chọn màu ở bước 6.
 
 - Dòng "Hành vi" phải đến từ `behavior` của server, **không tự bịa**. Thiếu `behavior` → dùng `description`, ghi rõ "(mô tả, chưa có behavior)".
 - Facet nào thiếu thì bỏ khỏi dòng 3, không điền đoán.
 - Sau danh sách, hỏi bằng tool hỏi có cấu trúc: chọn 1 card, hoặc "Tinh chỉnh" (quay lại bước 4 với facet chưa hỏi, còn trong quota), hoặc "Không cái nào hợp".
 
 ### 6. Chốt
+
+Nếu card có nhiều màu trong `variants` mà user chưa nói màu, hỏi màu (tool hỏi có cấu trúc, option = các màu trong `variants`) rồi dùng `uri` của biến thể đó.
+
+Sau khi user chọn xong 1 effect và `pairsWith` không rỗng: hỏi thêm bằng tool hỏi có cấu trúc **"Kèm muzzle/impact cùng bộ?"** (câu hỏi ghi theo `category` có thật trong `pairsWith`, vd muzzle / projectile / impact; option: từng companion `name`, "Lấy cả bộ", "Không, chỉ cái này"). Companion khác màu thì lấy `vfx_related(uri, rel:"pairs_with")` của biến thể đã chọn. Không có tool hỏi → in danh sách đánh số rồi dừng. Companion được chọn cũng đi qua flow dưới.
 
 User chọn → chuyển sang flow `vfx-authoring` (`vfx_resolve` → `vfx_fetch` → …). Không nhắc lại các bước đó ở đây.
 

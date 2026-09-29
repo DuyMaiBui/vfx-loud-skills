@@ -36,11 +36,23 @@ export async function buildHttp(): Promise<Fastify.FastifyInstance> {
   });
 
   app.post<{
-    Body: { query: string; type?: store.ResourceType; tags?: string[]; style?: string[]; keywords?: string[]; filters?: unknown; limit?: number };
+    Body: { query: string; type?: store.ResourceType; tags?: string[]; style?: string[]; keywords?: string[]; filters?: unknown; limit?: number; collapseVariants?: boolean; graphWeight?: number };
   }>('/v1/search', async (req) => {
-    const { query, type, tags, style, keywords, filters, limit } = req.body ?? { query: '' };
+    const { query, type, tags, style, keywords, filters, limit, collapseVariants, graphWeight } = req.body ?? { query: '' };
     if (!query?.trim()) throw new store.VfxError('query is required');
-    return { cards: await store.search({ query, type, tags, style, keywords, filters: store.parseFilters(filters), limit }) };
+    return { cards: await store.search({ query, type, tags, style, keywords, filters: store.parseFilters(filters), limit, collapseVariants, graphWeight }) };
+  });
+
+  /** Graph neighbourhood of one record: variant siblings, pairs_with, similar_to, applies_to, uses. */
+  app.get<{ Querystring: { uri?: string; rel?: string; limit?: string } }>('/v1/related', async (req) => {
+    const { uri, rel, limit } = req.query;
+    if (!uri) throw new store.VfxError('uri is required');
+    return store.related(uri, { rel: rel || undefined, limit: limit ? Number(limit) : undefined });
+  });
+  app.post<{ Body: { uri?: string; rel?: string; limit?: number } }>('/v1/related', async (req) => {
+    const { uri, rel, limit } = req.body ?? {};
+    if (!uri) throw new store.VfxError('uri is required');
+    return store.related(uri, { rel, limit });
   });
 
   /** Facet value counts over the candidate set matching query + filters (see facet-search.ts for the cut-off). */

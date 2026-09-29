@@ -52,6 +52,11 @@ export interface BehaviorRules {
   emission: Record<string, string>;
   defaultNoun: string;
   nounByCategory: Record<string, string>;
+  nounCategoryPriority: string[];
+  trendJoin: string;
+  span: string;
+  lasts: string;
+  repeat: string;
   nounByElement: Record<string, string>;
   motion: Record<string, string>;
   motionPriority: string[];

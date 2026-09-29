@@ -1,0 +1,39 @@
+{
+ "_note": "DATA, not logic. Every rule and threshold of `npm run graph:build` (seed/graph/build.ts). Colour words come from server/src/vocab.json (colours.*.terms), never repeated here. Edit, then re-run `npm run graph:build` (idempotent).",
+ "family": {
+  "_doc": "variant_of. Group extracted recipes of one pack by (normalised folder, name stem), where stem/folder drop colour words and version tokens; then keep only members whose payload has the SAME node count and the SAME node signature (node paths + enabled modules). Members of a confirmed group get meta.family and a variant_of edge to the canonical member (lowest slug).",
+  "versionTokenPattern": "^v\\d+$",
+  "stripTokens": [],
+  "minMembers": 2,
+  "maxMembers": 30
+ },
+ "pairs": {
+  "_doc": "pairs_with. Same pack + same stem + same variant key (colours + versions + suffix words), with >= minRoles distinct roles. A role is detected from the prefab NAME tokens (role.terms, singularised); role.alsoStrip tokens are removed from the stem too. Every member of a role is linked to every member of the other roles.",
+  "packs": ["retro-arsenal", "sci-fi-arsenal", "epic-toon-fx"],
+  "roles": {
+   "muzzle": { "terms": ["muzzle", "muzzleflash"], "alsoStrip": ["flash"] },
+   "projectile": { "terms": ["missile", "projectile"], "alsoStrip": [] },
+   "impact": { "terms": ["explosion", "impact"], "alsoStrip": [] }
+  },
+  "suffixVariantWords": ["fire", "water", "clear", "modular"],
+  "versionTokenPattern": "^v\\d+$",
+  "minRoles": 2,
+  "maxSetSize": 12
+ },
+ "assets": {
+  "_doc": "Asset nodes = material / texture / shader / mesh references (by GUID) found in extracted payloads. builtinGuidPattern marks Unity built-in resources (external, never a similarity signal).",
+  "builtinGuidPattern": "^0{16}[0-9a-f]{16}$",
+  "meshKeys": ["m_Mesh", "mesh"]
+ },
+ "similarity": {
+  "_doc": "similar_to. Jaccard over the (non-builtin, non-external) materials+textures a recipe uses. Assets used by more than maxAssetFanout recipes carry no signal (shared atlas) and are skipped. Each recipe keeps its topK best neighbours with jaccard >= minJaccard (out-degree cap); same-family pairs are excluded (variant_of covers them).",
+  "kinds": ["material", "texture"],
+  "maxAssetFanout": 120,
+  "minJaccard": 0.5,
+  "topK": 10
+ },
+ "knowledge": {
+  "_doc": "applies_to. seed/graph/knowledge-links.json maps hand-written technique/component/shader/code records to the recipe facets they apply to. At most maxPerKnowledge recipes per record: hand-written first, then one per family, round-robin across packs.",
+  "maxPerKnowledge": 40
+ }
+}

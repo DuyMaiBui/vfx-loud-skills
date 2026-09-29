@@ -41,6 +41,10 @@ export function createMcpServer(): McpServer {
         'loop: looping | one-shot). ' +
         'Thêm `filters` (facet: category, subcategory, element, colors, playback, duration, scale, motion, shape, renderMode, cost, style) ' +
         'để thu hẹp; mỗi card trả thêm `facets` và `behavior` (mô tả bằng lời cái người xem thấy). ' +
+        'Biến thể cùng một effect (khác màu/version) được GỘP thành MỘT card: `variants: [{uri, colors, name}]` liệt kê tất cả (gồm chính card); ' +
+        'đặt `collapseVariants: false` để mỗi record là một card riêng. ' +
+        '`pairsWith: [{uri, name, category}]` là các effect cùng bộ (vd muzzle + projectile + impact của cùng một loại vũ khí) — gợi ý dùng kèm sau khi user chọn. ' +
+        'Xem thêm hàng xóm trong graph bằng vfx_related. ' +
         'Không chắc user muốn gì? Gọi vfx_facets trước để hỏi đúng câu.',
       inputSchema: {
         query: z.string().describe('Mô tả tiếng Anh, vd "cartoon ground impact soft dust"'),
@@ -49,11 +53,12 @@ export function createMcpServer(): McpServer {
         style: z.array(z.string()).optional().describe('Lọc theo pack style: toon, stylized, retro, sci-fi, low-poly ("cartoon", "low poly" cũng được)'),
         keywords: z.array(z.string()).optional().describe('Lọc: record có BẤT KỲ keyword nào (fire, explosion, blue, looping...)'),
         filters: filtersSchema.describe(FILTERS_HELP),
-        limit: z.number().int().min(1).max(50).optional(),
+        collapseVariants: z.boolean().optional().describe('Mặc định true: mỗi họ biến thể (màu/version) một card. false: mỗi record một card'),
+        limit: z.number().int().min(1).max(50).optional().describe('Số card (sau khi gộp biến thể)'),
       },
     },
-    async ({ query, type, tags, style, keywords, filters, limit }) => {
-      const cards = await store.search({ query, type, tags, style, keywords, filters: store.parseFilters(filters), limit });
+    async ({ query, type, tags, style, keywords, filters, limit, collapseVariants }) => {
+      const cards = await store.search({ query, type, tags, style, keywords, filters: store.parseFilters(filters), limit, collapseVariants });
       return {
         content: [
           {
@@ -92,11 +97,36 @@ export function createMcpServer(): McpServer {
   );
 
   server.registerTool(
+    'vfx_related',
+    {
+      title: 'Graph neighbourhood of a vfx:// URI',
+      description:
+        'Hàng xóm của một record trong knowledge graph. rel: ' +
+        'variant_of (cùng effect khác màu/version), pairs_with (cùng bộ: muzzle + projectile + impact), ' +
+        'similar_to (dùng chung material/texture, kèm weight = Jaccard), applies_to (technique/component/shader/code ↔ recipe áp dụng, hai chiều), ' +
+        'uses (dependency vfx://). Bỏ `rel` = mọi loại, sắp theo loại rồi weight. ' +
+        'Output: { uri, family, related: [{ uri, name, type, rel, direction: out|in|family, weight, category }] }. ' +
+        'Dùng sau vfx_search để lấy đồng bộ/biến thể/effect tương tự của một card.',
+      inputSchema: {
+        uri: z.string().describe('vd vfx://recipe/retro-arsenal-fire-muzzle-blue/1'),
+        rel: z.enum(['variant_of', 'pairs_with', 'similar_to', 'applies_to', 'uses']).optional(),
+        limit: z.number().int().min(1).max(100).optional().describe('mặc định 20'),
+      },
+    },
+    async ({ uri, rel, limit }) => {
+      const result = await store.related(uri, { rel, limit });
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
     'vfx_resolve',
     {
       title: 'Resolve a vfx:// URI',
       description:
-        'Giải mã vfx:// URI -> manifest: metadata, dependencies, download_url. ' +
+        'Giải mã vfx:// URI -> manifest: metadata, dependencies (vfx:// URI mà record dùng), download_url. ' +
+        'Recipe trích từ pack còn có `assets`: material / texture / shader / mesh (guid, path trong pack, pack, license, `external`/`builtin`) — ' +
+        'đó là thứ cần kéo từ pack về cùng recipe; chỉ metadata, KHÔNG có bytes. ' +
         'Chưa tải file — dùng vfx_fetch khi đã chọn.',
       inputSchema: { uri: z.string().describe('vd vfx://texture/soft-dust/1') },
     },
