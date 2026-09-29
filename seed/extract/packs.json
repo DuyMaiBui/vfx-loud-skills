@@ -1,12 +1,130 @@
 {
-  "note": "In-scope purchased packs. GoogleMobileAds (an SDK) and 'Tons of Effects - VFX Bundle URP' (PDF only) are intentionally absent. Vendor for the three Archanor packs follows the user brief (Assets/Archanor/... in Sci-Fi Arsenal).",
+  "note": "In-scope purchased packs. GoogleMobileAds (an SDK) and 'Tons of Effects - VFX Bundle URP' (PDF only) are intentionally absent. Vendor for the three Archanor packs follows the user brief (Assets/Archanor/... in Sci-Fi Arsenal). Folder sources (sourceType=folder) read GUIDs from <file>.meta; NamuFX _SharedAssets (env/viewer scaffolding prefabs) is outside prefabRoots.",
   "packs": [
-    { "slug": "background-effects", "name": "Background Effects", "file": "Background Effects.unitypackage", "vendor": "Hovl Studio", "license": "asset-store-eula", "style": ["stylized", "background"], "tags": ["hovl"] },
-    { "slug": "epic-toon-vfx-2", "name": "Epic Toon VFX 2", "file": "Epic Toon VFX 2.unitypackage", "vendor": "Hovl Studio", "license": "asset-store-eula", "style": ["cartoon", "stylized"], "tags": ["hovl", "toon"] },
-    { "slug": "environment-weather-nature", "name": "Environment Weather Nature VFX pack", "file": "Environment Weather Nature VFX pack.unitypackage", "vendor": "Lana Studio", "license": "asset-store-eula", "style": ["stylized", "nature"], "tags": ["environment", "weather", "nature"] },
-    { "slug": "epic-toon-fx", "name": "Epic Toon FX", "file": "Epic Toon FX.unitypackage", "vendor": "Archanor", "license": "asset-store-eula", "style": ["cartoon", "stylized"], "tags": ["toon"] },
-    { "slug": "retro-arsenal", "name": "Retro Arsenal", "file": "Retro Arsenal.unitypackage", "vendor": "Archanor", "license": "asset-store-eula", "style": ["retro", "stylized"], "tags": ["retro"] },
-    { "slug": "sci-fi-arsenal", "name": "Sci-Fi Arsenal", "file": "Sci-Fi Arsenal.unitypackage", "vendor": "Archanor", "license": "asset-store-eula", "style": ["sci-fi", "stylized"], "tags": ["sci-fi"] },
-    { "slug": "synty-polygon-particle-fx", "name": "POLYGON - Particle FX Pack - Art by Synty", "file": "POLYGON - Particle FX Pack - Art by Synty.unitypackage", "vendor": "Synty Studios", "license": "synty-store-eula", "style": ["cartoon", "stylized"], "tags": ["synty", "polygon"], "prefabRoots": ["Assets/Synty/PolygonParticleFX/"] }
+    {
+      "slug": "background-effects",
+      "name": "Background Effects",
+      "file": "Background Effects.unitypackage",
+      "vendor": "Hovl Studio",
+      "license": "asset-store-eula",
+      "style": [
+        "stylized",
+        "background"
+      ],
+      "tags": [
+        "hovl"
+      ]
+    },
+    {
+      "slug": "epic-toon-vfx-2",
+      "name": "Epic Toon VFX 2",
+      "file": "Epic Toon VFX 2.unitypackage",
+      "vendor": "Hovl Studio",
+      "license": "asset-store-eula",
+      "style": [
+        "cartoon",
+        "stylized"
+      ],
+      "tags": [
+        "hovl",
+        "toon"
+      ]
+    },
+    {
+      "slug": "environment-weather-nature",
+      "name": "Environment Weather Nature VFX pack",
+      "file": "Environment Weather Nature VFX pack.unitypackage",
+      "vendor": "Lana Studio",
+      "license": "asset-store-eula",
+      "style": [
+        "stylized",
+        "nature"
+      ],
+      "tags": [
+        "environment",
+        "weather",
+        "nature"
+      ]
+    },
+    {
+      "slug": "epic-toon-fx",
+      "name": "Epic Toon FX",
+      "file": "Epic Toon FX.unitypackage",
+      "vendor": "Archanor",
+      "license": "asset-store-eula",
+      "style": [
+        "cartoon",
+        "stylized"
+      ],
+      "tags": [
+        "toon"
+      ]
+    },
+    {
+      "slug": "retro-arsenal",
+      "name": "Retro Arsenal",
+      "file": "Retro Arsenal.unitypackage",
+      "vendor": "Archanor",
+      "license": "asset-store-eula",
+      "style": [
+        "retro",
+        "stylized"
+      ],
+      "tags": [
+        "retro"
+      ]
+    },
+    {
+      "slug": "sci-fi-arsenal",
+      "name": "Sci-Fi Arsenal",
+      "file": "Sci-Fi Arsenal.unitypackage",
+      "vendor": "Archanor",
+      "license": "asset-store-eula",
+      "style": [
+        "sci-fi",
+        "stylized"
+      ],
+      "tags": [
+        "sci-fi"
+      ]
+    },
+    {
+      "slug": "synty-polygon-particle-fx",
+      "name": "POLYGON - Particle FX Pack - Art by Synty",
+      "file": "POLYGON - Particle FX Pack - Art by Synty.unitypackage",
+      "vendor": "Synty Studios",
+      "license": "synty-store-eula",
+      "style": [
+        "cartoon",
+        "stylized"
+      ],
+      "tags": [
+        "synty",
+        "polygon"
+      ],
+      "prefabRoots": [
+        "Assets/Synty/PolygonParticleFX/"
+      ]
+    },
+    {
+      "slug": "namufx-stylized-water",
+      "name": "Stylized Water Effects",
+      "vendor": "NamuFX",
+      "license": "asset-store-eula",
+      "style": [
+        "stylized",
+        "water"
+      ],
+      "tags": [
+        "namufx",
+        "water"
+      ],
+      "sourceType": "folder",
+      "sourcePath": "/var/home/mike/Documents/Work/The1/Unity/SmashFest/UnitySmashFest/Assets/NamuFX",
+      "pathPrefix": "Assets/NamuFX",
+      "prefabRoots": [
+        "Assets/NamuFX/StylizedWaterEffects/Prefabs/"
+      ]
+    }
   ]
 }

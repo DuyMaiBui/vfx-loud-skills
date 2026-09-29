@@ -13,6 +13,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { extractPack, type PackConfig } from './extract/pipeline.ts';
+import { folderSource, tarSource, type PackageSource } from './extract/source.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_SOURCE_DIR = process.env.VFX_UNITYPACKAGE_DIR ?? '/home/mike/Downloads/UnityPackages';
@@ -29,6 +30,7 @@ async function main(): Promise<void> {
       limit: { type: 'string' },
       out: { type: 'string' },
       'source-dir': { type: 'string' },
+      'source-path': { type: 'string' },
       'list-packs': { type: 'boolean' },
       'only-guids-from': { type: 'string' },
     },
@@ -40,7 +42,7 @@ async function main(): Promise<void> {
     for (const p of packs) console.log(`${p.slug}\t${p.license}\t${p.vendor}\t${p.name}`);
     return;
   }
-  const usage = 'usage: extract-unitypackage.ts --pack <slug> --out <dir> [--limit N] [--source-dir <dir>] | --list-packs';
+  const usage = 'usage: extract-unitypackage.ts --pack <slug> --out <dir> [--limit N] [--source-dir <dir> | --source-path <folder>] | --list-packs';
   if (!values.pack || !values.out) throw new Error(usage);
   const pack = packs.find((p) => p.slug === values.pack);
   if (!pack) throw new Error(`unknown pack "${values.pack}"; try --list-packs`);
@@ -50,9 +52,18 @@ async function main(): Promise<void> {
     limit = Number(values.limit);
     if (!Number.isInteger(limit) || limit < 1) throw new Error(`--limit must be a positive integer, got "${values.limit}"`);
   }
-  const packageFile = path.join(values['source-dir'] ?? DEFAULT_SOURCE_DIR, pack.file);
-  await fs.access(packageFile); // fail loudly on a missing package
-
+  let source: PackageSource;
+  if (pack.sourceType === 'folder') {
+    const root = values['source-path'] ?? pack.sourcePath;
+    if (!root || !pack.pathPrefix) throw new Error(`pack "${pack.slug}" is a folder source: needs sourcePath (or --source-path) and pathPrefix`);
+    await fs.access(root);
+    source = folderSource(root, pack.pathPrefix);
+  } else {
+    if (!pack.file) throw new Error(`pack "${pack.slug}" has no file`);
+    const packageFile = path.join(values['source-dir'] ?? DEFAULT_SOURCE_DIR, pack.file);
+    await fs.access(packageFile); // fail loudly on a missing package
+    source = tarSource(packageFile);
+  }
   let onlyGuids: Set<string> | undefined;
   if (values['only-guids-from']) {
     const lines = (await fs.readFile(values['only-guids-from'], 'utf8')).split('\n').filter(Boolean);
@@ -61,7 +72,7 @@ async function main(): Promise<void> {
   const summary = await extractPack({
     onlyGuids,
     pack,
-    packageFile,
+    source,
     outDir: path.resolve(values.out),
     limit,
     log: (l) => console.error(l),

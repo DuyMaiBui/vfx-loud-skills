@@ -2,12 +2,18 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { extractedLicenseProblem, licenseClassOf, aiTrainingAllowed } from '../../server/src/license.ts';
 import { SLUG_RE } from '../../server/src/slug.ts';
-import { tarEntries, openUnityPackage } from './tar.ts';
+import { tarSource, type PackageSource } from './source.ts';
 import { buildRecipe, SkipError, type PackInfo } from './recipe.ts';
 
 export interface PackConfig extends PackInfo {
   slug: string;
-  file: string;
+  /** `.unitypackage` file name (default source type). */
+  file?: string;
+  /** 'folder' = a loose imported Unity folder read via its .meta files; configured by sourcePath + pathPrefix. */
+  sourceType?: 'unitypackage' | 'folder';
+  sourcePath?: string;
+  /** Unity path of the folder root, e.g. "Assets/NamuFX". */
+  pathPrefix?: string;
   license: string;
   style: string[];
   tags: string[];
@@ -17,7 +23,9 @@ export interface PackConfig extends PackInfo {
 
 export interface ExtractOptions {
   pack: PackConfig;
-  packageFile: string;
+  /** Either a `.unitypackage` file or an explicit source (e.g. a folder). */
+  packageFile?: string;
+  source?: PackageSource;
   outDir: string;
   limit?: number;
   /** When set, only these prefab GUIDs are considered (slugs are still computed over the full eligible set). */
@@ -125,16 +133,10 @@ export async function extractPack(opts: ExtractOptions): Promise<PackSummary> {
   if (licenseProblem) throw new Error(`pack "${pack.name}": ${licenseProblem} — refusing to extract`);
   const licenseClass = licenseClassOf(pack.license);
 
-  // Pass 1 — path index (tiny `pathname` entries only) + asset sizes.
-  const paths = new Map<string, string>();
-  const assetSizes = new Map<string, number>();
-  const guidOf = (n: string): string => n.slice(0, n.indexOf('/'));
-  for await (const e of tarEntries(openUnityPackage(opts.packageFile), (n, size) => {
-    if (n.endsWith('/asset')) assetSizes.set(guidOf(n), size);
-    return n.endsWith('/pathname');
-  })) {
-    paths.set(guidOf(e.name), e.data.toString('utf8').split('\n')[0].trim());
-  }
+  const source = opts.source ?? (opts.packageFile ? tarSource(opts.packageFile) : undefined);
+  if (!source) throw new Error(`pack "${pack.name}": no source (packageFile or source required)`);
+  // Pass 1 — path index (paths + asset sizes only).
+  const { paths, assetSizes } = await source.index();
   const tIndex = performance.now();
 
   const excluded: Record<string, number> = {};
@@ -154,11 +156,8 @@ export async function extractPack(opts: ExtractOptions): Promise<PackSummary> {
 
   // Pass 2 — Material assets (small YAML) so material -> shader/texture GUIDs can be referenced.
   const materials = new Map<string, string>();
-  for await (const e of tarEntries(openUnityPackage(opts.packageFile), (n) => {
-    if (!n.endsWith('/asset')) return false;
-    return (paths.get(guidOf(n)) ?? '').endsWith('.mat');
-  })) {
-    materials.set(guidOf(e.name), e.data.toString('utf8'));
+  for await (const e of source.assets((g) => (paths.get(g) ?? '').endsWith('.mat'))) {
+    materials.set(e.guid, e.data.toString('utf8'));
   }
   const tMat = performance.now();
 
@@ -183,10 +182,9 @@ export async function extractPack(opts: ExtractOptions): Promise<PackSummary> {
     const size = assetSizes.get(s.guid);
     return size !== undefined && size <= maxBytes;
   }).length;
-  const wantAsset = (n: string): boolean => n.endsWith('/asset') && selectedGuids.has(guidOf(n));
   // Oversized prefabs are never read into memory.
-  for await (const e of tarEntries(openUnityPackage(opts.packageFile), (n, size) => wantAsset(n) && size <= maxBytes)) {
-    const guid = guidOf(e.name);
+  for await (const e of source.assets((g, size) => selectedGuids.has(g) && size <= maxBytes)) {
+    const guid = e.guid;
     seenGuids.add(guid);
     const prefabPath = selectedGuids.get(guid) as string;
     const started = performance.now();
