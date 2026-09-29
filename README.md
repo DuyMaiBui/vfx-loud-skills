@@ -40,13 +40,14 @@ Skills + MCP cho Unity project đã được bật sẵn:
 - `Unity/.mcp.json` → server `vfx-skill` (⚠️ lần đầu mở `claude` phải approve)
 - `Unity/.claude/skills/vfx-*` → symlink về repo này
 
-## 5 tool (MCP)
+## Tool (MCP)
 
 | Tool | Làm gì |
 | --- | --- |
 | `vfx_search` | Semantic + keyword search → Knowledge Card + `vfx://` URI |
 | `vfx_facets` | Đếm record theo từng facet cho `query` + `filters` → biết nên hỏi user câu gì tiếp |
 | `vfx_resolve` | URI → version, `file_name`, `download_url`, `sha256`, `dependencies` |
+| `vfx_review` / `vfx_review_result` | Mở trang review cho ứng viên / bộ (trả `url` + `session`) và đọc lựa chọn của user |
 | `vfx_fetch` | URL tải payload. `scripts/vfx-fetch.sh <uri> <unity project root>` ghi file + verify sha256, không đụng `.meta` |
 | `vfx_publish` | Payload mới → version mới + `linkDependencies` (cập nhật graph, không overwrite) |
 
@@ -63,6 +64,18 @@ Skills + MCP cho Unity project đã được bật sẵn:
 | `applies_to` | technique/component/shader/code → recipe áp dụng, theo mapping facet trong JSON |
 
 `/v1/search`: mỗi họ biến thể một card (`variants`, `collapseVariants:false` để tắt), `pairsWith`; graph expansion boost hàng xóm của top hit, `SEARCH_W_GRAPH` (mặc định 0.3, 0 = tắt). `GET|POST /v1/related` + MCP `vfx_related`. `vfx_resolve` trả thêm `assets`. `npm run corpus:sha` = fingerprint payload của mọi record (không đổi qua graph:build).
+
+### Review (xem bằng mắt + chọn)
+
+`GET /review?uris=<vfx://…,vfx://…>` hoặc `?q=…&type=recipe&filters=<json>&set=muzzle,projectile,impact` (`per=`, `limit=`): trang HTML tĩnh, lưới card (video lặp/poster lazy-load, tên, pack, style, behavior, playback/duration/scale/cost, chip màu, badge "có thể đổi màu", link cùng bộ), nền sáng/tối, nút "Chọn" + "Gửi lựa chọn". Có `set` thì chia cột theo role và effect `pairs_with` nằm cùng hàng; mỗi role chọn một. Mỗi lần mở tạo một **session** (URL sau đó là `/review?session=<id>`).
+
+- `POST /v1/review` `{uris | q, type?, filters?, set?, per?, limit?}` → `{session, url, count}` (URI phải tồn tại, không thì 404).
+- `POST /v1/review/selection` `{session, uris[], roles?: {uri: role}}` — thay toàn bộ lựa chọn của session (uri phải thuộc session). Trang dùng bản không cần key: `POST /review/selection` (session id là capability).
+- `GET /v1/review/selection?session=` → `{session, query, uris, selection: [{uri, role, chosen_at}]}`.
+- MCP: `vfx_review` (cùng input POST /v1/review) và `vfx_review_result {session}`. Bảng `review_session`, `review_selection` (migration 008).
+- Khi `AUTH` bật, mở `/review?q=|uris=` cần header key (trình duyệt không gửi được): tạo session bằng `POST /v1/review` rồi mở `url`.
+
+**Preview** (`data/previews/`, gitignored, do lane Unity điền): `GET /previews/<slug>.webm|.webp` (MIME đúng, `Range` → 206 để seek, `ETag`/`Cache-Control`, chỉ nhận tên phẳng `<slug>.webm|webp` nên không path traversal). Trang review đọc `data/previews/index.json` = `{"version":1,"items":{"<slug>":{"webm","poster","bytes","fps","frames","size":256,"renderedAt"}}}` (slug = đoạn giữa của `vfx://recipe/<slug>/<version>`), tự nạp lại khi file đổi (mtime), không cần restart. Biến thể không có entry riêng dùng bản canonical (slug thấp nhất) của họ; không có gì thì card ghi "chưa có preview" — toàn bộ luồng chạy được khi thư mục trống.
 
 REST kèm: `/healthz`, `/v1/search`, `/v1/facets`, `/v1/resource/:type/:slug/:version[/file]`, `/v1/publish`.
 
@@ -180,7 +193,7 @@ image, visibility phân quyền, `feedback` tool. Nằm ở ladder V0.1–V0.5 t
 
 Chưa làm: ingestion Brackeys (đã có Kenney + Synty + OpenGameArt flipbook), texture
 semantic schema mở rộng ngoài flipbook (provenance/UV hints cho texture thường),
-`preview_uri` (toàn NULL).
+`preview_uri` (toàn NULL; video preview phục vụ qua `/previews` + `data/previews/index.json`, xem Review).
 
 ## Extractor (unitypackage -> recipe)
 

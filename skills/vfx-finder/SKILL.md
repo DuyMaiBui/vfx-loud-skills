@@ -17,9 +17,23 @@ Trả lời bằng **ngôn ngữ của user** (Việt hoặc Anh). Facet/URI/tê
 - `vfx_search` nhận cùng `filters`; mỗi card có `uri, name, score, description, facets, behavior`, `recolorable` (`true|false|null`) + `recolorReason` (`ok|params|texture|no-keys|no-base-keys`), `variants: [{uri, colors, name}]` (các biến thể màu/version của cùng effect đã gộp vào card, gồm chính nó; `[]` nếu không có) và `pairsWith: [{uri, name, category}]` (effect cùng bộ: muzzle / projectile / impact). `collapseVariants:false` để tắt gộp.
 - `vfx_recolor({uri, targetColor | hueShiftDeg, preserveLuminance?, publish?, includePayload?})` → payload đã đổi màu + `tint` + `changes`; `publish:true` tạo record MỚI `derived_from` (idempotent, license kế thừa). Chỉ tin khi `recolorable: true`: họ biến thể đã đo, recolor base ≈ bản màu thật (dE ≤ 10 trên mọi biến thể). `false`/`null` = màu nằm trong texture hoặc params khác hue → **lấy biến thể thật**.
 - `vfx_related({uri, rel?, limit?})` → hàng xóm trong graph (`variant_of`, `pairs_with`, `similar_to`, `applies_to`).
+- `vfx_review({uris | q, type?, filters?, set?, per?, limit?})` → `{session, url, count}`: trang web so sánh bằng mắt (`url` dạng `http://localhost:8787/review?session=…`). `vfx_review_result({session})` → `{selection: [{uri, role, chosen_at}], uris, query}`; `selection` rỗng = user chưa bấm "Gửi lựa chọn". Với `set` (`["muzzle","projectile","impact"]`) mỗi role một cột, mỗi role user chọn tối đa một effect. Preview video có thể chưa có: card ghi "chưa có preview", review vẫn dùng được (so bằng tên / behavior / màu).
 - Lọc: **OR trong một facet, AND giữa các facet**.
 
-## Flow
+## Review flow (xem bằng mắt, chọn cả bộ)
+
+Dùng thay cho bước 5 dạng text khi: (a) user xin **BỘ** effect ("bộ skill lửa: muzzle, projectile, impact", "cả set"), hoặc (b) user muốn **so sánh bằng mắt** vài ứng viên ("cho tôi xem", "compare"). Yêu cầu một effect đơn, đã rõ → giữ luồng text bên dưới.
+
+1. Parse request như bước 1. Bộ → `set` = các role user nêu (tên category: muzzle, projectile, impact, ...); thiếu role thì hỏi bằng tool hỏi có cấu trúc, không đoán. Đã có sẵn danh sách ứng viên → `uris`.
+2. `vfx_review({q, type:"recipe", filters, set, per: 6})` (hoặc `{uris}`) → lấy `url` và `session`. Một call, không cần `vfx_facets`/`vfx_search` trước; `filters` chỉ khi user đã nói rõ (element, style, colors...).
+3. Đưa user **URL đó** (nguyên văn, `http://localhost:8787/review?session=…`) và nói: mở, chọn mỗi role một effect (xem video nếu có), bấm "Gửi lựa chọn". Cho biết `count` ứng viên. Nếu nhiều card ghi "chưa có preview" thì nói thẳng là chưa có video, chọn theo behavior/màu.
+4. Hỏi bằng tool hỏi có cấu trúc (Claude Code: `AskUserQuestion`; bị defer thì `ToolSearch select:AskUserQuestion` trước): **"Đã chọn xong và bấm Gửi lựa chọn chưa?"** (option: "Xong rồi", "Cho thêm ứng viên / đổi tiêu chí", "Bỏ"). Không có tool hỏi (routed/headless) → in URL rồi **dừng**, chờ lượt sau.
+5. "Xong rồi" → `vfx_review_result({session})`. `selection` rỗng → nói user chưa gửi, hỏi lại (đừng tự chọn top-1). "Thêm/đổi tiêu chí" → tạo session MỚI (`vfx_review` lại), không sửa session cũ.
+6. Với **từng** pick trong `selection` (dùng `uri` + `role`): áp dụng bước 6 dưới đây (recolor nếu `recolorable` và user muốn màu khác, ngược lại `vfx_resolve` → `vfx_fetch` theo `vfx-authoring`). Không hỏi lại "kèm muzzle/impact?": bộ đã được chọn theo role. Tóm tắt cuối: mỗi role → effect nào, màu nào.
+
+Không mở URL hộ user, không thử tải `url` bằng tool (trang chỉ dành cho trình duyệt của user). Server không chạy / `vfx_review` lỗi → quay về luồng text (bước 1–6) và báo user ngắn gọn.
+
+## Flow (text-card, mặc định và fallback)
 
 ### 1. Parse request
 

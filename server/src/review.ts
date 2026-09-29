@@ -278,7 +278,7 @@ function mediaHtml(p: CardPreview | null): string {
   if (!p) return '<div class="noprev">chưa có preview</div>';
   const note = p.viaFamily ? '<span class="famnote" title="Chưa có preview riêng: dùng bản gốc của họ biến thể">bản gốc họ</span>' : '';
   if (p.video) {
-    return `<video muted loop playsinline preload="none" data-src="${esc(p.video)}"${p.poster ? ` poster="${esc(p.poster)}"` : ''}></video>${note}`;
+    return `<video autoplay muted loop playsinline preload="none" data-src="${esc(p.video)}"${p.poster ? ` poster="${esc(p.poster)}"` : ''}></video>${note}`;
   }
   return `<img loading="lazy" src="${esc(p.poster ?? '')}" alt="">${note}`;
 }
