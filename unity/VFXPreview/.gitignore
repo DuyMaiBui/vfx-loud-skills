@@ -1,0 +1,17 @@
+/Library/
+/Temp/
+/Logs/
+/UserSettings/
+/obj/
+/Build*/
+*.csproj
+*.sln
+*.user
+# Licensed pack contents must NEVER be committed: whitelist approach, everything
+# under Assets/ is ignored except our own editor scripts and render settings.
+/Assets/*
+!/Assets/Editor/
+!/Assets/Editor.meta
+!/Assets/VfxPreviewSettings/
+!/Assets/VfxPreviewSettings.meta
+/Assets/ImportedPacks/**
