@@ -14,7 +14,12 @@ namespace VfxPreview
     /// GPU-copies into a (GridN*size)^2 atlas, ONE ReadPixels, ONE raw stream to ffmpeg which crops each cell to its own VP9 webm.</summary>
     static class PreviewBatch
     {
-        public sealed class Result { public string slug; public bool ok; public string error, note; public long bytes; }
+        public sealed class Result
+        {
+            public string slug; public bool ok; public string error, note; public long bytes;
+            /// <summary>The render is known-bad (missing-shader magenta): its media and index entry are dropped, never ingested.</summary>
+            public bool broken;
+        }
 
         public static List<Result> Run(List<Target> targets, PreviewOptions o, JObject timings)
         {
@@ -28,7 +33,7 @@ namespace VfxPreview
             try
             {
                 for (int i = 0; i < targets.Count; i++) cells.Add(new PreviewCell(targets[i], new Vector3((i % n) * 5000f, 0, (i / n) * 5000f), size));
-                foreach (var c in cells.Where(c => !c.Ok)) results.Add(new Result { slug = c.Target.slug, error = c.Error });
+                foreach (var c in cells.Where(c => !c.Ok)) results.Add(new Result { slug = c.Target.slug, error = c.Error, broken = c.Broken });
                 var live = cells.Where(c => c.Ok).ToList();
                 if (live.Count == 0) return results;
                 float dt = 1f / o.fps;
@@ -82,9 +87,15 @@ namespace VfxPreview
                     var webm = Path.Combine(PreviewOptions.PreviewDir, slug + ".webm");
                     var webp = Path.Combine(PreviewOptions.PreviewDir, slug + ".webp");
                     string err = encErr;
+                    bool broken = false;
+                    if (err == null && MagentaMath.IsMagentaClip(c.MagentaFrames) && !MagentaAllow.Contains(slug))
+                    {
+                        err = $"magenta (missing-shader colour) in {c.MagentaFrames}/{frames} frames; shader or material was not converted, see magenta-allow.txt if it is meant to be magenta";
+                        broken = true;
+                    }
                     if (err == null) err = Poster(c, webp, size);
                     if (err == null && (!File.Exists(webm) || new FileInfo(webm).Length == 0)) err = "webm missing";
-                    results.Add(err != null ? new Result { slug = slug, error = err, note = c.Note }
+                    results.Add(err != null ? new Result { slug = slug, error = err, note = c.Note, broken = broken }
                         : new Result { slug = slug, ok = true, note = c.Note, bytes = new FileInfo(webm).Length + new FileInfo(webp).Length });
                 }
                 timings["prepMs"] = Math.Round(tPrep); timings["simMs"] = Math.Round(tSim); timings["renderMs"] = Math.Round(tRender);
@@ -99,10 +110,11 @@ namespace VfxPreview
             return results;
         }
 
-        /// <summary>Coverage = pixels differing from the flat background; the peak frame becomes the poster.</summary>
+        /// <summary>Coverage = pixels differing from the flat background; the peak frame becomes the poster. Also counts a frame as magenta
+        /// (MagentaMath) when enough of its sampled pixels are the missing-shader colour.</summary>
         static void TrackPeak(PreviewCell c, byte[] buf, int atlasPx, int size, int x0, int y0, Color32 bg)
         {
-            long cov = 0;
+            long cov = 0, mag = 0, sampled = 0;
             for (int y = 0; y < size; y += 2)
             {
                 int row = ((y0 + y) * atlasPx + x0) * 4;
@@ -110,8 +122,11 @@ namespace VfxPreview
                 {
                     int i = row + x * 4;
                     if (Math.Abs(buf[i] - bg.r) + Math.Abs(buf[i + 1] - bg.g) + Math.Abs(buf[i + 2] - bg.b) > 24) cov++;
+                    if (MagentaMath.IsMagenta(buf[i], buf[i + 1], buf[i + 2])) mag++;
+                    sampled++;
                 }
             }
+            if (MagentaMath.IsMagentaFrame(mag, sampled)) c.MagentaFrames++;
             if (cov <= c.PeakCoverage && c.Peak != null) return;
             c.PeakCoverage = cov; c.Peak ??= new byte[size * size * 4];
             for (int y = 0; y < size; y++) Buffer.BlockCopy(buf, ((y0 + y) * atlasPx + x0) * 4, c.Peak, y * size * 4, size * 4);

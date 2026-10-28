@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pool } from './db.ts';
 import { GIF_MIME } from './preview-gif.ts';
+import { analyzeMedia, loadMagentaAllowlist } from './magenta.ts';
 import { PREVIEW_FILE_RE, previewDir } from './previews.ts';
 
 /**
@@ -187,6 +188,10 @@ export interface IngestOptions {
   maxBytes?: number;
   /** Directory holding index.json and the webm files; defaults to data/previews. */
   dir?: string;
+  /** Slugs allowed to be magenta (default: tools/preview/magenta-allow.txt). */
+  magentaAllow?: ReadonlySet<string>;
+  /** Skip the missing-shader (magenta) gate. Only for tests that feed synthetic colour bars. */
+  skipMagentaGate?: boolean;
 }
 
 /**
@@ -194,6 +199,10 @@ export interface IngestOptions {
  * an unchanged webm under the same builder is `unchanged` and writes nothing; a re-rendered webm replaces its
  * row in place. A missing index or webm is `skipped`, never an error. One bad webm is `failed` without stopping
  * the rest.
+ *
+ * Magenta gate: a freshly encoded GIF that is a missing-shader render (server/src/magenta.ts) is NEVER stored. The slug is
+ * `failed` with the reason, and its previous row (a render of an older source, so no longer the truth) is deleted: no
+ * preview (404) beats a pink one. Slugs in tools/preview/magenta-allow.txt are waived.
  */
 export async function ingestPreviews(opts: IngestOptions = {}): Promise<IngestSummary> {
   const dir = opts.dir ?? previewDir();
@@ -214,6 +223,7 @@ export async function ingestPreviews(opts: IngestOptions = {}): Promise<IngestSu
     throw new GifError(`${path.join(dir, 'index.json')} is not JSON: ${e instanceof Error ? e.message : String(e)}`);
   }
 
+  const magentaAllow = opts.magentaAllow ?? loadMagentaAllowlist();
   const have = new Map(
     (await pool.query<{ slug: string; source_sha256: string; builder: string; sha256: string }>('SELECT slug, source_sha256, builder, sha256 FROM preview_gif')).rows.map((r) => [r.slug, r]),
   );
@@ -246,6 +256,14 @@ export async function ingestPreviews(opts: IngestOptions = {}): Promise<IngestSu
     try {
       const { buffer, rung, overBudget } = await encodeGif(path.join(dir, name), opts);
       const facts = gifFacts(buffer);
+      if (!opts.skipMagentaGate && !magentaAllow.has(slug)) {
+        const verdict = await analyzeMedia(buffer);
+        if (verdict.magenta) {
+          await pool.query('DELETE FROM preview_gif WHERE slug = $1', [slug]);
+          note({ slug, status: 'failed', reason: verdict.reason });
+          continue;
+        }
+      }
       const hash = sha256Hex(buffer);
       const encoder = rungLabel(rung);
       await pool.query(

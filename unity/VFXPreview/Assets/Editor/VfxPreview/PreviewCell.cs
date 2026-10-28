@@ -14,6 +14,10 @@ namespace VfxPreview
         public readonly Target Target;
         public string Error, Note;
         public bool Loop, HasParticles, HasScript;
+        /// <summary>Set with Error when the target cannot be previewed correctly (a material URP draws as magenta): stale media of it must go.</summary>
+        public bool Broken;
+        /// <summary>Frames of the clip that were mostly the missing-shader colour (PreviewBatch.TrackPeak).</summary>
+        public int MagentaFrames;
         public byte[] Peak; public long PeakCoverage;
         readonly GameObject _go;
         readonly ParticleSystem[] _roots;
@@ -36,6 +40,8 @@ namespace VfxPreview
             if (asset == null) { Error = "prefab not found for guid " + t.prefabGuid; return; }
             _go = (GameObject)PrefabUtility.InstantiatePrefab(asset);
             _go.transform.position = origin;
+            var unrenderable = MaterialConverter.Unrenderable(_go);
+            if (unrenderable != null) { Error = unrenderable; Broken = true; return; }
             var all = _go.GetComponentsInChildren<ParticleSystem>(true);
             _roots = all.Where(p => p.transform.parent == null || p.transform.parent.GetComponentInParent<ParticleSystem>(true) == null).ToArray();
             _all = all; HasParticles = all.Length > 0;

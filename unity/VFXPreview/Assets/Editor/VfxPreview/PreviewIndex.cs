@@ -27,6 +27,17 @@ namespace VfxPreview
             };
         }
 
+        /// <summary>Remove a slug's index entry AND its media files (a render judged broken: stale media would be ingested otherwise).</summary>
+        public static void Drop(JObject idx, string slug)
+        {
+            ((JObject)idx["items"]).Remove(slug);
+            foreach (var ext in new[] { ".webm", ".webp" })
+            {
+                var f = Path.Combine(PreviewOptions.PreviewDir, slug + ext);
+                if (File.Exists(f)) File.Delete(f);
+            }
+        }
+
         public static void Save(JObject idx)
         {
             Directory.CreateDirectory(PreviewOptions.PreviewDir);

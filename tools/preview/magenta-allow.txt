@@ -1,0 +1,3 @@
+# Slugs whose effect IS magenta (checked by eye), so the missing-shader gate lets them through.
+# One slug per line; "#" starts a comment. Read by server/src/magenta.ts and VfxPreview.MagentaAllow.
+epic-toon-fx-heart-poof  # magenta hearts + a white cloud, not a missing shader
