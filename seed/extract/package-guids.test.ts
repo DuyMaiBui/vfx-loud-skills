@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { classifyGuid, loadPackageGuids, PACKAGE_GUID_MAP_PATH } from '../../server/src/unity-refs.ts';
 import { folderSetSource, folderSource } from './source.ts';
-import { ALWAYS_INCLUDE, buildMap, writePackageGuidMap } from './package-guids.ts';
+import { ALWAYS_INCLUDE, buildMap, specsFromPacks, writePackageGuidMap } from './package-guids.ts';
 import { indexPackageCache, scanReferences, type SourceSpec } from './package-guids-scan.ts';
 
 // Fixture GUIDs (32 lower-case hex). Names say what the fixture makes of them.
@@ -246,5 +246,50 @@ test('an unresolved guid names the root VFX prefab(s) that reach it through inte
     assert.ok(u.root_prefabs.every((p) => p.endsWith('.prefab')), 'roots are prefab paths, not the referencing material');
   } finally {
     await fs.rm(f.dir, { recursive: true, force: true });
+  }
+});
+
+test('a ref held in a .asset file is followed and its package guid is mapped (not left unresolved)', async () => {
+  const f = await makeFixture();
+  try {
+    const ASSET_GUID = '77777777777777777777777777777777'; // a game .asset (VolumeProfile-like)
+    const ASSET_PKG_GUID = '88888888888888888888888888888888'; // package script the .asset references
+    await write(path.join(f.assets, 'VFX', 'Profile.asset'), `%YAML 1.1\n--- !u!114 &11400000\nMonoBehaviour:\n  m_Script: {fileID: 11500000, guid: ${ASSET_PKG_GUID}, type: 3}\n`, ASSET_GUID);
+    await write(
+      path.join(f.assets, 'VFX', 'Burst.prefab'),
+      `%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n--- !u!1 &100\nGameObject:\n  m_Name: Burst\n--- !u!198 &200\nParticleSystem:\n  m_Renderer:\n    m_Material: {fileID: 2100000, guid: ${GAME_MAT}, type: 2}\n    m_Profile: {fileID: 11400000, guid: ${ASSET_GUID}, type: 2}\n`,
+      PREFAB,
+    );
+    // a BuiltInPackages-style root: the package folder has NO @version, the version comes from package.json
+    const builtIn = path.join(f.dir, 'BuiltInPackages');
+    await write(path.join(builtIn, 'com.unity.hdrp', 'Editor', 'AssetVersion.cs'), 'class AssetVersion {}\n', ASSET_PKG_GUID);
+    await fs.writeFile(path.join(builtIn, 'com.unity.hdrp', 'package.json'), JSON.stringify({ name: 'com.unity.hdrp', version: '17.3.0' }));
+    const scan = await scanReferences([gameSpec(f)]);
+    assert.equal(scan.outside.has(ASSET_PKG_GUID), true, 'the .asset must be read');
+    const { entries, summary } = await buildMap([gameSpec(f)], [f.cache, builtIn], { full: false });
+    assert.deepEqual(entries.get(ASSET_PKG_GUID), { kind: 'package', name: 'AssetVersion', package: 'com.unity.hdrp', version: '17.3.0' });
+    assert.equal(summary.unresolved.list.some((u) => u.guid === ASSET_PKG_GUID), false);
+  } finally {
+    await fs.rm(f.dir, { recursive: true, force: true });
+  }
+});
+
+test('specsFromPacks adds the project Packages folder and the Editor BuiltInPackages as package roots', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'vfx-specs-'));
+  try {
+    const proj = path.join(dir, 'Game');
+    await fs.mkdir(path.join(proj, 'Assets'), { recursive: true });
+    await fs.mkdir(path.join(proj, 'Packages', 'com.theone.gdk.core'), { recursive: true });
+    await fs.mkdir(path.join(proj, 'Library', 'PackageCache'), { recursive: true });
+    const builtIn = path.join(dir, 'BuiltInPackages');
+    await fs.mkdir(builtIn, { recursive: true });
+    const packs = path.join(dir, 'packs.json');
+    await fs.writeFile(packs, JSON.stringify({ packs: [{ slug: 'g', sourceType: 'folder-set', pathPrefix: 'Assets', sourceRoots: [{ game: 'Game', path: path.join(proj, 'Assets') }] }] }));
+    const r = await specsFromPacks(packs, dir, builtIn);
+    assert.deepEqual(r.cacheRoots, [path.join(proj, 'Library', 'PackageCache'), path.join(proj, 'Packages'), builtIn]);
+    const missing = await specsFromPacks(packs, dir, path.join(dir, 'nope'));
+    assert.ok(missing.missingCaches.includes(path.join(dir, 'nope')));
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
   }
 });

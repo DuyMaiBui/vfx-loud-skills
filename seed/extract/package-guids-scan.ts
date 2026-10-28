@@ -7,11 +7,11 @@ import type { PackageSource } from './source.ts';
 /**
  * Reference scan for the Unity package GUID map (phase 5). Reads the same sources the extractor reads
  * (`PackageSource`), starts from the VFX prefabs the extractor would select, and follows GUID references
- * through text assets (`.prefab .mat .anim .controller`) transitively. Read-only.
+ * through text assets (`.prefab .mat .anim .controller .asset`) transitively. Read-only.
  */
 
 /** Text asset kinds whose bytes carry GUID references (the only files the scan reads). */
-const REF_TEXT_EXT = ['.prefab', '.mat', '.anim', '.controller'];
+const REF_TEXT_EXT = ['.prefab', '.mat', '.anim', '.controller', '.asset'];
 const isRefText = (p: string): boolean => REF_TEXT_EXT.some((e) => p.endsWith(e));
 
 /** The fields `classifyPath` and the VFX check read: the selection a source is extracted with. */

@@ -16,6 +16,12 @@ import { assetName, indexPackageCache, rootPrefabsOf, scanReferences, type Cache
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const PACKAGE_GUID_MAP_OUT = path.resolve(here, '../../server/src/unity-package-guids.json');
 export const PACKS_FILE = path.join(here, 'packs.json');
+/**
+ * The Unity Editor's own packages (HDRP, URP overrides, core, ugui...): the GUIDs a game's `PackageCache` lacks when
+ * the asset is only referenced from the Editor install. Package folders have no `@version`: the version is in package.json.
+ */
+export const BUILTIN_PACKAGES_DIR =
+  process.env.VFX_UNITY_BUILTIN_PACKAGES ?? path.join(process.env.HOME ?? '', 'Unity/Hub/Editor/6000.3.15f1/Editor/Data/Resources/PackageManager/BuiltInPackages');
 export const UNITYPACKAGE_DIR = process.env.VFX_UNITYPACKAGE_DIR ?? '/home/mike/Downloads/UnityPackages';
 
 /** URP shaders the C8 URP criterion needs (`Particles/Unlit`, `Lit`), listed even when no VFX references them. */
@@ -167,15 +173,19 @@ type PackJson = Select & {
 };
 
 /** The sources and PackageCache roots the production run reads, from `packs.json` (in configured order). */
-export async function specsFromPacks(packsFile: string, unitypackageDir: string): Promise<{ specs: SourceSpec[]; cacheRoots: string[]; missingCaches: string[] }> {
+export async function specsFromPacks(packsFile: string, unitypackageDir: string, builtInPackagesDir: string = BUILTIN_PACKAGES_DIR): Promise<{ specs: SourceSpec[]; cacheRoots: string[]; missingCaches: string[] }> {
   const packs = (JSON.parse(await fs.readFile(packsFile, 'utf8')) as { packs: PackJson[] }).packs;
   const specs: SourceSpec[] = [];
   const cacheRoots: string[] = [];
   const missingCaches: string[] = [];
+  const addRoot = async (dir: string): Promise<void> => {
+    if (await fs.stat(dir).then((s) => s.isDirectory(), () => false)) cacheRoots.push(dir);
+    else missingCaches.push(dir);
+  };
+  // `Library/PackageCache` (resolved registry/git packages) and `Packages` (embedded packages, e.g. com.theone.gdk.core)
   const addCache = async (projectDir: string): Promise<void> => {
-    const cache = path.join(projectDir, 'Library', 'PackageCache');
-    if (await fs.stat(cache).then((s) => s.isDirectory(), () => false)) cacheRoots.push(cache);
-    else missingCaches.push(cache);
+    await addRoot(path.join(projectDir, 'Library', 'PackageCache'));
+    await addRoot(path.join(projectDir, 'Packages'));
   };
   for (const p of packs) {
     let source: PackageSource;
@@ -194,6 +204,7 @@ export async function specsFromPacks(packsFile: string, unitypackageDir: string)
     }
     specs.push({ origin: p.slug, source, select: { prefabRoots: p.prefabRoots, excludePathPrefixes: p.excludePathPrefixes, prefabSelect: p.prefabSelect } });
   }
+  await addRoot(builtInPackagesDir);
   return { specs, cacheRoots, missingCaches };
 }
 
