@@ -119,11 +119,58 @@ static class Program
         Check("a shader URP can draw is left alone", MaterialMapping.Plan(Snap("Some/Custom/UrpShader", urpDrawable: true)) == null);
         Check("URP Particles/Unlit is left alone", MaterialMapping.Plan(Snap(MaterialMapping.UrpParticlesUnlit)) == null);
 
+        NamedRules();
+        GlowCapOption();
+
         MaterialMapping.BlendState(Blend.Opaque, out int surf, out _, out _, out _, out int zw);
         Check("blend state: opaque writes depth", surf == 0 && zw == 1);
         MaterialMapping.BlendState(Blend.Additive, out surf, out int bl, out int src, out int dst, out zw);
         Check("blend state: additive is SrcAlpha/One, no depth write", surf == 1 && bl == 2 && src == 5 && dst == 1 && zw == 0);
         MaterialMapping.BlendState(Blend.Alpha, out _, out _, out src, out dst, out _);
         Check("blend state: alpha is SrcAlpha/OneMinusSrcAlpha", src == 5 && dst == 10);
+    }
+
+    // Every named rule: which property feeds _BaseMap / _BaseColor and the blend. Guards the table against regressions when new rules are added.
+    static void NamedRules()
+    {
+        // (shader, base-map property, tint property or null, expected blend)
+        var table = new (string Shader, string Map, string Tint, Blend Blend)[]
+        {
+            ("Archanor VFX/Retro Arsenal/BasicGlow", "_TextureSample", "_Tint", Blend.Alpha),
+            ("Archanor VFX/Retro Arsenal/Beam", "_TextureSample", "_Tint", Blend.Alpha),
+            ("Archanor VFX/Retro Arsenal/BeamDouble", "_TextureSample", "_Tint", Blend.Alpha),
+            ("Archanor VFX/Retro Arsenal/Disintegrate", "_TextureSample", "_Tint", Blend.Alpha),
+            ("Archanor VFX/Retro Arsenal/TextGlow", "_TextureSample", null, Blend.Alpha),
+            ("Archanor VFX/Retro Arsenal/Powerbox", "_Background", null, Blend.Opaque),
+            ("Archanor VFX/Retro Arsenal/Target", "_Background", null, Blend.Opaque),
+            ("Archanor VFX/Retro Arsenal/FloorMask", "_Texture", "_InnerColor", Blend.Opaque),
+            ("Archanor VFX/Retro Arsenal/2SidedSprite", "_Texture", null, Blend.Alpha),
+            ("Archanor VFX/Retro Arsenal/2SidedSpriteAnimatedUnlit", "_Texture", null, Blend.Alpha),
+            ("Archanor VFX/Epic Toon FX/ETFX_PowerboxUnlit", "_Background", "_BackgroundTint", Blend.Opaque),
+        };
+        foreach (var (shader, map, tint, blend) in table)
+        {
+            var s = Snap(shader); s.Textures.Add(map);
+            if (tint != null) s.Colors[tint] = new Rgba(0.2f, 0.4f, 0.8f, 0f);
+            var p = MaterialMapping.Plan(s);
+            Check("rule " + shader + ": named, base map " + map + ", blend " + blend, p != null && p.Rule.StartsWith("named:") && p.BaseMapFrom == map && p.Blend == blend && Near(p.BaseColor.A, 1f));
+            if (tint != null) Check("rule " + shader + ": tint " + tint + " is the base colour (no glow property set)", Near(p.BaseColor.G, 0.4f) && Near(p.BaseColor.B, 0.8f));
+        }
+    }
+
+    // GlowCap is an option: the preview caps at 1.25, the URP export (GlowCap null) keeps the original HDR magnitude.
+    static void GlowCapOption()
+    {
+        var glow = Snap("Archanor VFX/Retro Arsenal/BasicGlow");
+        glow.Colors["_Tint"] = new Rgba(0.5f, 0.25f, 1f, 0f); glow.Floats["_ExtraGlow"] = 3f;
+        Check("GlowCap option: default options cap at 1.25", Near(MaterialMapping.Plan(glow).BaseColor.B, 1.25f) && Near(MaterialMapping.Options.Preview.GlowCap.Value, 1.25f));
+        var export = MaterialMapping.Plan(glow, MaterialMapping.Options.Export);
+        Check("GlowCap option: export (null) is NOT capped, tint x 3", Near(export.BaseColor.R, 1.5f) && Near(export.BaseColor.G, 0.75f) && Near(export.BaseColor.B, 3f));
+        var custom = MaterialMapping.Plan(glow, new MaterialMapping.Options { GlowCap = 2f });
+        Check("GlowCap option: an explicit cap is honoured", Near(custom.BaseColor.B, 2f));
+        var text = Snap("Archanor VFX/Retro Arsenal/TextGlow");
+        Check("GlowCap option: TextGlow constant +2 uncapped on export", Near(MaterialMapping.Plan(text, MaterialMapping.Options.Export).BaseColor.R, 2f));
+        var etfx = Snap("Archanor VFX/Epic Toon FX/ETFX_PowerboxUnlit"); etfx.Floats["_BackgroundBrightness"] = 2f; etfx.Colors["_BackgroundTint"] = new Rgba(1f, 0f, 0f, 0f);
+        Check("GlowCap option: ETFX brightness uncapped on export", Near(MaterialMapping.Plan(etfx, MaterialMapping.Options.Export).BaseColor.R, 2f));
     }
 }
