@@ -9,3 +9,7 @@ tools/preview/framing-tests/bin/
 tools/preview/framing-tests/obj/
 # clean acceptance project for phase 12 (plan.md D13), created by script, never committed
 /unity/VFXAccept/
+tools/vfxcloud-tests/bin/
+tools/vfxcloud-tests/obj/
+tools/recipe-prefab/tests/bin/
+tools/recipe-prefab/tests/obj/
