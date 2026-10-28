@@ -14,9 +14,8 @@ import { hasVfxComponent, type PackConfig } from '../extract/pipeline.ts';
 
 export const sha256 = (b: Buffer): string => crypto.createHash('sha256').update(b).digest('hex');
 
-/** packs.json entry plus the phase-1 byte-policy fields (`PackConfig` does not declare them). */
+/** packs.json entry plus the phase-1 byte-policy `bytes` flag (`visibility` is declared by `PackConfig`). */
 export interface UploadPack extends PackConfig {
-  visibility?: string;
   bytes?: boolean;
 }
 
