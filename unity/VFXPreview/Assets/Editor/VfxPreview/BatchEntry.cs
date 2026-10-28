@@ -9,7 +9,7 @@ using UnityEngine.Rendering;
 
 namespace VfxPreview
 {
-    /// <summary>Headless driver: -executeMethod VfxPreview.BatchEntry.Run [-packs a,b,c] [-skipGifIngest]. Queues PackImporter for the given
+    /// <summary>Headless driver: -executeMethod VfxPreview.BatchEntry.Run [-packs a,b,c] [-skipGifIngest] [-noConvert]. Queues PackImporter for the given
     /// packs, then starts PreviewRunner, waits for _status.json state=done, encodes the fresh webm files into the VFX Cloud DB as GIFs
     /// (node seed/preview-gif-ingest.ts) and exits the Editor (0 ok, 1 failed targets, 2 timeout).
     /// Stage lives in Library/ so it survives the domain reloads pack imports cause.</summary>
@@ -58,8 +58,9 @@ namespace VfxPreview
                 if (GraphicsSettings.defaultRenderPipeline == null) return; // ProjectBootstrap still creating URP
                 s.stage = "rendering"; s.runStartedAt = Now(); Save(s);
                 if (File.Exists(StatusFile)) File.Delete(StatusFile);
-                LogShaderHistogram();
-                ConvertLegacyParticleMaterials();
+                MaterialConverter.LogShaderHistogram();
+                if (Array.IndexOf(Environment.GetCommandLineArgs(), "-noConvert") >= 0) Debug.Log("[BatchEntry] material conversion skipped (-noConvert)");
+                else MaterialConverter.ConvertAll();
                 Diag("Assets/ImportedPacks/epic-toon-fx/Epic Toon FX/Prefabs/Interactive/Level Up/Nova/LevelupNovaBlue.prefab");
                 Debug.Log("[BatchEntry] import done, starting render");
                 typeof(PreviewRunner).GetMethod("Start", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, null);
@@ -72,58 +73,6 @@ namespace VfxPreview
                 int failed = (int)st["failed"];
                 Quit(failed > 0 ? 1 : 0, $"render done ok={(int)st["ok"]} failed={failed}");
             }
-        }
-
-        /// <summary>URP draws the built-in "Legacy Shaders/Particles/*" materials as nothing (Epic Toon FX uses ~40 of them), so remap
-        /// them to URP/Particles/Unlit with the equivalent blend. Preview-only project: the pack assets are edited in place.</summary>
-        static void ConvertLegacyParticleMaterials()
-        {
-            var urp = Shader.Find("Universal Render Pipeline/Particles/Unlit");
-            if (urp == null) { Debug.LogWarning("[BatchEntry] URP particle shader missing, legacy materials left as is"); return; }
-            int n = 0, fixedKw = 0;
-            foreach (var g in AssetDatabase.FindAssets("t:Material", new[] { "Assets/ImportedPacks" }))
-            {
-                var m = AssetDatabase.LoadAssetAtPath<Material>(AssetDatabase.GUIDToAssetPath(g));
-                if (m == null || m.shader == null) continue;
-                var name = m.shader.name;
-                if (name == urp.name) { if (DropSoftParticleKeywords(m)) { EditorUtility.SetDirty(m); fixedKw++; } continue; }
-                // Built-in "Particles/Standard Unlit|Surface" draw as nothing under URP just like the legacy ones (Epic Toon FX levelup/powerup).
-                bool std = name == "Particles/Standard Unlit" || name == "Particles/Standard Surface";
-                if (!std && !name.StartsWith("Legacy Shaders/Particles/")) continue;
-                int mode = std && m.HasProperty("_Mode") ? (int)m.GetFloat("_Mode") : -1; // 0 opaque 1 cutout 2 fade 3 transparent 4 additive 5 subtractive 6 modulate
-                var tex = m.HasProperty("_MainTex") ? m.GetTexture("_MainTex") : null;
-                var off = m.HasProperty("_MainTex") ? m.GetTextureOffset("_MainTex") : Vector2.zero;
-                var scl = m.HasProperty("_MainTex") ? m.GetTextureScale("_MainTex") : Vector2.one;
-                var col = m.HasProperty("_TintColor") ? m.GetColor("_TintColor") : m.HasProperty("_Color") ? m.GetColor("_Color") : Color.white;
-                m.shader = urp;
-                m.SetTexture("_BaseMap", tex); m.SetTextureOffset("_BaseMap", off); m.SetTextureScale("_BaseMap", scl);
-                if (name.Contains("Additive") || mode == 4) col.a = Mathf.Clamp01(col.a * 2f); // legacy tint of 0.5 is neutral
-                m.SetColor("_BaseColor", col);
-                int src = 5, dst = 10, blend = 0; // SrcAlpha / OneMinusSrcAlpha = alpha blended
-                if (name.Contains("Additive") || mode == 4) { dst = 1; blend = 2; }
-                else if (name.Contains("Multiply") || mode == 6) { src = 2; dst = 0; blend = 3; }
-                m.SetFloat("_Surface", 1); m.SetFloat("_Blend", blend);
-                m.SetFloat("_SrcBlend", src); m.SetFloat("_DstBlend", dst); m.SetFloat("_ZWrite", 0);
-                m.SetOverrideTag("RenderType", "Transparent");
-                DropSoftParticleKeywords(m);
-                m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-                m.renderQueue = 3000;
-                EditorUtility.SetDirty(m); n++;
-            }
-            AssetDatabase.SaveAssets();
-            Debug.Log($"[BatchEntry] converted {n} legacy particle materials to URP Particles/Unlit, dropped soft-particle keywords on {fixedKw} more");
-        }
-
-        /// <summary>Standard/legacy particle materials carry _SOFTPARTICLES_ON / _FADING_ON; URP's particle shader shares those keywords, and with no
-        /// depth texture in the preview pipeline the soft-particle factor is 0, so the particle is drawn as nothing.</summary>
-        static bool DropSoftParticleKeywords(Material m)
-        {
-            bool any = false;
-            foreach (var k in new[] { "_SOFTPARTICLES_ON", "_FADING_ON", "_FLIPBOOKBLENDING_ON" })
-                if (m.IsKeywordEnabled(k)) { m.DisableKeyword(k); any = true; }
-            foreach (var f in new[] { "_SoftParticlesEnabled", "_CameraFadingEnabled", "_FlipbookBlending" })
-                if (m.HasProperty(f) && m.GetFloat(f) != 0f) { m.SetFloat(f, 0f); any = true; }
-            return any;
         }
 
         static void Diag(string path)
@@ -139,18 +88,6 @@ namespace VfxPreview
                 Debug.Log($"[BatchEntry] diag {ps.name}: count={ps.particleCount} active={ps.gameObject.activeInHierarchy} rend={r.enabled} mode={r.renderMode} mat={(m == null ? "null" : m.name + "/" + m.shader.name + "/q" + m.renderQueue + "/tex=" + (m.GetTexture("_BaseMap") != null) + "/col=" + (m.HasProperty("_BaseColor") ? m.GetColor("_BaseColor").ToString() : "-"))} bounds={r.bounds.size} startSize={ps.main.startSize.constant} maxP={ps.main.maxParticles} sim={ps.main.simulationSpace} scale={ps.transform.lossyScale}");
             }
             UnityEngine.Object.DestroyImmediate(go);
-        }
-
-        static void LogShaderHistogram()
-        {
-            var h = new System.Collections.Generic.SortedDictionary<string, int>();
-            foreach (var g in AssetDatabase.FindAssets("t:Material", new[] { "Assets/ImportedPacks" }))
-            {
-                var m = AssetDatabase.LoadAssetAtPath<Material>(AssetDatabase.GUIDToAssetPath(g));
-                var n = m != null && m.shader != null ? m.shader.name : "<null>";
-                h[n] = h.TryGetValue(n, out var c) ? c + 1 : 1;
-            }
-            foreach (var kv in h) Debug.Log($"[BatchEntry] shader {kv.Value,5} x {kv.Key}");
         }
 
         static void Quit(int code, string msg)

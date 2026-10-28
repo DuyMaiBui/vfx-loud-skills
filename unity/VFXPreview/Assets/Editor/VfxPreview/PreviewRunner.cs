@@ -58,7 +58,11 @@ namespace VfxPreview
                 {
                     if (r.note != null) _notes[r.slug] = r.note;
                     if (r.ok) { PreviewIndex.Merge(_idx, r.slug, r.bytes, _o.fps, _o.Frames, _o.size); _done++; }
-                    else { _failed++; _notes[r.slug] = "FAILED: " + r.error; Debug.LogWarning($"[VfxPreview] {r.slug}: {r.error}"); }
+                    else
+                    {
+                        _failed++; _notes[r.slug] = "FAILED: " + r.error; Debug.LogWarning($"[VfxPreview] {r.slug}: {r.error}");
+                        if (r.broken) PreviewIndex.Drop(_idx, r.slug); // a known-bad render must never reach the gif ingest
+                    }
                 }
                 PreviewIndex.Save(_idx);
             }

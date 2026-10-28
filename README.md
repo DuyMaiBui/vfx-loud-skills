@@ -104,6 +104,14 @@ npm run previews:gif -- --json             # tóm tắt một dòng JSON
 
 Render đi vào DB thế nào: lane Unity ghi `data/previews/*.webm` + `index.json` → `BatchEntry.Run` (`-executeMethod VfxPreview.BatchEntry.Run`) chạy `node seed/preview-gif-ingest.ts --json` ở bước cuối (bỏ bằng `-skipGifIngest`; lỗi chỉ log, không đổi exit code của render). Render bằng Editor đang mở (`tools/preview/run.json`) không qua `BatchEntry`: chạy `npm run previews:gif` sau khi `_status.json` có `state: done`. Đổi cách encode (ladder/filter) thì tăng `GIF_BUILDER` trong `server/src/preview-gif-encode.ts`.
 
+**Màu magenta = shader thiếu** (`Hidden/InternalErrorShader`): URP không vẽ được shader built-in/custom của pack (Retro Arsenal, Epic Toon FX powerbox) nên Unity tô hồng (255,0,255) phẳng. Ba lớp chặn, cùng một định nghĩa ở `server/src/magenta.ts` (TS) và `MagentaMath.cs` (C#, cùng bảng vector test):
+
+1. **Convert** (`MaterialMapping.cs` thuần + `MaterialConverter.cs`): shader có rule riêng (`Archanor VFX/Retro Arsenal/*`, `ETFX_PowerboxUnlit`) hoặc legacy/Standard particle → `URP/Particles/Unlit`, giữ texture, tint, blend (alpha/additive/opaque) và render queue. Glow HDR bị chặn ở `GlowCap` (LDR không có bloom). Log `[BatchEntry] converted N x <rule>`; `-noConvert` bỏ qua để chẩn đoán.
+2. **Cổng trước render** (`PreviewCell`): prefab còn material URP không vẽ được → target `failed` với lý do, media cũ của slug bị xóa. **Cổng pixel** (`PreviewBatch`): clip có frame magenta → `failed`, không ghi ra index nên không bao giờ lên DB.
+3. **Cổng ingest** (`ingestPreviews`): GIF vừa encode là magenta → không lưu, xóa hàng cũ của slug (không preview tốt hơn preview hồng). Slug đúng là magenta thật: thêm vào `tools/preview/magenta-allow.txt`.
+
+Quét DB: `npm run previews:magenta` (liệt kê slug magenta, exit 1 nếu có; `-- --out file.txt` ghi danh sách để đưa vào `run.json` `only`; `-- --purge` xóa các hàng đó; `-- --json`).
+
 - `GET|HEAD /previews/<slug>.gif` → `200 image/gif` từ DB, `ETag: "<sha256>"` (`If-None-Match` → 304), `Cache-Control: public, max-age=300, must-revalidate` (URL không đánh dấu nội dung nên không `immutable`). Slug không có GIF hoặc tên sai ngữ pháp → 404.
 - Card (`vfx_search`, `vfx_review`, `/v1/search`): trường mới `gif: {url, path, width, height, frames, fps, bytes, sha256, viaFamily} | null` (`viaFamily: true` = mượn GIF của bản canonical trong họ biến thể). `preview_uri` (trước đây luôn `null`) nay bằng `gif.url` khi chưa có giá trị riêng, nên client cũ chỉ đọc `preview_uri` vẫn có preview.
 - `/review` (cả chế độ `set` theo role) dùng `<img class="gif" src="/previews/<slug>.gif">` khi có GIF — tự chạy ở mọi cột cùng lúc, không cần JS; webm/poster là fallback cho effect đã render mà chưa nạp. Header đếm GIF là "có preview".
