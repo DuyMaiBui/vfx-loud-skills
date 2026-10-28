@@ -43,7 +43,7 @@ if [[ "${VFX_FETCH_DEPS:-1}" != "0" ]]; then
   while IFS= read -r DEP; do
     [[ -n "$DEP" ]] || continue
     "$0" "$DEP" "$PROJECT" || { echo "dependency $DEP của $URI không tải được" >&2; exit 1; }
-  done < <(printf '%s' "$MANIFEST" | node -e "const s=JSON.parse(require('fs').readFileSync(0,'utf8'));process.stdout.write((s.dependencies||[]).join('\n'))")
+  done < <(printf '%s' "$MANIFEST" | node -e "const s=JSON.parse(require('fs').readFileSync(0,'utf8'));process.stdout.write((s.dependencies||[]).map((d)=>d+'\n').join(''))")
 fi
 
 FILE_NAME=$(printf '%s' "$MANIFEST" | json file_name)
