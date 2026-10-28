@@ -1,0 +1,11 @@
+id: projectile-trail
+intent: [trail, projectile, bullet]
+style: [action, stylized]
+layers:
+  - component: streak
+    texture: vfx://texture/bullet-trail-01/1
+    lifetime: 0.25
+    stretch-by-velocity: true
+    alpha: 1 -> 0
+notes:
+  - Stretch theo velocity, khong fixed size

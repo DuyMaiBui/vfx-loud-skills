@@ -1,0 +1,16 @@
+id: soft-smoke-plume
+intent: [smoke, aftermath, vent]
+style: [stylized]
+layers:
+  - component: smoke-core
+    texture: vfx://texture/smoke-01/1
+    lifetime: 1.6
+    scale: 0.4 -> 1.6
+    alpha: 0.8 -> 0
+  - component: fumes
+    texture: vfx://texture/fumes-01/1
+    delay: 0.1
+    lifetime: 1.2
+    rotation: random
+notes:
+  - Alpha blending, khong additive cho smoke
