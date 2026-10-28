@@ -27,7 +27,21 @@ namespace VfxCloud
 
     public static class VfxCloudFetcher
     {
+        /// <summary>Installs the whole closure of a vfx:// URI (bundle path); VfxCloudSettings.UseLegacy or VFX_FETCH_LEGACY=1 keeps the old single-file path.</summary>
         public static VfxFetchResult Fetch(string uri)
+        {
+            if (VfxCloudSettings.UseLegacy || Environment.GetEnvironmentVariable("VFX_FETCH_LEGACY") == "1") return FetchLegacy(uri);
+            var s = VfxCloudInstaller.Install(uri, InstallOptions.FromSettings());
+            return new VfxFetchResult
+            {
+                status = !s.Ok ? VfxFetchStatus.Failed : s.Written == 0 ? VfxFetchStatus.UpToDate : VfxFetchStatus.Success,
+                message = s.Message,
+                assetPath = s.RootPath,
+                guid = s.Items.Count > 0 ? s.Items[s.Items.Count - 1].Guid : null,
+            };
+        }
+
+        public static VfxFetchResult FetchLegacy(string uri)
         {
             var result = new VfxFetchResult { status = VfxFetchStatus.Failed };
 
