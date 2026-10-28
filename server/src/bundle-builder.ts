@@ -21,13 +21,6 @@ import { classifyGuid, loadPackageGuids, scanRefs, type PackageEntry } from './u
 
 const GUID_RE = /^[0-9a-f]{32}$/;
 
-/** Same rule as store.ts `absoluteUrl` (PUBLIC_BASE_URL, else loopback on the configured port); that one is not exported. */
-function absoluteUrl(p: string): string {
-  if (/^https?:\/\//.test(p)) return p;
-  const base = config.publicBaseUrl || `http://127.0.0.1:${config.port}`;
-  return `${base}${p.startsWith('/') ? '' : '/'}${p}`;
-}
-
 interface FileRow {
   guid: string;
   variant: Variant;
@@ -68,10 +61,10 @@ function toBundleFile(r: FileRow): BundleFile {
     license: r.license,
     sha256: r.asset_sha256,
     bytes: Number(r.asset_bytes),
-    download_url: absoluteUrl(`/v1/blob/${r.asset_sha256}`),
+    download_url: store.absoluteUrl(`/v1/blob/${r.asset_sha256}`),
     meta_sha256: r.meta_sha256,
     meta_bytes: r.meta_sha256 ? Number(r.meta_bytes ?? 0) : 0,
-    meta_download_url: r.meta_sha256 ? absoluteUrl(`/v1/blob/${r.meta_sha256}`) : null,
+    meta_download_url: r.meta_sha256 ? store.absoluteUrl(`/v1/blob/${r.meta_sha256}`) : null,
   };
 }
 

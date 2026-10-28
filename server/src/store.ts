@@ -330,7 +330,9 @@ export interface Manifest {
   meta: Record<string, unknown>;
 }
 
-function absoluteUrl(p: string | null | undefined): string | null {
+export function absoluteUrl(p: string): string;
+export function absoluteUrl(p: string | null | undefined): string | null;
+export function absoluteUrl(p: string | null | undefined): string | null {
   if (!p) return null;
   if (/^https?:\/\//.test(p)) return p;
   const base =
