@@ -8,7 +8,7 @@ using UnityEngine.Rendering.Universal;
 namespace VfxPreview
 {
     /// <summary>One prefab instance + its own camera and 256px render target. Simulation is deterministic
-    /// (fixed seeds, ParticleSystem.Simulate) and framing comes from Renderer.bounds sampled over the whole clip.</summary>
+    /// (fixed seeds, ParticleSystem.Simulate) and framing comes from the live particles sampled over the whole clip.</summary>
     sealed class PreviewCell : IDisposable
     {
         public readonly Target Target;
@@ -21,7 +21,11 @@ namespace VfxPreview
         readonly Camera _cam;
         public readonly RenderTexture Rt;
         readonly int _size;
-        readonly List<Bounds> _bounds = new();
+        readonly List<Ball> _balls = new(), _staticBounds = new();
+        readonly ParticleSystem[] _all;
+        readonly Dictionary<ParticleSystem, ParticleSystemRenderer> _psr = new();
+        ParticleSystem.Particle[] _buf = new ParticleSystem.Particle[1024];
+        float _skipSeconds;
         static readonly Color Bg = new(0.11f, 0.12f, 0.14f, 1f);
 
         public PreviewCell(Target t, Vector3 origin, int size)
@@ -34,7 +38,13 @@ namespace VfxPreview
             _go.transform.position = origin;
             var all = _go.GetComponentsInChildren<ParticleSystem>(true);
             _roots = all.Where(p => p.transform.parent == null || p.transform.parent.GetComponentInParent<ParticleSystem>(true) == null).ToArray();
-            HasParticles = all.Length > 0;
+            _all = all; HasParticles = all.Length > 0;
+            foreach (var ps in all)
+            {
+                var pr = _psr[ps] = ps.GetComponent<ParticleSystemRenderer>();
+                // Thin stretched sparks (width 0.02) are sub-pixel at 256 px: give them a minimum on-screen size.
+                if (pr != null && pr.renderMode == ParticleSystemRenderMode.Stretch) pr.minParticleSize = Mathf.Max(pr.minParticleSize, PreviewOptions.StretchMinViewportFraction);
+            }
             HasScript = _go.GetComponentsInChildren<MonoBehaviour>(true).Length > 0;
             int seed = 1337;
             foreach (var ps in all) { ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear); ps.useAutoRandomSeed = false; ps.randomSeed = (uint)seed++; }
@@ -48,7 +58,7 @@ namespace VfxPreview
             var cg = new GameObject("PreviewCam"); cg.transform.position = origin;
             _cam = cg.AddComponent<Camera>();
             _cam.enabled = false; _cam.clearFlags = CameraClearFlags.SolidColor; _cam.backgroundColor = Bg;
-            _cam.fieldOfView = 30f; _cam.targetTexture = Rt; _cam.allowMSAA = false; _cam.allowHDR = false;
+            _cam.fieldOfView = PreviewOptions.FovDegrees; _cam.targetTexture = Rt; _cam.allowMSAA = false; _cam.allowHDR = false;
             var d = _cam.GetUniversalAdditionalCameraData(); d.renderPostProcessing = false; d.antialiasing = AntialiasingMode.None;
         }
 
@@ -57,44 +67,92 @@ namespace VfxPreview
         /// <summary>Restart the simulation at the clip's start time (loops: after warm-up).</summary>
         public void Reset(double warmup)
         {
-            foreach (var ps in _roots) ps.Simulate(Loop ? (float)warmup : 0f, true, true, true);
+            float lead = (Loop ? (float)warmup : 0f) + _skipSeconds;
+            foreach (var ps in _roots) ps.Simulate(lead, true, true, true);
         }
 
         public void Step(float dt) { foreach (var ps in _roots) ps.Simulate(dt, true, false, true); }
 
-        public void SampleBounds()
+        /// <summary>Simulate the whole clip once without rendering and collect what is visible (CollectBalls). Dead time before the first
+        /// visible particle (start delay, a burst late in a loop cycle) is skipped so the clip does not open on empty frames: the
+        /// simulation is fast-forwarded to LeadInFrames before the first visible frame (deterministic seeds, so the render matches the probe).</summary>
+        public void Probe(int frames, float dt, double warmup)
         {
-            Bounds? u = null;
-            foreach (var r in _renderers)
-            {
-                if (r == null || !r.enabled || !r.gameObject.activeInHierarchy) continue;
-                var b = r.bounds;
-                if (b.size.sqrMagnitude < 1e-8f || float.IsNaN(b.center.x)) continue;
-                if (u == null) u = b; else { var x = u.Value; x.Encapsulate(b); u = x; }
-            }
-            if (u != null) _bounds.Add(u.Value);
+            _skipSeconds = 0;
+            int first = RunProbe(frames, dt, warmup);
+            if (first <= PreviewOptions.LeadInFrames) return;
+            _skipSeconds = (first - PreviewOptions.LeadInFrames) * dt;
+            RunProbe(frames, dt, warmup);
         }
 
-        static float Median(List<float> v) { v.Sort(); return v[v.Count / 2]; }
+        /// <summary>Returns the index of the first frame with a visible particle or renderer, or 0 when nothing is ever visible.</summary>
+        int RunProbe(int frames, float dt, double warmup)
+        {
+            _balls.Clear(); _staticBounds.Clear();
+            int first = -1;
+            for (int f = 0; f < frames; f++)
+            {
+                if (f == 0) Reset(warmup); else Step(dt);
+                int before = _balls.Count + _staticBounds.Count;
+                CollectBalls();
+                if (first < 0 && _balls.Count + _staticBounds.Count > before) first = f;
+            }
+            return Mathf.Max(first, 0);
+        }
 
-        /// <summary>Camera from the sampled bounds: median centre, radius between box half-extent and half-diagonal, P95 over time.</summary>
+        /// <summary>Visible extents for this sample frame. Particle systems contribute their LIVE particles (position + rendered size);
+        /// Renderer.bounds is NOT used for them: Unity's ParticleSystemRenderer bounds are a conservative estimate (max size, max speed x
+        /// lifetime) and were 2-6x wider than the particles actually drawn, which shrank every effect to a few dots. Other renderers
+        /// (meshes, lines) keep their bounds.</summary>
+        void CollectBalls()
+        {
+            foreach (var ps in _all)
+            {
+                if (ps == null || !ps.gameObject.activeInHierarchy) continue;
+                var r = _psr[ps]; if (r == null || !r.enabled || r.renderMode == ParticleSystemRenderMode.None) continue;
+                int n = ps.particleCount; if (n == 0) continue;
+                if (_buf.Length < n) _buf = new ParticleSystem.Particle[Mathf.Min(n * 2, 1 << 16)];
+                n = ps.GetParticles(_buf, _buf.Length);
+                var main = ps.main; var tr = ps.transform;
+                float scale = main.scalingMode == ParticleSystemScalingMode.Hierarchy ? Mathf.Max(tr.lossyScale.x, tr.lossyScale.y, tr.lossyScale.z)
+                    : main.scalingMode == ParticleSystemScalingMode.Local ? Mathf.Max(tr.localScale.x, tr.localScale.y, tr.localScale.z) : 1f;
+                float meshExtent = r.renderMode == ParticleSystemRenderMode.Mesh && r.mesh != null ? Mathf.Max(r.mesh.bounds.size.x, r.mesh.bounds.size.y, r.mesh.bounds.size.z) : 1f;
+                int stride = Mathf.Max(1, n / PreviewOptions.MaxBallsPerSystem);
+                for (int i = 0; i < n; i += stride)
+                {
+                    var p = _buf[i];
+                    if (p.GetCurrentColor(ps).a / 255f < PreviewOptions.VisibleAlpha) continue;
+                    var sz = p.GetCurrentSize3D(ps); float size = Mathf.Max(sz.x, sz.y, sz.z) * scale;
+                    if (size < 1e-5f) continue;
+                    float half = 0.5f * size;
+                    if (r.renderMode == ParticleSystemRenderMode.Stretch) half = 0.5f * (size * r.lengthScale + p.velocity.magnitude * scale * r.velocityScale);
+                    else if (r.renderMode == ParticleSystemRenderMode.Mesh) half *= meshExtent;
+                    var w = main.simulationSpace == ParticleSystemSimulationSpace.World ? p.position
+                        : main.simulationSpace == ParticleSystemSimulationSpace.Custom && main.customSimulationSpace != null ? main.customSimulationSpace.TransformPoint(p.position)
+                        : tr.TransformPoint(p.position);
+                    _balls.Add(new Ball(w.x, w.y, w.z, half));
+                }
+            }
+            foreach (var r in _renderers)
+            {
+                if (r == null || r is ParticleSystemRenderer || !r.enabled || !r.gameObject.activeInHierarchy) continue;
+                var b = r.bounds;
+                if (b.size.sqrMagnitude < 1e-8f || float.IsNaN(b.center.x)) continue;
+                _staticBounds.Add(new Ball(b.center.x, b.center.y, b.center.z, b.extents.magnitude));
+            }
+        }
+
+        /// <summary>Camera from the visible particles over the whole clip (FramingMath.TryFit); falls back to the non-particle renderer
+        /// bounds, then to a default box above the prefab origin, and says so in Note.</summary>
         public void Frame()
         {
+            var balls = new List<Ball>(_balls); balls.AddRange(_staticBounds);
             Vector3 c = _go.transform.position + Vector3.up * 0.5f; float r = 1f;
-            if (_bounds.Count == 0) Note = (Note == null ? "" : Note + "; ") + "no renderer bounds: default framing";
-            else
-            {
-                c = new Vector3(Median(_bounds.Select(b => b.center.x).ToList()), Median(_bounds.Select(b => b.center.y).ToList()), Median(_bounds.Select(b => b.center.z).ToList()));
-                var rs = _bounds.Select(b =>
-                {
-                    var lo = b.min - c; var hi = b.max - c;
-                    var h = new Vector3(Mathf.Max(Mathf.Abs(lo.x), Mathf.Abs(hi.x)), Mathf.Max(Mathf.Abs(lo.y), Mathf.Abs(hi.y)), Mathf.Max(Mathf.Abs(lo.z), Mathf.Abs(hi.z)));
-                    return 0.5f * (Mathf.Max(h.x, h.y, h.z) + h.magnitude);
-                }).OrderBy(x => x).ToList();
-                r = Mathf.Max(0.3f, rs[Mathf.Min(rs.Count - 1, (int)(rs.Count * 0.95f))] * 1.1f);
-            }
-            var dir = new Vector3(0f, 0.25f, -1f).normalized;
-            float dist = r / Mathf.Sin(_cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
+            if (balls.Count == 0) Note = (Note == null ? "" : Note + "; ") + "nothing visible in the clip: default framing";
+            else if (FramingMath.TryFit(balls, PreviewOptions.FrameOutlierFraction, PreviewOptions.FrameMargin, PreviewOptions.FrameMinRadius, out var fit))
+            { c = new Vector3(fit.Cx, fit.Cy, fit.Cz); r = fit.Radius; }
+            var dir = new Vector3(0f, PreviewOptions.FramePitch, -1f).normalized;
+            float dist = FramingMath.CameraDistance(r, _cam.fieldOfView);
             _cam.transform.position = c + dir * dist; _cam.transform.LookAt(c);
             _cam.nearClipPlane = Mathf.Max(0.01f, dist * 0.02f); _cam.farClipPlane = dist + r * 6f;
         }
