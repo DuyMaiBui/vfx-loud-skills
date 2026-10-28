@@ -217,7 +217,7 @@ export async function buildHttp(): Promise<Fastify.FastifyInstance> {
 
   app.post<{ Body: store.PublishArgs }>('/v1/publish', async (req) => {
     if (!req.body) throw new store.VfxError('body is required');
-    const result = await store.publish(req.body);
+    const result = await store.publishPublic(req.body);
     return { ...result, uri: result.uri };
   });
 

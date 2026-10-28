@@ -12,6 +12,7 @@ import { candidateFilter, FilterError, normalizeFilters, type FacetFilters } fro
 import { ranking } from './rank.ts';
 import { VfxError } from './errors.ts';
 import { W_GRAPH, GRAPH, canonicalSlugs, graphBonus, keyOf, pairsOf, variantsOf, type PairsWith, type Variant } from './graph.ts';
+import { assertDerivedComplete, derivedLicenseProblem, parseModifications, parseUnityRef, type Modification, type UnityRef } from './derived.ts';
 import { gifCards, type CardGif } from './preview-gif.ts';
 import type { Facets } from './facets.ts';
 
@@ -404,6 +405,76 @@ export async function resolve(uri: string): Promise<Manifest> {
   };
 }
 
+/**
+ * `publish` for the public interfaces (MCP, POST /v1/publish): a derived record must also be findable
+ * (category, tags, meta.behavior). Internal publishers (recolor, seeds) call `publish` directly.
+ */
+export async function publishPublic(args: PublishArgs): Promise<{ uri: string; version: number; dependencies: number }> {
+  const derived = typeof args.derivedFrom === 'string' ? [args.derivedFrom] : (args.derivedFrom ?? []);
+  if (derived.length) assertDerivedComplete(args);
+  return publish(args);
+}
+
+/** One file of a record's import closure. */
+export interface ClosureItem {
+  uri: string;
+  type: string;
+  slug: string;
+  version: number;
+  file_name: string;
+  sha256: string;
+  bytes: number;
+  license: string;
+  download_url: string;
+  target_hint: string;
+  /** `meta.unity` of the record: the project path and .meta guid this file must keep, when it declared them. */
+  unity: UnityRef | null;
+}
+
+/** Where a fetched file is written (the fetchers' one convention). */
+export function targetHint(m: { type: string; slug: string; file_name: string }): string {
+  return `Assets/VFXCloud/${m.type}/${m.slug}/${m.file_name}`;
+}
+
+const CLOSURE_MAX_DEPTH = 8;
+
+/**
+ * Everything `uri` needs to import whole: its transitive `uses` dependencies (prefab -> materials -> textures),
+ * NOT itself, deepest first so a client that writes them in order always has a file's dependencies before the file.
+ * `derived_from` edges are provenance, not content, and are not followed. Cycle-safe (bounded depth, deduplicated).
+ */
+export async function closure(uri: string): Promise<ClosureItem[]> {
+  await getByUri(uri); // not_found for an unknown root
+  const r = await pool.query<{ uri: string }>(
+    `WITH RECURSIVE walk(id, depth) AS (
+       SELECT id, 0 FROM resource WHERE uri = $1
+       UNION
+       SELECT e.dst, walk.depth + 1 FROM walk JOIN resource_edge e ON e.src = walk.id AND e.rel = 'uses' WHERE walk.depth < $2
+     )
+     SELECT r.uri FROM walk JOIN resource r ON r.id = walk.id WHERE r.uri <> $1
+      GROUP BY r.uri ORDER BY MAX(walk.depth) DESC, r.uri`,
+    [uri, CLOSURE_MAX_DEPTH],
+  );
+  const items: ClosureItem[] = [];
+  for (const row of r.rows) {
+    const m = await resolve(row.uri);
+    items.push({
+      uri: m.uri,
+      type: m.type,
+      slug: m.slug,
+      version: m.version,
+      file_name: m.file_name,
+      sha256: m.sha256,
+      bytes: m.bytes,
+      license: m.license,
+      download_url: m.download_url,
+      target_hint: targetHint(m),
+      unity: m.meta.unity ? (m.meta.unity as UnityRef) : null,
+    });
+  }
+  return items;
+}
+
 export async function readFile(
   uri: string,
 ): Promise<{ row: ResourceRow; buffer: Buffer }> {
@@ -432,8 +503,15 @@ export interface PublishArgs {
   b64?: string;
   localPath?: string;
   dependencies?: string[];
-  /** vfx:// URI this record was derived from -> a `derived_from` edge (new record -> base). */
-  derivedFrom?: string;
+  /**
+   * vfx:// URI(s) this record was derived from -> one `derived_from` edge each (new record -> base). The licence
+   * must be at least as restrictive as every source (derived.ts); a missing source is not_found.
+   */
+  derivedFrom?: string | string[];
+  /** What was changed relative to derivedFrom (derived.ts); stored as meta.derived.modifications. */
+  modifications?: Modification[];
+  /** Where this file lives in a Unity project and the guid its .meta carries; stored as meta.unity. */
+  unity?: UnityRef;
   meta?: Record<string, unknown>;
   createdBy?: string;
 }
@@ -497,6 +575,28 @@ export async function resourceExists(type: string, slug: string): Promise<boolea
   return r.rowCount !== 0;
 }
 
+/**
+ * Validate the derived-record arguments and return the `meta` keys they produce (`derived`, `unity`).
+ * Throws before anything is written. A plain publish (no derivedFrom / modifications / unity) returns {}.
+ */
+async function prepareDerived(args: PublishArgs, license: string, sources: string[]): Promise<Record<string, unknown>> {
+  const out: Record<string, unknown> = {};
+  if (args.unity !== undefined) out.unity = parseUnityRef(args.unity);
+  if (args.modifications !== undefined && !sources.length) throw new VfxError('modifications need derived_from: they describe a change relative to a source', 'invalid');
+  if (!sources.length) return out;
+  for (const u of sources) if (!/^vfx:\/\/[a-z]+\/[a-z0-9-]+\/\d+$/.test(u)) throw new VfxError(`derived_from "${u}" is not a vfx:// URI`, 'invalid');
+  const found = await pool.query<{ uri: string; license: string }>('SELECT uri, license FROM resource WHERE uri = ANY($1::text[])', [sources]);
+  const missing = sources.filter((u) => !found.rows.some((r) => r.uri === u));
+  if (missing.length) throw new VfxError(`derived_from not found: ${missing.join(', ')}`, 'not_found');
+  const problem = derivedLicenseProblem(license, found.rows);
+  if (problem) throw new VfxError(problem, 'invalid');
+  if (args.modifications !== undefined) {
+    const existing = (args.meta?.derived ?? {}) as Record<string, unknown>;
+    out.derived = { ...existing, from: sources, modifications: parseModifications(args.modifications) };
+  }
+  return out;
+}
+
 export async function publish(
   args: PublishArgs,
 ): Promise<{ uri: string; version: number; dependencies: number }> {
@@ -522,6 +622,17 @@ export async function publish(
     }
   }
   assertSlug(args.slug);
+
+  // Everything that can refuse the publish runs BEFORE a payload file is written, so a refusal leaves no orphan on disk.
+  const sources = typeof args.derivedFrom === 'string' ? [args.derivedFrom] : [...new Set(args.derivedFrom ?? [])];
+  const derivedMeta = await prepareDerived(args, license, sources);
+  const explicitDeps = [...new Set(args.dependencies ?? [])];
+  if (explicitDeps.length) {
+    const have = await pool.query<{ uri: string }>('SELECT uri FROM resource WHERE uri = ANY($1::text[])', [explicitDeps]);
+    const missing = explicitDeps.filter((u) => !have.rows.some((r) => r.uri === u));
+    // A dependency the caller NAMES is part of the import closure; silently dropping it would publish a record that cannot fetch whole.
+    if (missing.length) throw new VfxError(`dependencies not found: ${missing.join(', ')}`, 'not_found');
+  }
 
   let bytes: Buffer;
   if (args.b64) {
@@ -588,7 +699,7 @@ export async function publish(
         mime,
         bytes.length,
         `[${literal}]`,
-        JSON.stringify(licenseMeta(license, args.meta ?? {})),
+        JSON.stringify(licenseMeta(license, { ...(args.meta ?? {}), ...derivedMeta })),
         args.createdBy ?? 'api',
         doc.searchText,
       ],
@@ -601,10 +712,9 @@ export async function publish(
       ...(isTextMime(mime) ? (bytes.toString('utf8').match(URI_REF) ?? []) : []),
     ]);
 
-    if (args.derivedFrom) {
-      const from = await client.query<{ id: number }>('SELECT id FROM resource WHERE uri = $1', [args.derivedFrom]);
-      if (!from.rowCount) throw new VfxError(`derivedFrom not found: ${args.derivedFrom}`, 'not_found');
-      await client.query(`INSERT INTO resource_edge (src, dst, rel) VALUES ($1, $2, 'derived_from') ON CONFLICT DO NOTHING`, [ins.rows[0].id, from.rows[0].id]);
+    for (const from of sources) {
+      const src = await client.query<{ id: number }>('SELECT id FROM resource WHERE uri = $1', [from]);
+      await client.query(`INSERT INTO resource_edge (src, dst, rel) VALUES ($1, $2, 'derived_from') ON CONFLICT DO NOTHING`, [ins.rows[0].id, src.rows[0].id]);
     }
 
     await client.query('COMMIT');

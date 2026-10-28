@@ -48,8 +48,8 @@ Skills + MCP cho Unity project đã được bật sẵn:
 | `vfx_facets` | Đếm record theo từng facet cho `query` + `filters` → biết nên hỏi user câu gì tiếp |
 | `vfx_resolve` | URI → version, `file_name`, `download_url`, `sha256`, `dependencies` |
 | `vfx_review` / `vfx_review_result` | Mở trang review cho ứng viên / bộ (trả `url` + `session`) và đọc lựa chọn của user |
-| `vfx_fetch` | URL tải payload. `scripts/vfx-fetch.sh <uri> <unity project root>` ghi file + verify sha256, không đụng `.meta` |
-| `vfx_publish` | Payload mới → version mới + `linkDependencies` (cập nhật graph, không overwrite) |
+| `vfx_fetch` | URL tải payload + `closure` (mọi file record cần để import đủ: prefab → material → texture, phụ thuộc trước). `scripts/vfx-fetch.sh <uri> <unity project root>` ghi file + verify sha256, tải cả closure (`VFX_FETCH_DEPS=0` để tắt), không đụng `.meta` |
+| `vfx_publish` | Payload mới → version mới + `linkDependencies` (cập nhật graph, không overwrite). Effect đã chỉnh từ record có sẵn: `derived_from`, `modifications`, `unity`, `visibility` (xem **Publish-back**) |
 
 ## Knowledge graph
 
@@ -109,6 +109,39 @@ Render đi vào DB thế nào: lane Unity ghi `data/previews/*.webm` + `index.js
 - `/review` (cả chế độ `set` theo role) dùng `<img class="gif" src="/previews/<slug>.gif">` khi có GIF — tự chạy ở mọi cột cùng lúc, không cần JS; webm/poster là fallback cho effect đã render mà chưa nạp. Header đếm GIF là "có preview".
 
 REST kèm: `/healthz`, `/v1/search`, `/v1/facets`, `/v1/resource/:type/:slug/:version[/file]`, `/v1/publish`.
+
+## Publish-back (effect đã chỉnh → recipe tái dùng)
+
+Owner chấp nhận một VFX đã chỉnh trong game (bỏ layer, rescale, retime, recolor, ghép nhiều effect) → publish thành recipe `derived` + preview để lần sau `vfx_search` ra. Quy trình đầy đủ (4 bước, trigger, "không publish khi owner chưa chấp nhận") nằm ở **`skills/vfx-authoring` § "Publish-back on accept"**; server hỗ trợ:
+
+- `vfx_publish` / `POST /v1/publish`: `derived_from` (URI nguồn, mỗi URI một cạnh `derived_from`), `modifications` (`[{op, target, from?, to?, note?}]`, lưu ở `meta.derived.modifications`), `unity: {path, guid}` (lưu `meta.unity`), `visibility`. License phải **kế thừa**: yếu hơn nguồn hoặc đổi nhãn cùng mức → 400; ghép nhiều nguồn thì nguồn chặt nhất thắng. Record derived bắt buộc `category`, `tags`, `meta.behavior`. `dependencies` nêu rõ mà không tồn tại → 404 (không bỏ lặng lẽ); mọi lỗi được kiểm **trước** khi ghi file.
+- Closure: `vfx_fetch` trả `closure` (phụ thuộc bắc cầu qua cạnh `uses`, sâu nhất trước, không gồm chính nó, không theo `derived_from`); `scripts/vfx-fetch.sh` tải cả closure.
+- Preview: `node tools/preview/targets.ts` thêm recipe derived có prefab vào danh sách render.
+
+**Hook nhắc**: `hooks/vfx-publish-back-check.mjs` (Node, không dependency, fail-open, ~30 ms). Event `Stop`: quét record provenance của game (`art/provenance/**/vfxcloud-*.json`, mặc định) và in **một dòng cho mỗi record có `modification` / `modifications` / `composed_from` mà chưa có `published_uri`**; không bao giờ chặn (luôn exit 0). Record được coi là xong khi có `published_uri` (`vfx://…`), `publish_waiver` (lý do), hoặc `owner_accepted: false`. Mỗi record chỉ nhắc một lần cho mỗi phiên bản file (`VFX_PUBLISH_BACK_ALWAYS=1` để nhắc mỗi lượt). Biến: `VFX_PROVENANCE_DIRS` (mặc định `art/provenance`, ngăn cách `:`), `VFX_PUBLISH_BACK_JSON=1` (in `{"systemMessage": …}`), `VFX_PUBLISH_BACK_OFF=1`.
+
+Project dùng đăng ký trong `.claude/settings.json` (giữ `"_t1k_owner": "user"` để `t1k update` không xoá):
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /var/home/mike/Documents/Work/The1/vfx-skill-cloud/hooks/vfx-publish-back-check.mjs",
+            "timeout": 5,
+            "_t1k_owner": "user"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+(Sửa đường dẫn nếu repo này nằm chỗ khác.) Test: `node --test hooks/*.test.mjs`.
 
 ## Facets, behavior và hỏi-đáp thu hẹp
 

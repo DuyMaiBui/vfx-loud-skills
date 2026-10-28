@@ -91,6 +91,8 @@ Sau khi user chọn xong 1 effect và `pairsWith` không rỗng: hỏi thêm b�
 
 User chọn → chuyển sang flow `vfx-authoring` (`vfx_resolve` → `vfx_fetch` → …). Không nhắc lại các bước đó ở đây.
 
+Chọn xong mà game **chỉnh** effect (bỏ layer, rescale, retime, recolor thủ công, ghép) và owner chấp nhận kết quả → phải publish ngược lại thành recipe tái dùng: `vfx-authoring` § "Publish-back on accept".
+
 ## Edge cases
 
 | Tình huống | Xử lý |

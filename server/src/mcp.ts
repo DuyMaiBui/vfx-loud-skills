@@ -5,6 +5,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { config } from './config.ts';
 import { facets } from './facet-search.ts';
 import { FACET_NAMES } from './facets.ts';
+import { MODIFICATION_OPS } from './derived.ts';
 import { recolorRecord } from './recolor-service.ts';
 import * as review from './review.ts';
 import * as store from './store.ts';
@@ -148,7 +149,9 @@ export function createMcpServer(): McpServer {
       description:
         'Lấy download_url + sha256 để tải file về project. Tool KHÔNG ghi file — ' +
         'client tự tải (scripts/vfx-fetch.sh hoặc Unity menu TheOne/VFX Cloud). ' +
-        'Mục tiêu mặc định: Assets/VFXCloud/<type>/<slug>/',
+        'Mục tiêu mặc định: Assets/VFXCloud/<type>/<slug>/. ' +
+        '`closure` = mọi file record này CẦN để import đủ (prefab -> material -> texture, sâu nhất trước, không gồm chính nó; [] nếu không có): tải hết rồi mới mở prefab. ' +
+        '`scripts/vfx-fetch.sh <uri>` tải cả closure.',
       inputSchema: { uri: z.string() },
     },
     async ({ uri }) => {
@@ -168,8 +171,9 @@ export function createMcpServer(): McpServer {
                 file_name: manifest.file_name,
                 sha256,
                 download_url: manifest.download_url,
-                target_hint: `Assets/VFXCloud/${row.type}/${row.slug}/${manifest.file_name}`,
+                target_hint: store.targetHint({ type: row.type, slug: row.slug, file_name: manifest.file_name }),
                 fetch_command: `scripts/vfx-fetch.sh ${row.uri}`,
+                closure: await store.closure(row.uri),
               },
               null,
               2,
@@ -187,7 +191,11 @@ export function createMcpServer(): McpServer {
       description:
         'Đóng góp resource mới (texture/shader/code/recipe/component/vfx) lên cloud. ' +
         'CHỈ publish khi đã validate trong Unity và knowledge đáng reuse. ' +
-        'license là bắt buộc, "unknown" bị từ chối. Tạo version mới, không overwrite.',
+        'license là bắt buộc, "unknown" bị từ chối. Tạo version mới, không overwrite. ' +
+        'Effect đã CHỈNH từ record có sẵn (bỏ layer, đổi scale/thời gian/màu, ghép nhiều effect): đặt `derived_from` (URI nguồn) + `modifications` (danh sách máy đọc được) — ' +
+        'license phải kế thừa (không yếu hơn nguồn), bắt buộc có `category`, `tags`, `meta.behavior`. ' +
+        'File Unity (prefab/material/texture) khai `unity: {path, guid}`; record nào CẦN file khác để import thì liệt kê URI đó trong `dependencies` (phải tồn tại) — ' +
+        'vfx_fetch trả `closure` đủ cả cây. Xem skill vfx-authoring § "Publish-back on accept".',
       inputSchema: {
         type: ResourceTypeEnum,
         slug: z.string().describe('a-z, 0-9, "-"  vd soft-dust-03'),
@@ -207,11 +215,26 @@ export function createMcpServer(): McpServer {
           .array(z.string())
           .optional()
           .describe('vfx:// URI mà resource này dùng — server tự phát hiện từ payload text, liệt kê thêm nếu cần'),
+        derived_from: z.array(z.string()).optional().describe('vfx:// URI nguồn mà bản này được chỉnh từ đó (mỗi URI một cạnh derived_from)'),
+        modifications: z
+          .array(
+            z.object({
+              op: z.enum(MODIFICATION_OPS).describe('remove-layer | add-layer | rescale | retime | recolor | retarget-material | retarget-texture | compose | other'),
+              target: z.string().describe('layer / node / material / property đã đổi, theo tên trong nguồn'),
+              from: z.union([z.string(), z.number()]).optional(),
+              to: z.union([z.string(), z.number()]).optional(),
+              note: z.string().optional().describe('bắt buộc khi op = other'),
+            }),
+          )
+          .optional()
+          .describe('Chỉnh gì so với derived_from (lưu ở meta.derived.modifications); cần derived_from'),
+        unity: z.object({ path: z.string(), guid: z.string() }).optional().describe('Vị trí trong project Unity (Assets/...) + guid của .meta (32 hex)'),
+        visibility: z.enum(['project', 'team', 'global']).optional().describe('mặc định project'),
         meta: z.record(z.string(), z.unknown()).optional(),
       },
     },
     async (args) => {
-      const result = await store.publish({
+      const result = await store.publishPublic({
         type: args.type,
         slug: args.slug,
         name: args.name,
@@ -224,6 +247,10 @@ export function createMcpServer(): McpServer {
         b64: args.b64,
         fileName: args.file_name,
         dependencies: args.dependencies,
+        derivedFrom: args.derived_from,
+        modifications: args.modifications,
+        unity: args.unity,
+        visibility: args.visibility,
         meta: args.meta,
         createdBy: 'mcp',
       });

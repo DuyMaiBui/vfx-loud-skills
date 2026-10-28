@@ -8,6 +8,8 @@
 #   - KHÔNG BAO GIỜ đụng vào file .meta -> GUID giữ nguyên
 #   - Nếu file đã có mà sha256 khác -> cảnh báo, ghi đè NỘI DUNG (meta vẫn giữ)
 #   - Nếu đã đúng sha256 -> skip
+#   - Tải CẢ closure: mọi `dependencies` (prefab -> material -> texture) được tải trước file chính, mỗi URI một lần.
+#     VFX_FETCH_DEPS=0 để chỉ tải đúng URI được hỏi.
 set -euo pipefail
 
 URI="${1:-}"
@@ -33,6 +35,16 @@ fi
 
 MANIFEST=$(curl -fsS "$SERVER/v1/resource/$TYPE/$SLUG/$VERSION")
 json() { node -e "const s=JSON.parse(require('fs').readFileSync(0,'utf8'));const v=s.$1;process.stdout.write(v==null?'':String(v))"; }
+
+# Dependencies first, so a file is never on disk before the files it references. VFX_FETCH_SEEN breaks cycles.
+case " ${VFX_FETCH_SEEN:-} " in *" $URI "*) exit 0 ;; esac
+export VFX_FETCH_SEEN="${VFX_FETCH_SEEN:-} $URI"
+if [[ "${VFX_FETCH_DEPS:-1}" != "0" ]]; then
+  while IFS= read -r DEP; do
+    [[ -n "$DEP" ]] || continue
+    "$0" "$DEP" "$PROJECT" || { echo "dependency $DEP của $URI không tải được" >&2; exit 1; }
+  done < <(printf '%s' "$MANIFEST" | node -e "const s=JSON.parse(require('fs').readFileSync(0,'utf8'));process.stdout.write((s.dependencies||[]).join('\n'))")
+fi
 
 FILE_NAME=$(printf '%s' "$MANIFEST" | json file_name)
 SHA256=$(printf '%s' "$MANIFEST" | json sha256)

@@ -133,6 +133,63 @@ Falsifiable — phải có bằng chứng trước khi publish:
 
 Ngay sau publish, gọi lại `vfx_search` với query liên quan để xác nhận nó đã xuất hiện (G4).
 
+Effect đã **chỉnh từ record có sẵn** (bỏ layer, đổi scale/thời gian/màu, ghép nhiều effect) có luật riêng: xem [Publish-back on accept](#publish-back-on-accept). `vfx_publish` có thêm `derived_from`, `modifications`, `unity`, `visibility` cho đúng việc đó.
+
+## Publish-back on accept
+
+Một effect đẹp mà chỉ nằm trong một game thì lần sau phải làm lại từ đầu. Khi owner **chấp nhận** một VFX đã được chỉnh trong game, nó thành recipe tái dùng được, **trong cùng task với thay đổi ở game**, không để "lần sau".
+
+### Trigger
+
+Cả hai điều kiện:
+
+1. VFX trong game **khác bản Cloud gốc**: bỏ/thêm layer, rescale, retime, recolor, đổi material/texture, hoặc **ghép nhiều effect thành một**. Dấu hiệu: record provenance của game (NutSort: `art/provenance/nutsort/vfxcloud-<slug>.json`) có `modification` / `modifications` / `composed_from`.
+2. **Owner đã chấp nhận** kết quả (lời owner trong phiên, hoặc đã ghi vào record: `owner_order`). Owner chưa duyệt, đang thử, hoặc bị loại → **KHÔNG publish**. Ghi `"publish_waiver": "<lý do>"` (hoặc `"owner_accepted": false`) vào record để hook không nhắc nữa.
+
+Effect không đổi gì so với Cloud (chỉ fetch) thì không có gì để publish.
+
+### Việc phải làm (đủ 4 bước, theo thứ tự)
+
+**1. Publish một recipe `derived`** bằng `vfx_publish`. Publish từng file **theo thứ tự phụ thuộc** (cái được dùng trước, cái dùng sau):
+
+| Bước | File | `type` | Ghi chú |
+| --- | --- | --- | --- |
+| a | texture / material MỚI (đã sửa hoặc tự tạo) | `texture` (png), `vfx` (`.mat`) | `unity: {path, guid}` lấy từ `.meta` của file; `dependencies` = URI file nó tham chiếu. File **không đổi** so với Cloud thì KHÔNG publish lại, dùng URI sẵn có trong `dependencies`. |
+| b | prefab dùng được | `vfx` (`file_name` = `<Tên>.prefab`) | `unity: {path, guid}`, `dependencies` = material/texture ở bước a (hoặc URI sẵn có), `derived_from` = nguồn. |
+| c | recipe | `recipe` (YAML) | Lấy YAML của recipe nguồn (`vfx_fetch`), áp **đúng các thay đổi đó** vào `particleNodes`; ghép effect thì gộp node của từng nguồn. `dependencies: [<prefab uri>]`. |
+
+Trên recipe (bước c) bắt buộc:
+
+- `derived_from`: mọi URI nguồn (một hoặc nhiều nếu ghép). Mỗi URI tạo một cạnh `derived_from`.
+- `modifications`: danh sách **máy đọc được**, mỗi phần tử `{op, target, from?, to?, note?}`, `op` ∈ `remove-layer | add-layer | rescale | retime | recolor | retarget-material | retarget-texture | compose | other` (`other` bắt buộc `note`). Vd bỏ vòng xoáy của level-up rồi thu nhỏ:
+  `[{"op":"remove-layer","target":"FX_LevelUp_Swirl_01"},{"op":"rescale","target":"root","from":1,"to":0.16}]`.
+- `license`: **kế thừa**. Server từ chối license yếu hơn nguồn, hoặc đổi nhãn cùng mức (Synty → `asset-store-eula`). Ghép nhiều nguồn khác license thì lấy nguồn **chặt nhất**. `unknown` vẫn bị từ chối.
+- `category`, `tags`, `style`, `meta.behavior` (1–3 câu tiếng Anh: người xem thấy gì theo thời gian) — không đủ thì server từ chối. Nên thêm `meta.facets` (xem `vfx_resolve` của nguồn để lấy mẫu) và `meta.keywords` để `vfx_search` lọc được.
+- `visibility`: mặc định `project`; chỉ nâng khi owner nói.
+
+**Kiểm tra closure** (trước khi coi là xong): `vfx_fetch(<recipe uri>)` phải trả `closure` liệt kê đủ prefab + material + texture, kèm `unity.guid`. Thử thật: `./scripts/vfx-fetch.sh <recipe uri> <thư mục thử>` ghi đủ mọi file (phụ thuộc trước). Thiếu file nào = chưa publish đủ, quay lại bước a/b.
+
+**2. Preview**: render qua preview lane rồi nạp GIF vào DB.
+`./scripts/vfx-fetch.sh <recipe uri> unity/VFXPreview` (closure vào project preview) → `node tools/preview/targets.ts` (thêm recipe derived vào targets) → render lane với `only: ["<slug>"]` trong `tools/preview/run.json` → `npm run previews:gif -- --only <slug>`. Lane chạy bằng `BatchEntry` thì bước ingest tự chạy ở cuối. Xem README § Preview.
+
+**3. Verify**: `vfx_search("<tên effect>", type: "recipe")` thấy recipe mới, card có `gif` (không `null`) và `derived_from`/modifications đúng trong `vfx_resolve(...).meta.derived`; `curl -sI <gif.url>` trả `200 image/gif`.
+
+**4. Ghi uri về record provenance của game**, cùng commit với thay đổi game:
+
+```json
+"published_uri": "vfx://recipe/<slug>/<version>",
+"published_at": "YYYY-MM-DD"
+```
+
+Bảng "VFX Cloud" của game (NutSort: `node scripts/nutsort/vfxcloud-table.cjs --write`) sinh lại từ các record, không sửa tay.
+
+### Không làm
+
+- Publish khi owner chưa chấp nhận, hoặc khi chưa validate trong Unity (luật 6).
+- Overwrite bản gốc: publish luôn tạo slug/version mới; recipe chỉnh có slug riêng, vd `<gốc>-<mô tả ngắn>`.
+- Publish file của pack mà license không cho phép (asset ngoài Cloud, không có license rõ) — dừng và hỏi owner.
+- Bỏ qua nhắc nhở: hook `hooks/vfx-publish-back-check.mjs` (event `Stop`) in một dòng cho mỗi record đã chỉnh mà chưa có `published_uri`. Đã publish → thêm `published_uri`; cố ý không publish → `publish_waiver`.
+
 ## Server
 
 | Thing | Where |
