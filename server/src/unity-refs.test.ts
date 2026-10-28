@@ -112,8 +112,11 @@ test('classifyGuid: builtin, package from the map, and unresolved for anything e
   }
 });
 
-test('the committed package map is a valid empty skeleton (lane P fills it later)', () => {
-  assert.equal(loadPackageGuids(PACKAGE_GUID_MAP_PATH).size, 0);
+test('the committed package map is schema-valid, non-empty and carries URP Lit', () => {
+  const map = loadPackageGuids(PACKAGE_GUID_MAP_PATH);
+  assert.ok(map.size > 0, 'an emptied package map must fail this test');
+  const names = [...map.values()].map((e) => e.name);
+  assert.ok(names.includes('Universal Render Pipeline/Lit'), 'URP Lit must be present');
 });
 
 test('loadPackageGuids refuses a malformed map: package entry without a package name', () => {
