@@ -45,4 +45,5 @@ if (json) {
 }
 
 await pool.end();
-process.exit(summary.failed > 0 ? 1 : 0);
+// exitCode, not process.exit(): exit() truncates piped stdout at 64 KB (BatchEntry reads this JSON line over a pipe).
+process.exitCode = summary.failed > 0 ? 1 : 0;
