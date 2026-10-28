@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { VISIBILITIES, type Visibility } from '../../server/src/license.ts';
 
 /** Minimal shape of an extractor record (`<slug>.json`); everything is re-validated by publish(). */
 interface ExtractedRecord {
@@ -11,6 +12,8 @@ interface ExtractedRecord {
   style: string[];
   category: string;
   license: string;
+  /** Absent on records from before pack visibility existed: those are `project`. */
+  visibility?: Visibility;
   fileName: string;
   meta: Record<string, unknown>;
   inline: string;
@@ -27,7 +30,7 @@ export interface IngestDeps {
     style: string[];
     category: string;
     license: string;
-    visibility: 'project';
+    visibility: Visibility;
     createdBy: string;
     fileName: string;
     b64: string;
@@ -54,7 +57,7 @@ export async function listRecordFiles(dir: string): Promise<string[]> {
 
 /**
  * Publish extracted records through publish() (same licence gate as every other ingest), always
- * visibility=project. Idempotent exactly like seed/run.ts: an existing type+slug is skipped, so a
+ * the record's own visibility (default project; global is refused). Idempotent exactly like seed/run.ts: an existing type+slug is skipped, so a
  * re-run creates no rows and bumps no versions. A rejected record is reported, never defaulted.
  */
 export async function ingestExtracted(dir: string, deps: IngestDeps, limit?: number): Promise<IngestResult> {
@@ -67,6 +70,9 @@ export async function ingestExtracted(dir: string, deps: IngestDeps, limit?: num
       if (rec.type !== 'recipe' || typeof rec.inline !== 'string' || rec.meta?.extracted !== true) {
         throw new Error('not an extracted recipe record');
       }
+      const visibility = rec.visibility ?? 'project';
+      if (!(VISIBILITIES as readonly string[]).includes(visibility)) throw new Error(`unknown visibility "${String(visibility)}"`);
+      if (visibility === 'global') throw new Error('extracted record refused: visibility "global"');
       if (await deps.exists(rec.type, rec.slug)) {
         res.skippedExisting++;
         continue;
@@ -80,7 +86,7 @@ export async function ingestExtracted(dir: string, deps: IngestDeps, limit?: num
         style: rec.style,
         category: rec.category,
         license: rec.license,
-        visibility: 'project',
+        visibility,
         createdBy: 'seed',
         fileName: rec.fileName,
         b64: Buffer.from(rec.inline, 'utf8').toString('base64'),

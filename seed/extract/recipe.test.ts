@@ -74,11 +74,11 @@ test('output is deterministic', () => {
   assert.equal(a, b);
 });
 
-test('skips (never a partial) for binary, unparseable, no-particle and nested-instance prefabs', () => {
+test('skips (never a partial) for binary, unparseable, no-particle and gameplay-with-nested-instance prefabs', () => {
   assert.equal(skipCode('\u0000\u0001BINARYSERIALIZED'), 'binary-serialization');
   assert.equal(skipCode('%YAML 1.1\n--- !u!1 &1\nGameObject:\n  m_A: |\n    x\n'), 'yaml-parse-error');
   assert.equal(skipCode(prefabYaml({ psCount: 'none' })), 'no-effect-component');
-  assert.equal(skipCode(prefabYaml({ instance: true })), 'nested-prefab-instance');
+  assert.equal(skipCode(prefabYaml({ instance: true })), 'gameplay-prefab');
 });
 
 test('a sub-emitter pointing outside the prefab is a skip, not a silently dropped edge', () => {

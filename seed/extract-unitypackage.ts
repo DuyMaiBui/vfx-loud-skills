@@ -12,8 +12,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { extractPack, type PackConfig } from './extract/pipeline.ts';
-import { folderSetSource, folderSource, tarSource, type PackageSource } from './extract/source.ts';
+import { extractPack, folderSetSourceFor, type PackConfig } from './extract/pipeline.ts';
+import { folderSource, tarSource, type PackageSource } from './extract/source.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_SOURCE_DIR = process.env.VFX_UNITYPACKAGE_DIR ?? '/home/mike/Downloads/UnityPackages';
@@ -59,10 +59,7 @@ async function main(): Promise<void> {
     }
     if (values['source-path']) throw new Error('--source-path does not apply to a folder-set pack; its roots are in packs.json');
     for (const r of pack.sourceRoots) await fs.access(r.path); // fail loudly on a missing game folder
-    source = folderSetSource(
-      pack.sourceRoots.map((r) => ({ game: r.game, root: r.path })),
-      pack.pathPrefix,
-    );
+    source = folderSetSourceFor(pack);
   } else if (pack.sourceType === 'folder') {
     const root = values['source-path'] ?? pack.sourcePath;
     if (!root || !pack.pathPrefix) throw new Error(`pack "${pack.slug}" is a folder source: needs sourcePath (or --source-path) and pathPrefix`);
@@ -89,7 +86,7 @@ async function main(): Promise<void> {
   });
   console.log(
     `${summary.pack}: eligible=${summary.eligible} selected=${summary.selected} extracted=${summary.extracted} ` +
-      `skipped=${summary.skipped.length} duplicates=${summary.duplicatesCollapsed} excluded=${JSON.stringify(summary.excluded)} ` +
+      `skipped=${summary.skipped.length} duplicates=${summary.duplicatesCollapsed} skipped_by_reason=${JSON.stringify(summary.skippedByReason)} excluded=${JSON.stringify(summary.excluded)} ` +
       `total=${summary.timingsMs.total}ms (index ${summary.timingsMs.index} / materials ${summary.timingsMs.materials} / prefabs ${summary.timingsMs.prefabs})`,
   );
   // A skip is logged, never fatal: exit 0. A refused licence / bad args throws above -> exit 1.
