@@ -17,11 +17,16 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vfx-gif-test-'));
 const SLUGS = ['zz-gif-test-a', 'zz-gif-test-b', 'zz-gif-test-c'];
 const sessions: string[] = [];
 const cleanupSlugs: string[] = [...SLUGS];
+let familyBackedUp = false;
 
 after(async () => {
   fs.rmSync(tmp, { recursive: true, force: true });
   for (const s of sessions) await pool.query('DELETE FROM review_session WHERE id = $1', [s]).catch(() => undefined);
   await pool.query('DELETE FROM preview_gif WHERE slug = ANY($1::text[])', [cleanupSlugs]).catch(() => undefined);
+  if (familyBackedUp) {
+    await pool.query('INSERT INTO preview_gif SELECT * FROM zz_gif_family_backup ON CONFLICT (slug) DO NOTHING').catch(() => undefined);
+    await pool.query('DROP TABLE IF EXISTS zz_gif_family_backup').catch(() => undefined);
+  }
   await pool.end().catch(() => undefined);
 });
 
@@ -179,11 +184,19 @@ test('GET /previews/<slug>.gif: 200 image/gif from the DB, ETag + 304, HEAD, 404
   assert.equal((await api('GET', '/previews/index.json')).statusCode, 404); // disk grammar is unchanged
 });
 
-/** Two recipe records (a, b) neither of which has a GIF row; b is a variant of a's family when `family` is true. */
+/**
+ * Two recipe records with NO GIF row of their own AND no GIF anywhere in their variant family (a card borrows its family
+ * canonical GIF, so a member of a family that has one is not "without a GIF": on an ingested corpus every such record
+ * would read gif != null with viaFamily=true).
+ */
 async function recipesWithoutGif(): Promise<string[]> {
   const r = await pool.query<{ uri: string; slug: string }>(
-    `SELECT r.uri, r.slug FROM resource r LEFT JOIN preview_gif g ON g.slug = r.slug
-      WHERE r.type = 'recipe' AND g.slug IS NULL ORDER BY r.slug LIMIT 2`,
+    `SELECT r.uri, r.slug FROM resource r
+      WHERE r.type = 'recipe'
+        AND NOT EXISTS (SELECT 1 FROM preview_gif g WHERE g.slug = r.slug)
+        AND (r.meta->>'family' IS NULL
+             OR NOT EXISTS (SELECT 1 FROM preview_gif g WHERE g.slug IN (SELECT c.slug FROM resource c WHERE c.meta->>'family' = r.meta->>'family')))
+      ORDER BY r.slug LIMIT 2`,
   );
   assert.equal(r.rowCount, 2, 'need two recipes without a GIF');
   return r.rows.map((x) => x.uri);
@@ -219,7 +232,7 @@ test('cards expose gif (and preview_uri) when the slug has one, null otherwise',
 });
 
 test('a variant without its own GIF borrows its family canonical one, flagged viaFamily', async () => {
-  const fam = await pool.query<{ uri: string; canon: string }>(
+  const famQuery = (): ReturnType<typeof pool.query<{ uri: string; canon: string }>> => pool.query<{ uri: string; canon: string }>(
     `SELECT r.uri, (SELECT c.slug FROM resource c WHERE c.meta->>'family' = r.meta->>'family' ORDER BY c.slug, c.version LIMIT 1) AS canon
        FROM resource r
       WHERE r.type = 'recipe' AND r.meta->>'family' IS NOT NULL
@@ -227,6 +240,21 @@ test('a variant without its own GIF borrows its family canonical one, flagged vi
         AND r.slug <> (SELECT c.slug FROM resource c WHERE c.meta->>'family' = r.meta->>'family' ORDER BY c.slug, c.version LIMIT 1)
       LIMIT 1`,
   );
+  let fam = await famQuery();
+  if (fam.rowCount === 0) {
+    // An ingested corpus has a GIF for every family: take the GIFs of one multi-member family away for this test (scratch DB
+    // only, restored in after()) instead of assuming an empty preview_gif table.
+    await pool.query(
+      `CREATE TABLE zz_gif_family_backup AS
+         SELECT g.* FROM preview_gif g
+          WHERE g.slug IN (SELECT c.slug FROM resource c WHERE c.meta->>'family' = (
+                  SELECT m.meta->>'family' FROM resource m WHERE m.type = 'recipe' AND m.meta->>'family' IS NOT NULL
+                   GROUP BY m.meta->>'family' HAVING count(*) > 1 ORDER BY m.meta->>'family' LIMIT 1))`,
+    );
+    familyBackedUp = true;
+    await pool.query('DELETE FROM preview_gif WHERE slug IN (SELECT slug FROM zz_gif_family_backup)');
+    fam = await famQuery();
+  }
   assert.equal(fam.rowCount, 1, 'need a variant family with no GIF yet');
   const { uri, canon } = fam.rows[0];
   await putGif(canon, SLUGS[1]);
