@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { aiTrainingAllowed, extractedLicenseProblem, licenseClassOf } from './license.ts';
+import {
+  aiTrainingAllowed,
+  BYTE_VISIBILITIES,
+  blobLicenseProblem,
+  extractedLicenseProblem,
+  licenseClassOf,
+  VISIBILITIES,
+} from './license.ts';
 import { derivedLicenseProblem } from './derived.ts';
 import { publish } from './store.ts';
 
@@ -59,4 +66,49 @@ test('a derived record cannot relabel a studio-internal source as a store EULA',
   assert.equal(derivedLicenseProblem('studio-internal', src), null);
   assert.notEqual(derivedLicenseProblem('synty-store-eula', src), null);
   assert.notEqual(derivedLicenseProblem('cc0', src), null);
+});
+
+test('visibility taxonomy: studio-only exists; bytes never carry global (C1)', () => {
+  assert.deepEqual([...VISIBILITIES], ['project', 'team', 'studio-only', 'global']);
+  assert.deepEqual([...BYTE_VISIBILITIES], ['project', 'team', 'studio-only']);
+  assert.equal((BYTE_VISIBILITIES as readonly string[]).includes('global'), false);
+});
+
+test('blobLicenseProblem: refuses unknown, restricted, ai-training and missing licenses', () => {
+  for (const l of ['unknown', 'restricted', 'ai-training-allowed', 'mit', '', '  ', undefined, null]) {
+    assert.notEqual(blobLicenseProblem(l as string, 'studio-only'), null, String(l));
+  }
+});
+
+test('blobLicenseProblem: accepts the three studio and store licenses at studio-only and project', () => {
+  for (const l of ['studio-internal', 'asset-store-eula', 'synty-store-eula']) {
+    for (const v of ['studio-only', 'project', 'team']) {
+      assert.equal(blobLicenseProblem(l, v), null, `${l} ${v}`);
+    }
+  }
+  assert.equal(blobLicenseProblem('studio-internal', 'studio-only'), null);
+});
+
+test('blobLicenseProblem: global is refused for every license, bytes are never global (C1)', () => {
+  for (const l of ['studio-internal', 'asset-store-eula', 'cc0', 'cc-by']) {
+    assert.notEqual(blobLicenseProblem(l, 'global'), null, l);
+  }
+  assert.notEqual(blobLicenseProblem('cc0', 'global'), null);
+});
+
+test('blobLicenseProblem: any ai_training=true request is refused, even for a studio license (C1)', () => {
+  assert.notEqual(blobLicenseProblem('studio-internal', 'studio-only', true), null);
+  assert.equal(blobLicenseProblem('studio-internal', 'studio-only', false), null);
+});
+
+test('publish() refuses an extracted record with visibility global, and an unknown visibility', async () => {
+  const base = { type: 'recipe' as const, slug: 'x-y', name: 'n', b64: Buffer.from('x').toString('base64') };
+  await assert.rejects(
+    publish({ ...base, license: 'studio-internal', visibility: 'global', meta: { extracted: true } }),
+    /never global/,
+  );
+  await assert.rejects(
+    publish({ ...base, license: 'studio-internal', visibility: 'secret' as 'project', meta: { extracted: true } }),
+    /must be project \| team \| studio-only \| global/,
+  );
 });

@@ -31,6 +31,42 @@ export const EXTRACTED_LICENSES = ['synty-store-eula', 'asset-store-eula', 'stud
 export const EXTRACTED_LICENSE_CLASSES = ['proprietary-commercial', 'studio-internal'] as const;
 
 /**
+ * Visibility of a resource / asset row (C1). Order of restriction: project < team < studio-only < global.
+ * `studio-only` = holder of the single server key (D2): a label plus a never-global guarantee, not an ACL.
+ */
+export const VISIBILITIES = ['project', 'team', 'studio-only', 'global'] as const;
+export type Visibility = (typeof VISIBILITIES)[number];
+
+/** Visibility an `asset_file` row (served bytes) may carry (C1 CHECK). Never `global`. */
+export const BYTE_VISIBILITIES = ['project', 'team', 'studio-only'] as const;
+
+/** Licenses that may carry stored bytes (C1). Everything else, including `unknown`, `restricted`, is refused. */
+export const BYTE_LICENSES = ['synty-store-eula', 'asset-store-eula', 'studio-internal', 'cc0', 'cc-by', 'cc-by-sa'] as const;
+
+/**
+ * Gate for serving or registering stored bytes (`asset_file`, blob routes). Pure: returns why it is
+ * refused, or null when acceptable. `aiTraining` is the request's flag (C1): true is always refused.
+ * Never defaults a missing value.
+ */
+export function blobLicenseProblem(
+  license: string | undefined | null,
+  visibility: string | undefined | null,
+  aiTraining = false,
+): string | null {
+  if (aiTraining) return 'ai_training=true is refused for stored bytes';
+  const l = (license ?? '').trim().toLowerCase();
+  if (!l) return 'license missing';
+  if (!(BYTE_LICENSES as readonly string[]).includes(l)) {
+    return `license "${l}" may not carry stored bytes (${BYTE_LICENSES.join(' | ')})`;
+  }
+  const v = visibility ?? '';
+  if (!(BYTE_VISIBILITIES as readonly string[]).includes(v)) {
+    return `visibility "${v}" may not carry stored bytes (${BYTE_VISIBILITIES.join(' | ')}; never global)`;
+  }
+  return null;
+}
+
+/**
  * Gate for `meta.extracted = true` records (recipes derived from purchased Unity packages).
  * Returns why the license is refused, or null when acceptable. Never defaults a missing value:
  * no resolvable store-EULA license -> refuse (cc0 / unknown / unrecognised all fail).

@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { folderSetSource, folderSource } from './source.ts';
+import { folderSetSource, folderSource, tarSource } from './source.ts';
 import { extractPack, type PackConfig } from './pipeline.ts';
-import { materialYaml, prefabYaml } from './test-helpers.ts';
+import { makeUnityPackage, materialYaml, prefabYaml } from './test-helpers.ts';
+import { createHash } from 'node:crypto';
 
 const MAT = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const PREFAB = '11111111111111111111111111111111';
@@ -159,5 +160,72 @@ test('folder-set: a non-prefab duplicate guid keeps the first file; a duplicate 
   } finally {
     await fs.rm(anims, { recursive: true, force: true });
     await fs.rm(prefabs, { recursive: true, force: true });
+  }
+});
+
+const sha = (b: Buffer | string): string => createHash('sha256').update(b).digest('hex');
+
+test('files(): the .meta bytes come with the asset, byte-exact, for a tar and a folder source', async () => {
+  const folder = await tinyFolder();
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'vfx-pkg-'));
+  const pkg = path.join(tmp, 'Pack.unitypackage');
+  await fs.writeFile(pkg, makeUnityPackage([{ guid: PREFAB, path: 'Assets/Fx/Boom.prefab', asset: prefabYaml() }]));
+  try {
+    const fromTar: Array<{ guid: string; path: string; meta: string | null }> = [];
+    for await (const f of tarSource(pkg).files(() => true)) fromTar.push({ guid: f.guid, path: f.path, meta: f.meta?.toString('utf8') ?? null });
+    assert.deepEqual(fromTar, [{ guid: PREFAB, path: 'Assets/Fx/Boom.prefab', meta: `fileFormatVersion: 2\nguid: ${PREFAB}\n` }]);
+
+    const fromFolder = new Map<string, { path: string; meta: string | null }>();
+    for await (const f of folderSource(folder, 'Assets/Vendor').files(() => true)) {
+      fromFolder.set(f.guid, { path: f.path, meta: f.meta?.toString('utf8') ?? null });
+    }
+    assert.equal(fromFolder.get(PREFAB)?.path, 'Assets/Vendor/Fx/Prefabs/Boom.prefab');
+    assert.equal(fromFolder.get(PREFAB)?.meta, meta(PREFAB));
+    assert.equal(fromFolder.has('f'.repeat(32)), false, 'directory meta is not an asset');
+  } finally {
+    await fs.rm(folder, { recursive: true, force: true });
+    await fs.rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test('copiesOf(): every copy with its sha256, winner first; an unknown guid is []', async () => {
+  const gameA = await gameRoot([{ rel: 'Fx/Boom.prefab', guid: PREFAB, body: prefabYaml() }]);
+  const gameB = await gameRoot([{ rel: 'Other/Copy.prefab', guid: PREFAB, body: 'LOSING-COPY-BYTES' }]);
+  try {
+    const src = folderSetSource([{ game: 'A', root: gameA }, { game: 'B', root: gameB }], 'Assets');
+    await src.index();
+    assert.deepEqual(await src.copiesOf(PREFAB), [
+      { origin: 'A', sha256: sha(prefabYaml()) },
+      { origin: 'B', sha256: sha('LOSING-COPY-BYTES') },
+    ]);
+    assert.deepEqual(await src.copiesOf('9'.repeat(32)), []);
+  } finally {
+    await fs.rm(gameA, { recursive: true, force: true });
+    await fs.rm(gameB, { recursive: true, force: true });
+  }
+});
+
+test('preferCopy: the first copy for which it is true wins; absent option keeps first-wins (D8)', async () => {
+  const VFX = 'ParticleSystem: {}\n';
+  const gameA = await gameRoot([{ rel: 'Fx/Boom.prefab', guid: PREFAB, body: 'no effects in this copy' }]);
+  const gameB = await gameRoot([{ rel: 'Other/Boom.prefab', guid: PREFAB, body: VFX }]);
+  try {
+    const roots = [{ game: 'A', root: gameA }, { game: 'B', root: gameB }];
+    const preferred = folderSetSource(roots, 'Assets', { preferCopy: (_g, bytes) => bytes.includes('ParticleSystem') });
+    const picked = await preferred.index();
+    assert.equal(picked.paths.get(PREFAB), 'Assets/Other/Boom.prefab', 'the copy that contains a ParticleSystem wins');
+    const bytes = new Map<string, Buffer>();
+    for await (const e of preferred.assets(() => true)) bytes.set(e.guid, e.data);
+    assert.equal(bytes.get(PREFAB)?.toString('utf8'), VFX);
+    assert.deepEqual(preferred.gamesOf?.(PREFAB), ['A', 'B'], 'every game still carries the guid');
+
+    const firstWins = folderSetSource(roots, 'Assets');
+    assert.equal((await firstWins.index()).paths.get(PREFAB), 'Assets/Fx/Boom.prefab', 'no option: first root wins');
+
+    const none = folderSetSource(roots, 'Assets', { preferCopy: () => false });
+    assert.equal((await none.index()).paths.get(PREFAB), 'Assets/Fx/Boom.prefab', 'nothing preferred: first copy');
+  } finally {
+    await fs.rm(gameA, { recursive: true, force: true });
+    await fs.rm(gameB, { recursive: true, force: true });
   }
 });

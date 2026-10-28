@@ -5,7 +5,14 @@ import type { PoolClient } from 'pg';
 import { config } from './config.ts';
 import { pool } from './db.ts';
 import { getEmbedder } from './embed.ts';
-import { aiTrainingAllowed, EXTRACTED_LICENSE_CLASSES, extractedLicenseProblem, licenseClassOf } from './license.ts';
+import {
+  aiTrainingAllowed,
+  EXTRACTED_LICENSE_CLASSES,
+  extractedLicenseProblem,
+  licenseClassOf,
+  VISIBILITIES,
+  type Visibility,
+} from './license.ts';
 import { SLUG_RE } from './slug.ts';
 import { searchDocument } from './search-doc.ts';
 import { candidateFilter, FilterError, normalizeFilters, type FacetFilters } from './facet-query.ts';
@@ -498,7 +505,7 @@ export interface PublishArgs {
   style?: string[];
   category?: string;
   license: string;
-  visibility?: 'project' | 'team' | 'global';
+  visibility?: Visibility;
   fileName?: string;
   b64?: string;
   localPath?: string;
@@ -621,6 +628,14 @@ export async function publish(
       throw new VfxError(`extracted record refused: ${problem}`, 'invalid');
     }
   }
+  const visibility: Visibility = args.visibility ?? 'project';
+  if (!(VISIBILITIES as readonly string[]).includes(visibility)) {
+    throw new VfxError(`visibility "${String(visibility)}" must be ${VISIBILITIES.join(' | ')}`, 'invalid');
+  }
+  // Extracted records (purchased packs, studio game assets) are never global (C1, D2).
+  if (args.meta?.extracted === true && visibility === 'global') {
+    throw new VfxError('extracted record refused: visibility "global" (extracted records are never global)', 'invalid');
+  }
   assertSlug(args.slug);
 
   // Everything that can refuse the publish runs BEFORE a payload file is written, so a refusal leaves no orphan on disk.
@@ -694,7 +709,7 @@ export async function publish(
         args.category ?? '',
         'unity',
         license,
-        args.visibility ?? 'project',
+        visibility,
         rel,
         mime,
         bytes.length,

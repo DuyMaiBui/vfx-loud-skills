@@ -256,6 +256,27 @@ Nguồn/author/license đầy đủ: `seed/vendor/flipbooks/SOURCES.md`.
 - Compile sạch 0 lỗi/0 warning (kiểm bằng `dotnet` + `UnityEngine/UnityEditor.dll`,
   không qua Editor — vì license headless)
 
+## Bytes and bundle API (vfx-bytes/1)
+
+Human copy of the contract. The field-level SSOT is `plans/261028-self-contained-vfx-fetch/plan.md` § Contract (C1-C10), executed as `server/src/bundle-contract.ts`; do not copy field lists elsewhere.
+
+- Bytes are content-addressed files under `DATA_DIR/blobs/<sha[0:2]>/<sha[2:4]>/<sha256>` (text kinds gzipped at rest). Metadata lives in Postgres: `asset_blob`, `asset_file` (one row per `(guid, variant)`), `preview_render` (migration 010).
+- `variant=original` is vendor bytes. `variant=urp` is the converted material, same guid, path and `.meta`. Packages and Unity built-ins are listed in `requires`, never shipped.
+- Blob routes need `x-vfx-key` even under `AUTH_DISABLED=1`. Opt out only with `VFX_BLOB_ALLOW_ANON=1`. MCP never carries bytes.
+
+| Route | Purpose |
+| --- | --- |
+| `POST /v1/blob/missing` | which of these sha256 values are not stored yet |
+| `PUT /v1/blob/:sha256` | store raw bytes (the body must hash to `:sha256`) |
+| `GET /v1/blob/:sha256` | fetch raw bytes (ETag, immutable cache) |
+| `POST /v1/asset-file/batch` | register files (per-item `created`/`unchanged`/`replaced`/`rejected`) |
+| `GET /v1/asset-file/:guid?variant=` | one `BundleFile` |
+| `GET /v1/closure/:type/:slug/:version?variant=` | the `Bundle` for a recipe (default `urp`) |
+
+Env: `VFX_BLOB_MAX_BYTES` (256 MiB), `VFX_BUNDLE_MAX_FILES` (3000), `VFX_BLOB_ALLOW_ANON`.
+
+Tests run on scratch databases only: `bash scripts/accept/with-testdb.sh <lane> <cmd>` creates `vfxcloud_test_<lane>`, migrates it and drops it on exit. `npm test` against the live `vfxcloud` DB is refused by `assertScratchDb()` in the DB-backed contract tests.
+
 ## Cut trong V0
 
 `vfx_find_similar`, compose/analyze, patch/rollback engine, capability resolver,
