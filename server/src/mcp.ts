@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { buildBundle } from './bundle-builder.ts';
 import { config } from './config.ts';
 import { facets } from './facet-search.ts';
 import { FACET_NAMES } from './facets.ts';
@@ -151,10 +152,12 @@ export function createMcpServer(): McpServer {
         'client tự tải (scripts/vfx-fetch.sh hoặc Unity menu TheOne/VFX Cloud). ' +
         'Mục tiêu mặc định: Assets/VFXCloud/<type>/<slug>/. ' +
         '`closure` = mọi file record này CẦN để import đủ (prefab -> material -> texture, sâu nhất trước, không gồm chính nó; [] nếu không có): tải hết rồi mới mở prefab. ' +
-        '`scripts/vfx-fetch.sh <uri>` tải cả closure.',
-      inputSchema: { uri: z.string() },
+        '`scripts/vfx-fetch.sh <uri>` tải cả closure. ' +
+        '`bundle` (vfx-bundle/1) = mọi file Unity (shader, material, texture, mesh, .meta kèm GUID) cần để recipe render được, phụ thuộc đứng trước; ' +
+        'chỉ URL + metadata, KHÔNG có bytes (tải bằng x-vfx-key qua download_url). `variant`: "urp" (mặc định, material đã convert URP) | "original" (bytes gốc của vendor).',
+      inputSchema: { uri: z.string(), variant: z.enum(['urp', 'original']).optional().describe('mặc định urp') },
     },
-    async ({ uri }) => {
+    async ({ uri, variant }) => {
       const manifest = await store.resolve(uri);
       const { row, buffer } = await store.readFile(uri);
       const { createHash } = await import('node:crypto');
@@ -174,6 +177,7 @@ export function createMcpServer(): McpServer {
                 target_hint: store.targetHint({ type: row.type, slug: row.slug, file_name: manifest.file_name }),
                 fetch_command: `scripts/vfx-fetch.sh ${row.uri}`,
                 closure: await store.closure(row.uri),
+                bundle: await buildBundle(row.uri, variant ?? 'urp'),
               },
               null,
               2,
@@ -229,7 +233,7 @@ export function createMcpServer(): McpServer {
           .optional()
           .describe('Chỉnh gì so với derived_from (lưu ở meta.derived.modifications); cần derived_from'),
         unity: z.object({ path: z.string(), guid: z.string() }).optional().describe('Vị trí trong project Unity (Assets/...) + guid của .meta (32 hex)'),
-        visibility: z.enum(['project', 'team', 'global']).optional().describe('mặc định project'),
+        visibility: z.enum(['project', 'team', 'studio-only', 'global']).optional().describe('mặc định project'),
         meta: z.record(z.string(), z.unknown()).optional(),
       },
     },

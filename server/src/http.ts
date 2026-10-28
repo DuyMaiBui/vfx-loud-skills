@@ -1,6 +1,11 @@
 import fs from 'node:fs';
 import Fastify from 'fastify';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { timingSafeEqual } from 'node:crypto';
+import { VARIANTS, type Variant } from './bundle-contract.ts';
+import * as blobs from './blob-store.ts';
+import { registerFiles } from './blob-store-register.ts';
+import { assetFileBundleFile, buildBundle } from './bundle-builder.ts';
 import { config } from './config.ts';
 import { facets } from './facet-search.ts';
 import { gifBySlug, GIF_MIME } from './preview-gif.ts';
@@ -27,10 +32,49 @@ async function sendGif(req: FastifyRequest<{ Params: { file: string } }>, reply:
   return reply.send(row.gif);
 }
 
+/** Routes that carry purchased-pack bytes or their registry (C3): keyed even under AUTH_DISABLED=1. */
+const BYTE_ROUTE_RE = /^\/v1\/(blob|asset-file|closure)(\/|$)/;
+
+const MAX_MISSING_HASHES = 5000;
+const MAX_BATCH_FILES = 500;
+const GUID_PARAM_RE = /^[0-9a-f]{32}$/;
+
+function keyMatches(given: string | string[] | undefined): boolean {
+  if (typeof given !== 'string') return false;
+  const a = Buffer.from(given);
+  const b = Buffer.from(config.apiKey);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function etagMatches(header: string | string[] | undefined, etag: string): boolean {
+  const h = Array.isArray(header) ? header.join(',') : (header ?? '');
+  return h.split(',').some((t) => {
+    const tag = t.trim().replace(/^W\//, '');
+    return tag === '*' || tag === etag;
+  });
+}
+
+function variantParam(raw: string | undefined, fallback: Variant): Variant {
+  if (raw === undefined) return fallback;
+  if (!(VARIANTS as readonly string[]).includes(raw)) throw new store.VfxError(`variant must be ${VARIANTS.join(' | ')}`, 'invalid');
+  return raw as Variant;
+}
+
 export async function buildHttp(): Promise<Fastify.FastifyInstance> {
   const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'info' } });
 
   app.addHook('onRequest', async (req) => {
+    const route = req.url.split('?')[0];
+    if (BYTE_ROUTE_RE.test(route) && !config.blobAllowAnon) {
+      // D3: purchased bytes are never served open by accident, whatever AUTH_DISABLED says.
+      if (!config.apiKey) throw new store.VfxError('blob routes need VFX_API_KEY (or VFX_BLOB_ALLOW_ANON=1)', 'forbidden');
+      if (!keyMatches(req.headers['x-vfx-key'])) {
+        const err = new Error('unauthorized') as Error & { statusCode?: number };
+        err.statusCode = 401;
+        throw err;
+      }
+      return;
+    }
     if (config.authDisabled) return;
     if (!req.url.startsWith('/v1/')) return;
     if (req.headers['x-vfx-key'] !== config.apiKey) {
@@ -40,18 +84,26 @@ export async function buildHttp(): Promise<Fastify.FastifyInstance> {
     }
   });
 
+  // Blob bodies are raw octets, buffered up to the per-route bodyLimit (the parser itself keeps the server default).
+  app.addContentTypeParser('application/octet-stream', { parseAs: 'buffer' }, (_req, body, done) => done(null, body));
+
+  const STATUS_CODE: Record<number, 'invalid' | 'forbidden' | 'not_found' | 'too_large'> = { 400: 'invalid', 403: 'forbidden', 404: 'not_found', 413: 'too_large' };
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof store.VfxError) {
-      const code =
-        err.code === 'not_found' ? 404 : err.code === 'conflict' ? 409 : 400;
-      reply.code(code).send({ error: err.message, code: err.code });
+      const status =
+        err.code === 'not_found' ? 404 : err.code === 'conflict' ? 409 : err.code === 'forbidden' ? 403 : err.code === 'too_large' ? 413 : 400;
+      reply.code(status).send({ error: err.message, code: err.code, ...(err.details ? { details: err.details } : {}) });
+      return;
+    }
+    const maybe = (err as { statusCode?: number }).statusCode;
+    const message = err instanceof Error ? err.message : String(err);
+    const code = typeof maybe === 'number' ? STATUS_CODE[maybe] : undefined;
+    if (code) {
+      reply.code(maybe as number).send({ error: message, code });
       return;
     }
     app.log.error(err);
-    const maybe = (err as { statusCode?: number }).statusCode;
-    reply
-      .code(typeof maybe === 'number' ? maybe : 500)
-      .send({ error: err instanceof Error ? err.message : String(err) });
+    reply.code(typeof maybe === 'number' ? maybe : 500).send({ error: message });
   });
 
   app.get('/healthz', async () => {
@@ -220,6 +272,81 @@ export async function buildHttp(): Promise<Fastify.FastifyInstance> {
     const result = await store.publishPublic(req.body);
     return { ...result, uri: result.uri };
   });
+
+  // ---- vfx-bytes/1 blob and bundle routes (plan.md C3) ----
+
+  app.post<{ Body: { sha256?: unknown } }>('/v1/blob/missing', async (req) => {
+    const list = req.body?.sha256;
+    if (!Array.isArray(list)) throw new store.VfxError('sha256 must be an array of 64-hex hashes', 'invalid');
+    if (list.length > MAX_MISSING_HASHES) throw new store.VfxError(`at most ${MAX_MISSING_HASHES} hashes`, 'invalid', { max: MAX_MISSING_HASHES });
+    const bad = list.find((h) => typeof h !== 'string' || !blobs.SHA256_RE.test(h));
+    if (bad !== undefined) throw new store.VfxError('sha256 entries must be 64 lowercase hex', 'invalid', { bad: String(bad).slice(0, 80) });
+    return { missing: await blobs.missing(list as string[]) };
+  });
+
+  app.put<{ Params: { sha256: string }; Body: Buffer | undefined }>(
+    '/v1/blob/:sha256',
+    { bodyLimit: config.blobMaxBytes },
+    async (req, reply) => {
+      const { sha256 } = req.params;
+      if (!blobs.SHA256_RE.test(sha256)) throw new store.VfxError('sha256 must be 64 lowercase hex', 'invalid');
+      const kind = req.headers['x-vfx-kind'];
+      const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+      const put = await blobs.putBlob(body, sha256, typeof kind === 'string' ? kind : undefined);
+      return reply.code(put.created ? 201 : 200).send(put);
+    },
+  );
+
+  app.route<{ Params: { sha256: string } }>({
+    method: ['GET', 'HEAD'],
+    url: '/v1/blob/:sha256',
+    handler: async (req, reply) => {
+      const info = await blobs.servableBlob(req.params.sha256);
+      if (!info) throw new store.VfxError('blob not found', 'not_found');
+      const etag = `"${info.sha256}"`;
+      reply.header('etag', etag);
+      reply.header('x-vfx-sha256', info.sha256);
+      reply.header('cache-control', 'private, max-age=31536000, immutable');
+      reply.header('vary', 'accept-encoding');
+      if (etagMatches(req.headers['if-none-match'], etag)) return reply.code(304).send();
+      const gzip = blobs.acceptsGzip(req.headers['accept-encoding']);
+      reply.header('content-type', 'application/octet-stream');
+      if (req.method === 'HEAD') {
+        const d = blobs.blobDelivery(info, gzip);
+        if (d.contentEncoding) reply.header('content-encoding', d.contentEncoding);
+        if (d.contentLength !== null) reply.header('content-length', String(d.contentLength));
+        return reply.send();
+      }
+      const out = blobs.openBlob(info, gzip);
+      if (out.contentEncoding) reply.header('content-encoding', out.contentEncoding);
+      if (out.contentLength !== null) reply.header('content-length', String(out.contentLength));
+      return reply.send(out.stream);
+    },
+  });
+
+  app.post<{ Body: { files?: unknown } }>('/v1/asset-file/batch', async (req) => {
+    const files = req.body?.files;
+    if (!Array.isArray(files)) throw new store.VfxError('files must be an array of AssetFileInput', 'invalid');
+    if (files.length > MAX_BATCH_FILES) throw new store.VfxError(`at most ${MAX_BATCH_FILES} files per batch`, 'invalid', { max: MAX_BATCH_FILES });
+    return registerFiles(files);
+  });
+
+  app.get<{ Params: { guid: string }; Querystring: { variant?: string } }>('/v1/asset-file/:guid', async (req) => {
+    if (!GUID_PARAM_RE.test(req.params.guid)) throw new store.VfxError('guid must be 32 lowercase hex', 'invalid');
+    const variant = variantParam(req.query.variant, 'original');
+    const file = await assetFileBundleFile(req.params.guid, variant);
+    if (!file) throw new store.VfxError(`asset file ${req.params.guid} (${variant}) not found`, 'not_found');
+    return file;
+  });
+
+  app.get<{ Params: { type: string; slug: string; version: string }; Querystring: { variant?: string } }>(
+    '/v1/closure/:type/:slug/:version',
+    async (req) => {
+      const variant = variantParam(req.query.variant, 'urp');
+      const { type, slug, version } = req.params;
+      return buildBundle(store.makeUri(type as store.ResourceType, slug, Number(version)), variant);
+    },
+  );
 
   return app;
 }
