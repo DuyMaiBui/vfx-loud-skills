@@ -7,7 +7,7 @@
     "eval:search": "node seed/search-eval.ts",
     "reindex": "node seed/reindex.ts",
     "facets:report": "node seed/facet-report.ts",
-    "test": "node --test seed/*.test.ts seed/upload/*.test.ts seed/extract/*.test.ts seed/graph/*.test.ts server/src/*.test.ts hooks/*.test.mjs scripts/*.test.mjs scripts/*.test.ts",
+    "test": "node --test seed/*.test.ts seed/upload/*.test.ts seed/extract/*.test.ts seed/graph/*.test.ts server/src/*.test.ts hooks/*.test.mjs scripts/*.test.mjs scripts/*.test.ts scripts/accept/*.test.ts",
     "upload:blobs": "node seed/upload-blobs.ts",
     "verify:closure": "node seed/verify-closure.ts",
     "ingest:failures": "node seed/preview-failures-ingest.ts",
