@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../../unity/VFXPreview/Assets/Editor/VfxPreview/MaterialMapping.cs" Link="MaterialMapping.cs" />
+    <Compile Include="../../../unity/VFXPreview/Assets/Editor/VfxPreview/RecipePrefabBuilderModel.cs" Link="RecipePrefabBuilderModel.cs" />
+  </ItemGroup>
+</Project>

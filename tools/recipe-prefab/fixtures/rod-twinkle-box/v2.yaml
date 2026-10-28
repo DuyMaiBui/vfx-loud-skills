@@ -1,0 +1,38 @@
+id: rod-twinkle-box
+category: recipe
+engine: unity
+license: cc0
+intent: [reward, completion, shimmer]
+style: [cartoon, mobile, puzzle]
+description: >
+  Looping star twinkle along a vertical rod or column: one thin box emitter per object, at most 6 particles
+  alive, additive sprite that fades in fast, warms from white to gold and fades out. Local simulation
+  space so it follows a pooled, moving object.
+build:
+  particle_system:
+    main:
+      play_on_awake: false
+      loop: true
+      start_lifetime: 0.5 -> 0.8
+      start_speed: 0
+      start_size: 0.05 -> 0.09
+      start_rotation: 0 -> 2pi
+      gravity_modifier: 0
+      simulation_space: local
+      scaling_mode: local   # shape scales with the object, startSize keeps its world size
+      max_particles: 6
+    emission: enabled at rate 0 (the runtime raises the rate on trigger and calls Play)
+    shape:
+      type: box
+      scale: (0.18, 1.0, 0.10)   # authored neutral at height 1.0, set shape.position.y = h/2 and shape.scale.y = h at spawn
+    color_over_lifetime:
+      color: [white at 0.0, gold (1.0,0.78,0.25) at 1.0]
+      alpha: [0 at 0.0, 0.85 at 0.15, 0.85 at 0.35, 0 at 1.0]
+    renderer:
+      render_mode: billboard
+      alignment: view
+      material: unlit additive, texture vfx://texture/kenney-star-07/1 (64 px)
+notes:
+  - One box per object, not one system per twinkle
+  - Keep the child inactive until triggered; a stopped system reports rod-independent bounds
+  - Variable object height: build the box neutral, resize the shape module at spawn instead of scaling the transform

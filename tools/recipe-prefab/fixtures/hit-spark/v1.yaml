@@ -1,0 +1,15 @@
+id: hit-spark
+intent: [hit, damage, combat]
+style: [action, stylized]
+layers:
+  - component: flash
+    texture: vfx://texture/circle-02/1
+    lifetime: 0.08
+    scale: 0.6 -> 1.0
+    blend: additive
+  - component: sparks
+    recipe: vfx://vfx/sparks/1
+    count: 6
+    lifetime: 0.2
+notes:
+  - Flash qua ngan; neu qua tinh dieu chinh tai client
