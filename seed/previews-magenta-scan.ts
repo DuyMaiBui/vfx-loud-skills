@@ -6,12 +6,13 @@
 //   npm run previews:magenta -- --json             # one-line machine-readable summary
 //   npm run previews:magenta -- --out slugs.txt    # also write the magenta slugs (one per line), e.g. for tools/preview/run.json `only`
 //   npm run previews:magenta -- --only a,b         # a subset
+//   npm run previews:magenta -- --no-allow        # ignore tools/preview/magenta-allow.txt (slugs verified as really magenta)
 //   npm run previews:magenta -- --purge            # delete the magenta rows: a missing preview (404) beats a pink one
 //
 // Exit 0 when nothing is magenta, 1 when at least one GIF is, 2 when a GIF could not be analysed.
 import fs from 'node:fs';
 import { migrate, pool } from '../server/src/db.ts';
-import { analyzeMedia, type MagentaVerdict } from '../server/src/magenta.ts';
+import { analyzeMedia, loadMagentaAllowlist, type MagentaVerdict } from '../server/src/magenta.ts';
 
 const flag = (name: string): string | undefined => {
   const i = process.argv.indexOf(`--${name}`);
@@ -46,7 +47,9 @@ await Promise.all(
   }),
 );
 
-const bad = results.filter((r) => r.verdict?.magenta);
+const allow = has('no-allow') ? new Set<string>() : loadMagentaAllowlist();
+const bad = results.filter((r) => r.verdict?.magenta && !allow.has(r.slug));
+const waived = results.filter((r) => r.verdict?.magenta && allow.has(r.slug));
 const errors = results.filter((r) => r.error);
 if (out !== undefined && out !== '') fs.writeFileSync(out, bad.map((r) => r.slug).join('\n') + (bad.length ? '\n' : ''));
 let purged = 0;
@@ -55,9 +58,10 @@ if (has('purge') && bad.length) {
 }
 
 if (has('json')) {
-  console.log(JSON.stringify({ scanned: results.length, magenta: bad.length, errors: errors.length, purged, slugs: bad.map((r) => r.slug) }));
+  console.log(JSON.stringify({ scanned: results.length, magenta: bad.length, waived: waived.map((r) => r.slug), errors: errors.length, purged, slugs: bad.map((r) => r.slug) }));
 } else {
   for (const r of bad) console.log(`  magenta  ${r.slug.padEnd(64)} ${r.verdict!.reason}`);
+  for (const r of waived) console.log(`  allowed  ${r.slug.padEnd(64)} ${r.verdict!.reason} (magenta-allow.txt)`);
   for (const r of errors) console.log(`  error    ${r.slug.padEnd(64)} ${r.error}`);
   console.log(`\nscanned=${results.length} magenta=${bad.length} errors=${errors.length}${has('purge') ? ` purged=${purged}` : ''}`);
 }
