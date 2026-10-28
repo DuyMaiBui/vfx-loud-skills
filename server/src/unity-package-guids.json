@@ -7,6 +7,18 @@
       "package": "com.unity.render-pipelines.universal",
       "version": "17.3.0"
     },
+    "06437c1ff663d574d9447842ba0a72e4": {
+      "kind": "package",
+      "name": "ScreenSpaceLensFlare",
+      "package": "com.unity.render-pipelines.universal",
+      "version": "17.3.0"
+    },
+    "0b2db86121404754db890f4c8dfe81b2": {
+      "kind": "package",
+      "name": "Bloom",
+      "package": "com.unity.render-pipelines.universal",
+      "version": "17.3.0"
+    },
     "0cd44c1031e13a943bb63640046fad76": {
       "kind": "package",
       "name": "CanvasScaler",
@@ -36,6 +48,18 @@
       "name": "ScrollRect",
       "package": "com.unity.ugui",
       "version": "2.0.0"
+    },
+    "1e8a610c9e01c3648bac42585e5fc676": {
+      "kind": "package",
+      "name": "Spine/Skeleton",
+      "package": "com.esotericsoftware.spine.spine-unity",
+      "version": "4.2.118"
+    },
+    "230aba7ada7e4c1b9f41fd59b67cd273": {
+      "kind": "package",
+      "name": "ManagedSound",
+      "package": "com.theone.gdk.core",
+      "version": "1.0.9"
     },
     "2961e326241f1e24fa0520cf9aebff98": {
       "kind": "package",
@@ -79,6 +103,12 @@
       "package": "com.unity.ugui",
       "version": "2.0.0"
     },
+    "3d654a8e5e0004a4cacacb3a9f5aecf7": {
+      "kind": "package",
+      "name": "SafeArea",
+      "package": "com.theone.gdk.core",
+      "version": "1.0.9"
+    },
     "474bcb49853aa07438625e644c072ee6": {
       "kind": "package",
       "name": "UniversalAdditionalLightData",
@@ -90,6 +120,12 @@
       "name": "Button",
       "package": "com.unity.ugui",
       "version": "2.0.0"
+    },
+    "5485954d14dfb9a4c8ead8edb0ded5b1": {
+      "kind": "package",
+      "name": "LiftGammaGain",
+      "package": "com.unity.render-pipelines.universal",
+      "version": "17.3.0"
     },
     "54e40a17ecd6a4b5a8a73a28042cdaa0": {
       "kind": "package",
@@ -121,17 +157,47 @@
       "package": "com.unity.render-pipelines.universal",
       "version": "17.3.0"
     },
+    "66f335fb1ffd8684294ad653bf1c7564": {
+      "kind": "package",
+      "name": "ColorAdjustments",
+      "package": "com.unity.render-pipelines.universal",
+      "version": "17.3.0"
+    },
     "67db9e8f0e2ae9c40bc1e2b64352a6b4": {
       "kind": "package",
       "name": "Slider",
       "package": "com.unity.ugui",
       "version": "2.0.0"
     },
+    "6d5e36607f6b4c40bf66172720d58ef0": {
+      "kind": "package",
+      "name": "UIScreenTransition",
+      "package": "com.theone.gdk.core",
+      "version": "1.0.9"
+    },
+    "71c1514a6bd24e1e882cebbe1904ce04": {
+      "kind": "package",
+      "name": "TMP_FontAsset",
+      "package": "com.unity.ugui",
+      "version": "2.0.0"
+    },
+    "789521e3b94f4875a9e67d9d17080a1d": {
+      "kind": "package",
+      "name": "AnimationButton",
+      "package": "com.theone.gdk.core",
+      "version": "1.0.9"
+    },
     "8065e158a2f5e9848a9d0b7a7ceabfde": {
       "kind": "package",
       "name": "Snapper8",
       "package": "com.forbiddenbyte.osa",
       "version": "7.2.1"
+    },
+    "81180773991d8724ab7f2d216912b564": {
+      "kind": "package",
+      "name": "ChromaticAberration",
+      "package": "com.unity.render-pipelines.universal",
+      "version": "17.3.0"
     },
     "81eed00979b4e554cb3022dc0b83b517": {
       "kind": "package",
@@ -169,11 +235,23 @@
       "package": "com.coffee.ui-effect",
       "version": "5.10.8"
     },
+    "97c23e3b12dc18c42a140437e53d3951": {
+      "kind": "package",
+      "name": "Tonemapping",
+      "package": "com.unity.render-pipelines.universal",
+      "version": "17.3.0"
+    },
     "9cc6819e64e4c44beb63ea2ef45e1a6d": {
       "kind": "package",
       "name": "LitMotionAnimation",
       "package": "com.annulusgames.lit-motion.animation",
       "version": "2.0.2"
+    },
+    "a6b194f808b1af6499c93410e504af42": {
+      "kind": "package",
+      "name": "SpineAtlasAsset",
+      "package": "com.esotericsoftware.spine.spine-unity",
+      "version": "4.2.118"
     },
     "a79441f348de89743a2939f4d699eac1": {
       "kind": "package",
@@ -193,10 +271,28 @@
       "package": "com.esotericsoftware.spine.spine-unity",
       "version": "4.2.118"
     },
+    "c01700fd266d6914ababb731e09af2eb": {
+      "kind": "package",
+      "name": "DepthOfField",
+      "package": "com.unity.render-pipelines.universal",
+      "version": "17.3.0"
+    },
+    "c5e1dc532bcb41949b58bc4f2abfbb7e": {
+      "kind": "package",
+      "name": "LensDistortion",
+      "package": "com.unity.render-pipelines.universal",
+      "version": "17.3.0"
+    },
     "d0353a89b1f911e48b9e16bdc9f2e058": {
       "kind": "package",
       "name": "AssetVersion",
       "package": "com.unity.render-pipelines.universal",
+      "version": "17.3.0"
+    },
+    "d7fd9488000d3734a9e00ee676215985": {
+      "kind": "package",
+      "name": "VolumeProfile",
+      "package": "com.unity.render-pipelines.core",
       "version": "17.3.0"
     },
     "d85b887af7e6c3f45a2e2d2920d641bc": {
@@ -204,6 +300,12 @@
       "name": "SkeletonGraphic",
       "package": "com.esotericsoftware.spine.spine-unity",
       "version": "4.2.118"
+    },
+    "da692e001514ec24dbc4cca1949ff7e8": {
+      "kind": "package",
+      "name": "AssetVersion",
+      "package": "com.unity.render-pipelines.high-definition",
+      "version": "17.3.0"
     },
     "dc42784cf147c0c48a680349fa168899": {
       "kind": "package",
@@ -229,6 +331,12 @@
       "package": "com.coffee.ui-particle",
       "version": "4.12.1"
     },
+    "f1b3b4b945939a54ea0b23d3396115fb": {
+      "kind": "package",
+      "name": "SkeletonDataAsset",
+      "package": "com.esotericsoftware.spine.spine-unity",
+      "version": "4.2.118"
+    },
     "f4688fdb7df04437aeb418b961361dc5": {
       "kind": "package",
       "name": "TextMeshProUGUI",
@@ -240,6 +348,12 @@
       "name": "Spine/SkeletonGraphic",
       "package": "com.esotericsoftware.spine.spine-unity",
       "version": "4.2.118"
+    },
+    "fdbdb6e381404a76aaaa7a74cf7f76f9": {
+      "kind": "package",
+      "name": "NonDrawingGraphic",
+      "package": "com.theone.gdk.core",
+      "version": "1.0.9"
     },
     "fe87c0e1cc204ed48ad3b37840f39efc": {
       "kind": "package",
