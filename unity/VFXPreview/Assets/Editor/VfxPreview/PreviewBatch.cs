@@ -32,8 +32,7 @@ namespace VfxPreview
                 var live = cells.Where(c => c.Ok).ToList();
                 if (live.Count == 0) return results;
                 float dt = 1f / o.fps;
-                foreach (var c in live) { c.Reset(o.loopWarmup); c.SampleBounds(); }
-                for (int f = 1; f < frames; f++) foreach (var c in live) { c.Step(dt); c.SampleBounds(); }
+                foreach (var c in live) c.Probe(frames, dt, o.loopWarmup);
                 foreach (var c in live) { c.Frame(); c.Reset(o.loopWarmup); }
                 tPrep = sw.Elapsed.TotalMilliseconds; sw.Restart();
 
