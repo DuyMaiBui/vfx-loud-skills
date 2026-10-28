@@ -9,6 +9,7 @@ import { createClient } from './client.ts';
 import { buildSources } from './collect.ts';
 import { runUpload } from './run.ts';
 import { verifyClosures } from './verify.ts';
+import { assertScratchDb } from '../../server/src/test-fixtures/scratch-db.ts';
 import { GUID, PACKAGE_GUIDS, makeFixture, startStub, type Stub } from './test-support.ts';
 
 const FIXTURE = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..', 'server', 'src', 'test-fixtures', 'bundle-sample.json');
@@ -36,7 +37,7 @@ function bundleOf(stub: Stub, base: string, drop: string[] = []): Bundle {
       { guid: GUID.unresolved, kind: 'package', name: 'Third party', package: 'com.x.y', version: null, referenced_by: [GUID.prefab] },
       { guid: GUID.oldShader, kind: 'package', name: 'Old shader', package: 'com.x.y', version: null, referenced_by: [GUID.mat] },
     ],
-    unresolved: [], cycles: [], file_count: files.length, total_bytes: files.reduce((n, f) => n + f.bytes, 0),
+    unresolved: [], dangling: [], cycles: [], file_count: files.length, total_bytes: files.reduce((n, f) => n + f.bytes, 0),
   };
   assert.ok(BundleSchema.safeParse(bundle).success, 'test bundle must satisfy the vfx-bundle/1 contract');
   return bundle;
@@ -129,5 +130,74 @@ test('verify: the phase-1 bundle fixture parses and, with its blobs absent, is r
     assert.equal(rep.errors.length, 2);
   } finally {
     await stub.close();
+  }
+});
+
+test('verify: a dangling guid is neither a missing ref nor incomplete; the report lists it per recipe', async () => {
+  const { fx, stub } = await uploaded();
+  try {
+    // the stub bundle declares GUID.unresolved as a requires entry; serve it as dangling instead
+    const holder = stub;
+    const dangling = await startStub({
+      bundles: new Map([['boom', (b: string) => {
+        const base = bundleOf(holder, b);
+        return { ...base, requires: base.requires.filter((r) => r.guid !== GUID.unresolved), dangling: [{ guid: GUID.unresolved, referenced_by: [GUID.prefab] }] };
+      }]]),
+    });
+    for (const [k, v] of stub.blobs) dangling.blobs.set(k, v);
+    try {
+      const rep = await verifyClosures(createClient({ server: dangling.url, backoffMs: 1 }), [{ slug: 'boom', version: 1 }], 'original');
+      assert.deepEqual({ ok: rep.complete, inc: rep.incomplete, er: rep.errors }, { ok: 1, inc: [], er: [] });
+      assert.deepEqual(rep.dangling, [{ slug: 'boom', guids: [GUID.unresolved] }]);
+    } finally {
+      await dangling.close();
+    }
+    // without the dangling entry the same guid is a missing ref again: the dangling list is what clears it
+    const plain = await verifyClosures(createClient({ server: stub.url, backoffMs: 1 }), [{ slug: 'boom', version: 1 }], 'original');
+    assert.deepEqual(plain.dangling, []);
+  } finally {
+    await stub.close();
+    await fx.cleanup();
+  }
+});
+
+test('verify-closure --record clears a stale closure-unresolved row of a now-complete checked slug and leaves unchecked rows alone; the summary line counts dangling', async () => {
+  assertScratchDb();
+  const { config } = await import('../../server/src/config.ts');
+  const { default: pg } = await import('pg');
+  const db = new pg.Client({ connectionString: config.databaseUrl });
+  await db.connect();
+  const { fx, stub } = await uploaded();
+  const dangling = await startStub({
+    bundles: new Map([['boom', (b: string) => {
+      const base = bundleOf(stub, b);
+      return { ...base, requires: base.requires.filter((r) => r.guid !== GUID.unresolved), dangling: [{ guid: GUID.unresolved, referenced_by: [GUID.prefab] }] };
+    }]]),
+  });
+  for (const [k, v] of stub.blobs) dangling.blobs.set(k, v);
+  const out = path.join(await fs.mkdtemp(path.join(os.tmpdir(), 'vfx-vrec-')), 'r.json');
+  const logs: string[] = [];
+  const realLog = console.log;
+  try {
+    const row = (slug: string): Promise<unknown> => db.query(
+      `INSERT INTO preview_render (slug, state, cause, detail, shaders, run_id, rendered_at) VALUES ($1, 'failed', 'closure-unresolved', 'x', '{}', 'old', now())
+       ON CONFLICT (slug) DO UPDATE SET state = 'failed', cause = 'closure-unresolved'`, [slug]);
+    await row('boom');
+    await row('verify-test-unchecked');
+    console.log = (l: string): void => void logs.push(String(l));
+    const code = await verifyMain(['--slugs', 'boom@1', '--variant', 'original', '--out', out, '--json', '--record'], { VFX_SERVER: dangling.url } as NodeJS.ProcessEnv);
+    console.log = realLog;
+    assert.equal(code, 0);
+    const line = JSON.parse(logs.at(-1) as string);
+    assert.deepEqual([line.complete, line.incomplete, line.dangling_recipes, line.dangling_guids], [1, 0, 1, 1]);
+    const left = (await db.query("SELECT slug FROM preview_render WHERE slug IN ('boom','verify-test-unchecked') ORDER BY slug")).rows.map((r) => r.slug);
+    assert.deepEqual(left, ['verify-test-unchecked']);
+  } finally {
+    console.log = realLog;
+    await db.query("DELETE FROM preview_render WHERE slug IN ('boom','verify-test-unchecked')");
+    await db.end();
+    await dangling.close();
+    await stub.close();
+    await fx.cleanup();
   }
 });

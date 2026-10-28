@@ -17,6 +17,12 @@ export const sha256 = (b: Buffer): string => crypto.createHash('sha256').update(
 /** packs.json entry plus the phase-1 byte-policy `bytes` flag (`visibility` is declared by `PackConfig`). */
 export interface UploadPack extends PackConfig {
   bytes?: boolean;
+  /**
+   * True when the source holds the WHOLE pack (a vendor `.unitypackage`, or every game project of a folder-set), so a
+   * GUID no source defines is a hole in the original pack itself (`dangling`), not a missing file. A loose partial
+   * folder copy (namufx) must NOT set it: an absent file there may simply not have been copied.
+   */
+  completeSource?: boolean;
 }
 
 export interface PackSource {
@@ -57,6 +63,11 @@ export interface Closure {
   /** Non-shipped GUIDs (builtin / UPM package) with who referenced them. */
   requires: Map<string, { name: string; kind: 'builtin' | 'package'; package: string | null; referencedBy: Set<string> }>;
   unresolved: Map<string, Set<string>>;
+  /**
+   * GUIDs shipped files reference that no readable source defines although every referencing pack is a
+   * `completeSource` (non-blocking, C4 `dangling`). Never a root. `packs` = the referencing packs.
+   */
+  dangling: Map<string, { referencedBy: Set<string>; packs: Set<string> }>;
   /** Files skipped by --skip-kinds. */
   skipped: Array<{ guid: string; kind: Kind; path: string }>;
   /** Roots no source carries. */
@@ -165,7 +176,11 @@ export async function collectClosure(sources: PackSource[], roots: Root[], opts:
     }
   });
 
-  const closure: Closure = { files: [], requires: new Map(), unresolved: new Map(), skipped: [], rootsMissing: [] };
+  const closure: Closure = { files: [], requires: new Map(), unresolved: new Map(), dangling: new Map(), skipped: [], rootsMissing: [] };
+  const complete = new Set(sources.filter((s) => s.pack.completeSource === true).map((s) => s.pack.slug));
+  const rootGuids = new Set(roots.map((r) => r.guid));
+  // guid -> referencing file guid -> its pack; split into unresolved / dangling once every referrer is known
+  const unknown = new Map<string, Map<string, string>>();
   const seen = new Set<string>();
   let level: string[] = [];
   const enqueue = (guid: string): void => {
@@ -173,7 +188,7 @@ export async function collectClosure(sources: PackSource[], roots: Root[], opts:
     seen.add(guid);
     level.push(guid);
   };
-  const note = (guid: string, referencedBy: string): boolean => {
+  const note = (guid: string, referencedBy: string, pack: string): boolean => {
     // Builtin / package GUIDs are never shipped (D7); unknown ones are unresolved.
     const cls = classifyGuid(guid, opts.packageGuids);
     if (cls.kind === 'builtin' || cls.kind === 'package') {
@@ -183,9 +198,9 @@ export async function collectClosure(sources: PackSource[], roots: Root[], opts:
       return true;
     }
     if (!carriers.has(guid)) {
-      const u = closure.unresolved.get(guid) ?? new Set<string>();
-      u.add(referencedBy);
-      closure.unresolved.set(guid, u);
+      const u = unknown.get(guid) ?? new Map<string, string>();
+      u.set(referencedBy, pack);
+      unknown.set(guid, u);
       return true;
     }
     return false;
@@ -258,13 +273,18 @@ export async function collectClosure(sources: PackSource[], roots: Root[], opts:
         continue;
       }
       closure.files.push(rec);
-      for (const ref of rec.refs) if (!note(ref, rec.guid)) enqueue(ref);
+      for (const ref of rec.refs) if (!note(ref, rec.guid, rec.pack)) enqueue(ref);
       if (rec.kind === 'script') {
         const asm = nearestAsmdef(rec.path, asmdefByDir[rec.sourceIndex]);
         if (asm && asm !== rec.guid) enqueue(asm);
       }
     }
     log(`closure: level of ${current.length}, total ${closure.files.length} files`);
+  }
+  for (const [guid, by] of unknown) {
+    const packs = new Set(by.values());
+    if (!rootGuids.has(guid) && [...packs].every((p) => complete.has(p))) closure.dangling.set(guid, { referencedBy: new Set(by.keys()), packs });
+    else closure.unresolved.set(guid, new Set(by.keys()));
   }
   return closure;
 }

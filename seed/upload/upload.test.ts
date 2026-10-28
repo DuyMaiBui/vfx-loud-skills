@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { buildSources, collectClosure, sha256 } from './collect.ts';
 import { runUpload, type UploadOptions } from './run.ts';
+import { loadDanglingGuids } from '../../server/src/unity-refs.ts';
 import { loadUrpExport, urpRejection } from './urp.ts';
 import { makeUnityPackage } from '../extract/test-helpers.ts';
 import { GUID, MAT_BYTES, PACKAGE_GUIDS, makeFixture, pkgAssets, startStub, type Fixture } from './test-support.ts';
@@ -44,6 +45,84 @@ test('closure: dependency order, kinds, asmdef ancestor, requires and unresolved
     assert.deepEqual([...c.unresolved.get(GUID.unresolved)!], [GUID.prefab]);
     assert.deepEqual([...c.unresolved.get(GUID.oldShader)!], [GUID.mat]);
   } finally {
+    await fx.cleanup();
+  }
+});
+
+const complete = (fx: Fixture): Fixture => ({ ...fx, packs: fx.packs.map((p) => ({ ...p, completeSource: true })) });
+
+test('dangling: a ref defined nowhere in a pack flagged completeSource is dangling, not unresolved', async () => {
+  const fx = await makeFixture();
+  try {
+    const c = await collectClosure(await buildSources(complete(fx).packs, fx.dir), ROOTS, { packageGuids: PACKAGE_GUIDS });
+    assert.equal(c.unresolved.size, 0);
+    assert.deepEqual([...c.dangling.keys()].sort(), [GUID.oldShader, GUID.unresolved].sort());
+    assert.deepEqual([...c.dangling.get(GUID.unresolved)!.referencedBy], [GUID.prefab]);
+    assert.deepEqual([...c.dangling.get(GUID.unresolved)!.packs], ['retro-arsenal']);
+  } finally {
+    await fx.cleanup();
+  }
+});
+
+test('dangling: a partial source (completeSource not set) keeps the ref unresolved', async () => {
+  const fx = await makeFixture();
+  try {
+    const c = await collectClosure(await buildSources(fx.packs, fx.dir), ROOTS, { packageGuids: PACKAGE_GUIDS });
+    assert.equal(c.dangling.size, 0);
+    assert.equal(c.unresolved.size, 2);
+  } finally {
+    await fx.cleanup();
+  }
+});
+
+test('dangling: a guid that is also a ROOT stays unresolved (never dangling)', async () => {
+  const fx = await makeFixture();
+  try {
+    const c = await collectClosure(await buildSources(complete(fx).packs, fx.dir), [...ROOTS, { guid: GUID.unresolved }], { packageGuids: PACKAGE_GUIDS });
+    assert.deepEqual([...c.unresolved.keys()], [GUID.unresolved]);
+    assert.deepEqual(c.rootsMissing, [GUID.unresolved]);
+    assert.deepEqual([...c.dangling.keys()], [GUID.oldShader]);
+  } finally {
+    await fx.cleanup();
+  }
+});
+
+test('dangling: a guid referenced by a complete pack AND a partial pack stays unresolved', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'vfx-dmix-'));
+  try {
+    const X = 'e'.repeat(32), PREFAB = 'd'.repeat(32), MAT = 'f'.repeat(32);
+    const r = (guid: string): string => `{fileID: 1, guid: ${guid}, type: 2}`;
+    await fs.writeFile(path.join(dir, 'a.unitypackage'), makeUnityPackage([{ guid: PREFAB, path: 'Assets/A/P.prefab', asset: `GameObject:\n  m: ${r(MAT)}\n  x: ${r(X)}\n` }]));
+    await fs.writeFile(path.join(dir, 'b.unitypackage'), makeUnityPackage([{ guid: MAT, path: 'Assets/B/M.mat', asset: `Material:\n  x: ${r(X)}\n` }]));
+    const base = { name: 'x', vendor: 'v', style: [] as string[], tags: [] as string[], license: 'asset-store-eula' };
+    const packs = [{ ...base, slug: 'a', file: 'a.unitypackage', completeSource: true }, { ...base, slug: 'b', file: 'b.unitypackage' }];
+    const c = await collectClosure(await buildSources(packs, dir), [{ guid: PREFAB }], { packageGuids: PACKAGE_GUIDS });
+    assert.deepEqual([...c.unresolved.keys()], [X]);
+    assert.equal(c.dangling.size, 0);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('dangling: the plan carries the list and counter; --dangling-map writes the server map', async () => {
+  const fx = await makeFixture();
+  const stub = await startStub();
+  try {
+    const mapOut = path.join(await fs.mkdtemp(path.join(os.tmpdir(), 'vfx-dmap-')), 'dangling-guids.json');
+    const o = await opts(complete(fx), stub.url, { yes: false, danglingMapOut: mapOut });
+    const r = await runUpload(o);
+    assert.equal(r.summary.dangling, 2);
+    assert.equal(r.summary.unresolved, 0);
+    const plan = JSON.parse(await fs.readFile(path.join(o.outDir, 'plan.json'), 'utf8'));
+    assert.deepEqual(plan.unresolved, []);
+    assert.deepEqual(plan.dangling.map((d: { guid: string }) => d.guid).sort(), [GUID.oldShader, GUID.unresolved].sort());
+    const map = JSON.parse(await fs.readFile(mapOut, 'utf8'));
+    assert.deepEqual(map, { version: 1, entries: { [GUID.unresolved]: { packs: ['retro-arsenal'] }, [GUID.oldShader]: { packs: ['retro-arsenal'] } } });
+    assert.equal(loadDanglingGuids(mapOut).size, 2);
+    // a dangling-only closure is a clean run (no failure, exit 0)
+    assert.equal(r.exitCode, 0);
+  } finally {
+    await stub.close();
     await fx.cleanup();
   }
 });

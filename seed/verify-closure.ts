@@ -20,7 +20,8 @@ export const HELP = `usage: verify-closure.ts (--slugs a,b@2 | --sample N | --al
   --sample N        N recipes (evenly spread over the extracted recipes)
   --all             every extracted recipe with a prefab
   --variant urp|original   (default urp)
-  --record          upsert preview_render(state='failed', cause='closure-unresolved') for incomplete slugs with a prefab
+  --record          upsert preview_render(state='failed', cause='closure-unresolved') for incomplete slugs with a prefab; clears that row for checked slugs now complete
+                    (dangling GUIDs are a warning in the report, never incomplete)
   --out <file>      report path (default data/reports/closure-verify.json)
   --json            one-line JSON summary on stdout
   --help
@@ -108,6 +109,9 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
     await fs.writeFile(out, JSON.stringify(report, null, 2));
     if (values.record) {
       const rows = report.incomplete.filter((i) => i.has_prefab);
+      // a checked slug that verified complete (or whose only failure is gone) must not keep an old closure-unresolved failure
+      const undecided = new Set([...report.incomplete.map((i) => i.slug), ...report.errors.map((e) => e.slug)]);
+      const cleared = recipes.map((r) => r.slug).filter((slug) => !undecided.has(slug));
       const runId = `verify-${new Date().toISOString()}`;
       await withDb(false, async (q) => {
         for (const r of rows) {
@@ -119,10 +123,11 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
             [r.slug, `${r.reason}: ${r.unresolved.slice(0, 8).join(',')}`, runId],
           );
         }
+        await q(`DELETE FROM preview_render WHERE state = 'failed' AND cause = 'closure-unresolved' AND slug = ANY($1)`, [cleared]);
       });
     }
-    const line = { checked: report.checked, complete: report.complete, incomplete: report.incomplete.length, sha_mismatch: report.sha_mismatch.length, errors: report.errors.length, report: out };
-    console.log(values.json ? JSON.stringify(line) : `checked ${line.checked}, complete ${line.complete}, incomplete ${line.incomplete}, sha mismatch ${line.sha_mismatch}, errors ${line.errors} -> ${out}`);
+    const line = { checked: report.checked, complete: report.complete, incomplete: report.incomplete.length, sha_mismatch: report.sha_mismatch.length, errors: report.errors.length, dangling_recipes: report.dangling.length, dangling_guids: new Set(report.dangling.flatMap((d) => d.guids)).size, report: out };
+    console.log(values.json ? JSON.stringify(line) : `checked ${line.checked}, complete ${line.complete}, incomplete ${line.incomplete}, sha mismatch ${line.sha_mismatch}, errors ${line.errors}, dangling ${line.dangling_guids} guid(s) in ${line.dangling_recipes} recipe(s) -> ${out}`);
     return report.sha_mismatch.length || report.errors.length ? 1 : 0;
   } catch (err) {
     console.error(`error: ${(err as Error).message}`);

@@ -29,6 +29,7 @@ export const HELP = `usage: upload-blobs.ts [--yes | --dry-run] [options]
   --variant original|urp  (default original); urp needs --urp-dir (reads index.json, C8)
   --urp-dir <dir>       URP export directory (data/export/urp)
   --out <dir>           plan/state directory (default data/upload)
+  --dangling-map <file> write the server map of dangling GUIDs (server/src/dangling-guids.json); a whole run only: no --pack, --limit or --skip-kinds
   --package-dir <dir>   .unitypackage directory (default $VFX_UNITYPACKAGE_DIR or /home/mike/Downloads/UnityPackages)
   --packs-file <file>   packs.json override
   --roots-file <file>   JSON [{"guid","pack"}] instead of reading roots from the database
@@ -74,7 +75,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
       options: {
         yes: { type: 'boolean' }, 'dry-run': { type: 'boolean' }, limit: { type: 'string' }, pack: { type: 'string' },
         'skip-kinds': { type: 'string' }, resume: { type: 'boolean' }, variant: { type: 'string' }, 'urp-dir': { type: 'string' },
-        out: { type: 'string' }, 'package-dir': { type: 'string' }, 'packs-file': { type: 'string' }, 'roots-file': { type: 'string' },
+        out: { type: 'string' }, 'dangling-map': { type: 'string' }, 'package-dir': { type: 'string' }, 'packs-file': { type: 'string' }, 'roots-file': { type: 'string' },
         json: { type: 'boolean' }, help: { type: 'boolean' },
       },
       strict: true,
@@ -97,6 +98,9 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
     if (values.limit !== undefined) {
       limit = Number(values.limit);
       if (!Number.isInteger(limit) || limit < 1) throw new UsageError(`--limit must be a positive integer, got "${values.limit}"`);
+    }
+    if (values['dangling-map'] && (values.pack || values.limit !== undefined || values['skip-kinds'] || variant !== 'original')) {
+      throw new UsageError('--dangling-map needs a whole original-variant run: no --pack, --limit, --skip-kinds, --variant urp');
     }
     let skipKinds;
     try {
@@ -121,6 +125,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
       pack: values.pack,
       resume: values.resume,
       variant,
+      danglingMapOut: values['dangling-map'] ? path.resolve(values['dangling-map']) : undefined,
       urpDir: values['urp-dir'],
       log: (l) => console.error(l),
     });

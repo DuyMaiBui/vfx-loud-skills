@@ -35,6 +35,8 @@ export interface VerifyReport {
   complete: number;
   incomplete: Incomplete[];
   sha_mismatch: ShaMismatch[];
+  /** Recipes whose (complete) bundle carries `dangling` GUIDs: a warning, never incompleteness. */
+  dangling: Array<{ slug: string; guids: string[] }>;
   /** Bundles that could not be fetched or did not match the contract (not in the C-spec shape: extra key). */
   errors: Array<{ slug: string; error: string }>;
 }
@@ -51,7 +53,7 @@ export async function verifyClosures(
   variant: 'urp' | 'original',
   log: (l: string) => void = () => undefined,
 ): Promise<VerifyReport> {
-  const report: VerifyReport = { variant, checked: 0, complete: 0, incomplete: [], sha_mismatch: [], errors: [] };
+  const report: VerifyReport = { variant, checked: 0, complete: 0, incomplete: [], sha_mismatch: [], dangling: [], errors: [] };
   // url -> hash + refs: every blob is downloaded and scanned once per run.
   const cache = new Map<string, Downloaded>();
   const fetchBlob = async (url: string, scan: boolean): Promise<Downloaded> => {
@@ -82,7 +84,7 @@ export async function verifyClosures(
       throw err; // a dead server is the caller's exit 75
     }
 
-    const known = new Set<string>([...bundle.files.flatMap((f) => (f.guid ? [f.guid] : [])), ...bundle.requires.map((r) => r.guid)]);
+    const known = new Set<string>([...bundle.files.flatMap((f) => (f.guid ? [f.guid] : [])), ...bundle.requires.map((r) => r.guid), ...bundle.dangling.map((d) => d.guid)]);
     const missing = new Set<string>(bundle.unresolved.map((u) => u.guid));
     let mismatched = false;
     let blobError: string | null = null;
@@ -126,6 +128,7 @@ export async function verifyClosures(
     } else if (!mismatched) {
       report.complete += 1;
     }
+    if (bundle.dangling.length) report.dangling.push({ slug, guids: bundle.dangling.map((d) => d.guid).sort() });
     log(`verify ${slug}: ${bundle.file_count} files`);
   }
   return report;

@@ -17,7 +17,8 @@
       "metaStyle": [
         "stylized"
       ],
-      "bytes": true
+      "bytes": true,
+      "completeSource": true
     },
     {
       "slug": "epic-toon-vfx-2",
@@ -37,7 +38,8 @@
         "toon",
         "stylized"
       ],
-      "bytes": true
+      "bytes": true,
+      "completeSource": true
     },
     {
       "slug": "environment-weather-nature",
@@ -57,7 +59,8 @@
       "metaStyle": [
         "stylized"
       ],
-      "bytes": true
+      "bytes": true,
+      "completeSource": true
     },
     {
       "slug": "epic-toon-fx",
@@ -76,7 +79,8 @@
         "toon",
         "stylized"
       ],
-      "bytes": true
+      "bytes": true,
+      "completeSource": true
     },
     {
       "slug": "retro-arsenal",
@@ -95,7 +99,8 @@
         "retro",
         "stylized"
       ],
-      "bytes": true
+      "bytes": true,
+      "completeSource": true
     },
     {
       "slug": "sci-fi-arsenal",
@@ -114,7 +119,8 @@
         "sci-fi",
         "stylized"
       ],
-      "bytes": true
+      "bytes": true,
+      "completeSource": true
     },
     {
       "slug": "synty-polygon-particle-fx",
@@ -137,7 +143,8 @@
         "low-poly",
         "stylized"
       ],
-      "bytes": true
+      "bytes": true,
+      "completeSource": true
     },
     {
       "slug": "namufx-stylized-water",
@@ -217,7 +224,8 @@
       ],
       "prefabSelect": "vfx-components",
       "visibility": "studio-only",
-      "bytes": true
+      "bytes": true,
+      "completeSource": true
     }
   ]
 }

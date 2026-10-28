@@ -6,7 +6,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { blobLicenseProblem } from '../../server/src/license.ts';
 import type { AssetFileInput, Kind } from '../../server/src/bundle-contract.ts';
-import type { PackageEntry } from '../../server/src/unity-refs.ts';
+import { DanglingGuidMapSchema, type PackageEntry } from '../../server/src/unity-refs.ts';
 import type { SourceFile } from '../extract/source.ts';
 import { createClient, ServerUnavailableError, type VfxClient } from './client.ts';
 import { collectClosure, sha256, type Closure, type FileRecord, type PackSource, type Root } from './collect.ts';
@@ -48,6 +48,8 @@ export interface UploadOptions {
   pack?: string;
   resume?: boolean;
   variant?: 'original' | 'urp';
+  /** Write the committed server map `dangling-guids.json` from this run's closure (a whole run: no --pack / --limit). */
+  danglingMapOut?: string;
   urpDir?: string;
   concurrency?: number;
   retryBackoffMs?: number;
@@ -65,6 +67,8 @@ export interface Summary {
   by_pack: Record<string, { files: number; bytes: number }>;
   requires: number;
   unresolved: number;
+  /** GUIDs defined in no readable source of a fully swept pack (non-blocking, C4 `dangling`). */
+  dangling: number;
   skipped: number;
   roots_missing: number;
   copies_differing: number;
@@ -132,7 +136,7 @@ export function formatPlan(s: Summary): string {
     ...rows('by kind', s.by_kind),
     ...rows('by pack', s.by_pack),
     `files ${s.files} (closure ${s.files_in_closure}) blobs ${s.blobs} bytes ${s.bytes}`,
-    `requires ${s.requires} unresolved ${s.unresolved} skipped ${s.skipped} roots-missing ${s.roots_missing} differing-copies ${s.copies_differing}`,
+    `requires ${s.requires} unresolved ${s.unresolved} dangling ${s.dangling} skipped ${s.skipped} roots-missing ${s.roots_missing} differing-copies ${s.copies_differing}`,
   ].join('\n');
 }
 
@@ -395,6 +399,7 @@ export async function runUpload(opts: UploadOptions): Promise<{ exitCode: number
     ...tally(planFiles),
     requires: closure?.requires.size ?? 0,
     unresolved: closure?.unresolved.size ?? 0,
+    dangling: closure?.dangling.size ?? 0,
     skipped: closure?.skipped.length ?? 0,
     roots_missing: closure?.rootsMissing.length ?? 0,
     copies_differing: closure ? closure.files.filter((f) => f.copies.length).length : 0,
@@ -410,6 +415,9 @@ export async function runUpload(opts: UploadOptions): Promise<{ exitCode: number
     by_kind: summary.by_kind,
     by_pack: summary.by_pack,
     unresolved: [...(closure?.unresolved ?? [])].map(([guid, by]) => ({ guid, referenced_by: [...by].sort() })),
+    dangling: [...(closure?.dangling ?? [])]
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([guid, d]) => ({ guid, referenced_by: [...d.referencedBy].sort(), packs: [...d.packs].sort() })),
     requires: [...(closure?.requires ?? [])].map(([guid, r]) => ({ guid, name: r.name, kind: r.kind, package: r.package, referenced_by: [...r.referencedBy].sort() })),
     roots_missing: closure?.rootsMissing ?? [],
     skipped: closure?.skipped ?? [],
@@ -417,6 +425,12 @@ export async function runUpload(opts: UploadOptions): Promise<{ exitCode: number
     files: planFiles,
   };
   await fs.writeFile(path.join(opts.outDir, variant === 'urp' ? 'plan-urp.json' : 'plan.json'), JSON.stringify(plan, null, 2));
+
+  if (opts.danglingMapOut) {
+    if (!closure) throw new Error('--dangling-map needs variant original (the closure sweep)');
+    const entries = Object.fromEntries([...closure.dangling].sort(([a], [b]) => (a < b ? -1 : 1)).map(([g, d]) => [g, { packs: [...d.packs].sort() }]));
+    await fs.writeFile(opts.danglingMapOut, `${JSON.stringify(DanglingGuidMapSchema.parse({ version: 1, entries }), null, 2)}\n`);
+  }
 
   const finish = (exitCode: number): { exitCode: number; summary: Summary } => {
     summary.failed = failures.length;
