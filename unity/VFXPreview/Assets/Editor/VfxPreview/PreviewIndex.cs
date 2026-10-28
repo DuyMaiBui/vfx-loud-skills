@@ -32,7 +32,8 @@ namespace VfxPreview
             Directory.CreateDirectory(PreviewOptions.PreviewDir);
             var tmp = Path_ + ".tmp";
             File.WriteAllText(tmp, idx.ToString(Newtonsoft.Json.Formatting.Indented));
-            File.Move(tmp, Path_, true);
+            if (File.Exists(Path_)) File.Delete(Path_); // .NET Standard 2.1 has no File.Move(src, dst, overwrite)
+            File.Move(tmp, Path_);
         }
     }
 }
