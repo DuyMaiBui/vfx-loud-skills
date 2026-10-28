@@ -59,6 +59,7 @@ namespace VfxCloud
         [JsonProperty("reused")] public int Reused;
         [JsonProperty("skipped")] public int Skipped;
         [JsonProperty("requires_missing")] public int RequiresMissing;
+        [JsonProperty("dangling")] public int Dangling;
         [JsonProperty("complete")] public bool Complete;
         [JsonProperty("ok")] public bool Ok;
         [JsonProperty("code")] public int Code;
@@ -86,14 +87,28 @@ namespace VfxCloud
                 var url = $"{o.Server.TrimEnd('/')}/v1/closure/{parts[0]}/{parts[1]}/{parts[2]}?variant={o.Variant}";
                 var bundle = Bundle.Parse(Encoding.UTF8.GetString(Get(url, o.ApiKey)));
                 s.Complete = bundle.Complete;
+                // dangling GUIDs are a warning only: the bundle stays complete, the exit code unchanged
+                var dangling = bundle.Dangling ?? new List<BundleDangling>();
+                s.Dangling = dangling.Count;
+                if (dangling.Count > 0)
+                {
+                    var pathOf = new Dictionary<string, string>();
+                    foreach (var f in bundle.Files) if (!string.IsNullOrEmpty(f.Guid) && !pathOf.ContainsKey(f.Guid)) pathOf[f.Guid] = f.TargetPath;
+                    foreach (var d in dangling)
+                    {
+                        var by = (d.ReferencedBy ?? new List<string>()).ConvertAll(g => pathOf.TryGetValue(g, out var shipped) ? shipped : g);
+                        s.Warnings.Add($"dangling GUID {d.Guid} is defined in no source of the original pack (Unity shows the slot empty); referenced by {(by.Count > 0 ? string.Join(", ", by) : "a shipped file")}");
+                    }
+                }
                 if (!bundle.Complete && !o.AllowIncomplete)
                     return s.Fail(ExitCodes.Incomplete, $"bundle incomplete (reason: {bundle.Reason ?? "unresolved"}, unresolved: {bundle.Unresolved.Count}); set VFX_ALLOW_INCOMPLETE=1 to install anyway");
 
                 var manifest = Path.Combine(ProjectRoot, "Packages", "manifest.json");
                 var missing = VfxCloudBundle.MissingPackages(bundle, File.Exists(manifest) ? File.ReadAllText(manifest) : null);
                 s.RequiresMissing = missing.Count;
+                var firstMissing = s.Warnings.Count;
                 foreach (var m in missing) s.Warnings.Add($"requires package {m.Package} ({m.Name}) is missing from Packages/manifest.json");
-                if (o.StrictRequires && missing.Count > 0) return s.Fail(ExitCodes.RequiresMissing, s.Warnings[0]);
+                if (o.StrictRequires && missing.Count > 0) return s.Fail(ExitCodes.RequiresMissing, s.Warnings[firstMissing]);
 
                 var plan = VfxCloudBundle.Plan(bundle, new EditorProjectIndex(), o.OnConflict, o.Root);
                 foreach (var i in plan.Items) s.Items.Add(new InstallItemResult { Guid = i.File.Guid, Path = i.WritePath, Action = i.Action.ToString(), Reason = i.Reason, GuidKept = i.KeepMeta ? i.ExpectedGuid : null });

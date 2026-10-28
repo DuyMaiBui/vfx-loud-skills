@@ -107,7 +107,7 @@ test('happy path: N pairs, .meta byte-exact and first, dependencies first, JSON 
   const p = freshProject();
   const r = await fetchClient(p);
   assert.equal(r.code, 0, r.stderr);
-  assert.deepEqual({ ...r.summary }, { uri: 'vfx://recipe/archanor-boom/1', variant: 'urp', written: 5, unchanged: 0, reused: 0, skipped: 0, requires_missing: [], complete: true, ok: true, exit_code: 0 });
+  assert.deepEqual({ ...r.summary }, { uri: 'vfx://recipe/archanor-boom/1', variant: 'urp', written: 5, unchanged: 0, reused: 0, skipped: 0, requires_missing: [], dangling: 0, complete: true, ok: true, exit_code: 0 });
   const installed = r.lines.filter((l) => /^(meta|file) /.test(l));
   const expected = bundle.files.flatMap((f) => [`meta ${f.target_path}.meta`, `file ${f.target_path}`]);
   assert.deepEqual(installed, expected);
@@ -214,6 +214,36 @@ test('complete:false exits 5 unless VFX_ALLOW_INCOMPLETE=1', async () => {
   const ok = await fetchClient(p, { VFX_ALLOW_INCOMPLETE: '1' });
   assert.equal(ok.code, 0, ok.stderr);
   assert.equal(ok.summary.complete, false);
+});
+
+test('dangling GUIDs install normally (complete stays true, exit 0): the summary counts them and stderr warns with the referencing file', async () => {
+  reset();
+  const ghost = 'd'.repeat(32);
+  bundle.dangling = [{ guid: ghost, referenced_by: [bundle.files[2].guid] }];
+  const p = freshProject();
+  const r = await fetchClient(p);
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(r.summary.complete, true);
+  assert.equal(r.summary.dangling, 1);
+  assert.match(r.stderr, new RegExp(`warning: 1 dangling GUID.*${ghost}.*${bundle.files[2].target_path.split('/').pop()}`));
+});
+
+test('a bundle from an older server without a dangling key still installs and reports dangling 0', async () => {
+  reset();
+  delete bundle.dangling;
+  const p = freshProject();
+  const r = await fetchClient(p);
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(r.summary.dangling, 0);
+  assert.doesNotMatch(r.stderr, /dangling/);
+});
+
+test('a malformed dangling entry is an invalid bundle (exit 1)', async () => {
+  reset();
+  bundle.dangling = [{ guid: 'nope', referenced_by: [] }];
+  const r = await fetchClient(freshProject());
+  assert.equal(r.code, 1, r.stderr);
+  assert.match(r.stderr, /invalid bundle: dangling/);
 });
 
 test('a .meta guid rewritten after the move (Editor race) exits 7 and names the file', async () => {

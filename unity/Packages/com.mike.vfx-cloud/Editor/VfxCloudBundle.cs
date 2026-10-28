@@ -45,6 +45,13 @@ namespace VfxCloud
         [JsonProperty("referenced_by")] public List<string> ReferencedBy = new List<string>();
     }
 
+    /// <summary>C4 `dangling` entry: a GUID a shipped file references that no readable source of its fully swept pack defines. Warning only.</summary>
+    public class BundleDangling
+    {
+        [JsonProperty("guid")] public string Guid;
+        [JsonProperty("referenced_by")] public List<string> ReferencedBy = new List<string>();
+    }
+
     public class Bundle
     {
         [JsonProperty("schema")] public string Schema;
@@ -56,6 +63,8 @@ namespace VfxCloud
         [JsonProperty("files")] public List<BundleFile> Files = new List<BundleFile>();
         [JsonProperty("requires")] public List<BundleRequire> Requires = new List<BundleRequire>();
         [JsonProperty("unresolved")] public List<BundleUnresolved> Unresolved = new List<BundleUnresolved>();
+        // absent from an older server's bundle: stays empty
+        [JsonProperty("dangling")] public List<BundleDangling> Dangling = new List<BundleDangling>();
         [JsonProperty("cycles")] public List<List<string>> Cycles = new List<List<string>>();
         [JsonProperty("file_count")] public int FileCount;
         [JsonProperty("total_bytes")] public long TotalBytes;

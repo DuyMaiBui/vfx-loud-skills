@@ -154,6 +154,7 @@ export function createMcpServer(): McpServer {
         '`closure` = mọi file record này CẦN để import đủ (prefab -> material -> texture, sâu nhất trước, không gồm chính nó; [] nếu không có): tải hết rồi mới mở prefab. ' +
         '`scripts/vfx-fetch.sh <uri>` tải cả closure. ' +
         '`bundle` (vfx-bundle/1) = mọi file Unity (shader, material, texture, mesh, .meta kèm GUID) cần để recipe render được, phụ thuộc đứng trước; ' +
+        '`bundle.dangling` = GUID mà file đã ship tham chiếu nhưng pack gốc không định nghĩa (pack vendor cũng thủng; Unity hiện slot trống): chỉ cảnh báo, bundle vẫn `complete`. ' +
         'chỉ URL + metadata, KHÔNG có bytes (tải bằng x-vfx-key qua download_url). `variant`: "urp" (mặc định, material đã convert URP) | "original" (bytes gốc của vendor).',
       inputSchema: { uri: z.string(), variant: z.enum(['urp', 'original']).optional().describe('mặc định urp') },
     },

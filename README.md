@@ -261,7 +261,7 @@ Nguồn/author/license đầy đủ: `seed/vendor/flipbooks/SOURCES.md`.
 Human copy of the contract. The field-level SSOT is `plans/261028-self-contained-vfx-fetch/plan.md` § Contract (C1-C10), executed as `server/src/bundle-contract.ts`; do not copy field lists elsewhere.
 
 - Bytes are content-addressed files under `DATA_DIR/blobs/<sha[0:2]>/<sha[2:4]>/<sha256>` (text kinds gzipped at rest). Metadata lives in Postgres: `asset_blob`, `asset_file` (one row per `(guid, variant)`), `preview_render` (migration 010).
-- `variant=original` is vendor bytes. `variant=urp` is the converted material, same guid, path and `.meta`. Packages and Unity built-ins are listed in `requires`, never shipped.
+- `variant=original` is vendor bytes. `variant=urp` is the converted material, same guid, path and `.meta`. Packages and Unity built-ins are listed in `requires`, never shipped. `dangling` lists GUIDs a shipped file references that no readable source of its fully swept pack defines (the vendor pack has the same hole, e.g. Retro Arsenal's `_Ramp` slot; Unity shows an empty texture): a warning, the bundle stays `complete`. Clients surface it (`vfx-fetch.sh` summary key `dangling` plus a stderr warning, the Unity window a warning line) and keep their exit codes. A GUID that a root references, or that a partial folder copy might simply lack, stays `unresolved` (an error).
 - Blob routes need `x-vfx-key` even under `AUTH_DISABLED=1`. Opt out only with `VFX_BLOB_ALLOW_ANON=1`. MCP never carries bytes.
 
 | Route | Purpose |

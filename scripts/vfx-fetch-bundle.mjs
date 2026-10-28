@@ -19,7 +19,9 @@ export const HELP = `usage: vfx-fetch.sh <vfx://type/slug/version> [project_root
 
 Install the whole closure (shaders, textures, materials, meshes, prefab ...) of a vfx:// resource into a
 Unity project with every .meta GUID preserved. project_root defaults to $VFX_PROJECT, then the cwd.
-The last stdout line is a JSON summary: {"uri","variant","written","unchanged","reused","skipped","requires_missing","complete", ...}.
+The last stdout line is a JSON summary: {"uri","variant","written","unchanged","reused","skipped","requires_missing","dangling","complete", ...}.
+dangling is the number of GUIDs a shipped file references that no readable source of its (fully swept) pack defines: the
+vendor pack has the same hole and Unity renders the slot empty. It is a warning only: the bundle stays complete, the exit code unchanged.
 
 Environment:
   VFX_SERVER            server base URL (default http://127.0.0.1:8787)
@@ -76,6 +78,11 @@ function validate(b) {
   if (typeof b.uri !== 'string') throw bad('uri');
   if (typeof b.complete !== 'boolean') throw bad('complete');
   for (const k of ['files', 'requires', 'unresolved', 'cycles']) if (!Array.isArray(b[k])) throw bad(k);
+  // `dangling` (C4) is absent from an older server's bundle: tolerated as []
+  if (b.dangling !== undefined) {
+    if (!Array.isArray(b.dangling)) throw bad('dangling');
+    for (const d of b.dangling) if (!d || !HEX32.test(d.guid ?? '') || !Array.isArray(d.referenced_by)) throw bad('dangling entry');
+  }
   const seen = new Set();
   for (const f of b.files) {
     if (!f || typeof f !== 'object') throw bad('file entry');
@@ -243,7 +250,7 @@ function missingPackages(project, requires) {
 }
 
 export async function run(argv, env, out = console.log, err = (m) => console.error(m)) {
-  const summary = { uri: null, variant: null, written: 0, unchanged: 0, reused: 0, skipped: 0, requires_missing: [], complete: null };
+  const summary = { uri: null, variant: null, written: 0, unchanged: 0, reused: 0, skipped: 0, requires_missing: [], dangling: 0, complete: null };
   let tmp = null; let createdTemp = false; let tempDir = null; let journalPath = null;
   try {
     if (argv[0] === '--help' || argv[0] === '-h') { out(HELP); return 0; }
@@ -269,6 +276,13 @@ export async function run(argv, env, out = console.log, err = (m) => console.err
     validate(bundle);
     summary.variant = bundle.variant ?? variant;
     summary.complete = bundle.complete;
+    const dangling = bundle.dangling ?? [];
+    summary.dangling = dangling.length;
+    if (dangling.length) {
+      const pathOf = new Map(bundle.files.filter((f) => f.guid).map((f) => [f.guid, f.target_path]));
+      const list = dangling.map((d) => `${d.guid} (referenced by ${d.referenced_by.map((g) => pathOf.get(g) ?? g).join(', ') || 'a shipped file'})`).join('; ');
+      err(`warning: ${dangling.length} dangling GUID(s) defined in no source of the original pack; Unity shows those slots empty: ${list}`);
+    }
 
     if (!bundle.complete) {
       const why = `bundle is incomplete: ${bundle.reason ?? 'unresolved references'} (${bundle.unresolved.map((u) => u.guid).join(', ')})`;
