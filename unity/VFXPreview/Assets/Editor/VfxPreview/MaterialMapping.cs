@@ -50,18 +50,23 @@ namespace VfxPreview
     {
         public const string UrpParticlesUnlit = "Universal Render Pipeline/Particles/Unlit";
 
+        /// <summary>The pack shaders multiply their emission by an HDR "extra glow" (3-5) that a bloom pass turns into a soft halo. The LDR preview has
+        /// none: the same factor clips every channel and washes the effect out to white (a blue laser became a white blob). The multiplier is capped
+        /// so the tint colour survives.</summary>
+        public const float GlowCap = 1.25f;
+
         sealed class Named
         {
             public string BaseMap;     // source property -> _BaseMap
             public string Color;       // source tint property (rgb only; the pack shaders take alpha from vertex colour x texture)
-            public string Glow;        // source float multiplied into rgb (HDR "extra glow": the LDR preview clamps it, but a texture below 1 still needs it)
+            public string Glow;        // source float multiplied into rgb (HDR "extra glow", capped at GlowCap)
             public float GlowConst = 1f;
             public Blend Blend;
             public string Note;
         }
 
         // Retro Arsenal "Unlit" surface shaders: Emission = vertexColor * ExtraGlow * Tint * tex, Alpha = vertexColor.a * tex.a, alpha:fade.
-        // URP Particles/Unlit gives vertexColor * _BaseColor * tex, so _BaseColor = Tint.rgb * ExtraGlow, alpha 1 (Tint.a is not used by the original).
+        // URP Particles/Unlit gives vertexColor * _BaseColor * tex, so _BaseColor = Tint.rgb * min(ExtraGlow, GlowCap), alpha 1 (Tint.a is not used by the original).
         // Scrolling (Beam*), a 2nd texture (BeamDouble) and the dissolve ramp (Disintegrate) have no URP-unlit equivalent: the first texture is shown still.
         static Named Glow(string note) => new Named { BaseMap = "_TextureSample", Color = "_Tint", Glow = "_ExtraGlow", Blend = Blend.Alpha, Note = note };
 
@@ -96,7 +101,7 @@ namespace VfxPreview
         static MaterialPlan FromNamed(MaterialSnapshot m, Named r)
         {
             var c = m.TryColor(r.Color, out var tint) ? tint : Rgba.White;
-            float glow = (r.Glow != null ? m.Float(r.Glow, 1f) : 1f) * r.GlowConst;
+            float glow = Math.Min((r.Glow != null ? m.Float(r.Glow, 1f) : 1f) * r.GlowConst, GlowCap);
             return new MaterialPlan
             {
                 BaseMapFrom = r.BaseMap != null && m.Textures.Contains(r.BaseMap) ? r.BaseMap : null,

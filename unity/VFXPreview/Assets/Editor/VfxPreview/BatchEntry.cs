@@ -9,7 +9,7 @@ using UnityEngine.Rendering;
 
 namespace VfxPreview
 {
-    /// <summary>Headless driver: -executeMethod VfxPreview.BatchEntry.Run [-packs a,b,c] [-skipGifIngest]. Queues PackImporter for the given
+    /// <summary>Headless driver: -executeMethod VfxPreview.BatchEntry.Run [-packs a,b,c] [-skipGifIngest] [-noConvert]. Queues PackImporter for the given
     /// packs, then starts PreviewRunner, waits for _status.json state=done, encodes the fresh webm files into the VFX Cloud DB as GIFs
     /// (node seed/preview-gif-ingest.ts) and exits the Editor (0 ok, 1 failed targets, 2 timeout).
     /// Stage lives in Library/ so it survives the domain reloads pack imports cause.</summary>
@@ -59,7 +59,8 @@ namespace VfxPreview
                 s.stage = "rendering"; s.runStartedAt = Now(); Save(s);
                 if (File.Exists(StatusFile)) File.Delete(StatusFile);
                 MaterialConverter.LogShaderHistogram();
-                MaterialConverter.ConvertAll();
+                if (Array.IndexOf(Environment.GetCommandLineArgs(), "-noConvert") >= 0) Debug.Log("[BatchEntry] material conversion skipped (-noConvert)");
+                else MaterialConverter.ConvertAll();
                 Diag("Assets/ImportedPacks/epic-toon-fx/Epic Toon FX/Prefabs/Interactive/Level Up/Nova/LevelupNovaBlue.prefab");
                 Debug.Log("[BatchEntry] import done, starting render");
                 typeof(PreviewRunner).GetMethod("Start", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, null);
