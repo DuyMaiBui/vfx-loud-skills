@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { assignSlugs, classifyPath, extractPack, type PackConfig } from './pipeline.ts';
+import { assignSlugs, classifyPath, extractPack, folderSetSourceFor, type PackConfig } from './pipeline.ts';
 import { makeUnityPackage, materialYaml, prefabYaml, type FakeAsset } from './test-helpers.ts';
 
 const MAT = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -217,4 +217,96 @@ test('vfx-components selection: folder-agnostic, keeps only prefabs with a Parti
     assert.equal(s.excluded['no-vfx-component'], 1);
     assert.equal(s.excluded.demo, 1);
   });
+});
+
+/** A pure variant of `baseGuid` overriding the root ParticleSystem's startSpeed and the root name. */
+function variantYaml(baseGuid: string, speed: number, name: string): string {
+  const t = (id: number, path: string, value: string | number): string =>
+    `    - target: {fileID: ${id}, guid: ${baseGuid}, type: 3}\n      propertyPath: ${path}\n      value: ${value}\n      objectReference: {fileID: 0}\n`;
+  return (
+    '%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n--- !u!1001 &1\nPrefabInstance:\n  m_Modification:\n    m_TransformParent: {fileID: 0}\n    m_Modifications:\n' +
+    t(300, 'InitialModule.startSpeed.scalar', speed) +
+    t(100, 'm_Name', name) +
+    `    m_RemovedComponents: []\n    m_RemovedGameObjects: []\n    m_AddedGameObjects: []\n    m_AddedComponents: []\n  m_SourcePrefab: {fileID: 100100000, guid: ${baseGuid}, type: 3}\n`
+  );
+}
+
+test('pack visibility lands on every record (studio-only), default stays project', async () => {
+  const assets: FakeAsset[] = [{ guid: '1'.repeat(32), path: 'Assets/T/Prefabs/Boom.prefab', asset: prefabYaml() }];
+  await withPackage(assets, async (file, out) => {
+    const s = await extractPack({ pack: { ...PACK, visibility: 'studio-only' }, packageFile: file, outDir: out });
+    const rec = JSON.parse(await fs.readFile(path.join(out, 'test-pack', `${s.records[0].slug}.json`), 'utf8'));
+    assert.equal(rec.visibility, 'studio-only');
+  });
+});
+
+test('variants of a selected VFX prefab are flattened; variants of excluded bases and gameplay prefabs are named, not lumped', async () => {
+  const BASE = 'a1'.repeat(16);
+  const THIRD = 'b2'.repeat(16);
+  const assets: FakeAsset[] = [
+    { guid: BASE, path: 'Assets/T/VFX/Splash.prefab', asset: prefabYaml({ name: 'Splash', withChild: false }) },
+    { guid: 'c3'.repeat(16), path: 'Assets/T/Game/SplashHeavy.prefab', asset: variantYaml(BASE, 20, 'SplashHeavy') },
+    { guid: THIRD, path: 'Assets/Third/Splash.prefab', asset: prefabYaml({ name: 'Third', withChild: false }) },
+    { guid: 'd4'.repeat(16), path: 'Assets/T/Game/ThirdVariant.prefab', asset: variantYaml(THIRD, 9, 'ThirdVariant') },
+    { guid: 'e5'.repeat(16), path: 'Assets/T/Game/Level.prefab', asset: prefabYaml({ instance: true }) },
+    { guid: 'f6'.repeat(16), path: 'Assets/T/UI/Menu.prefab', asset: prefabYaml({ psCount: 'none' }) },
+  ];
+  await withPackage(assets, async (file, out) => {
+    const pack: PackConfig = { ...PACK, prefabSelect: 'vfx-components', excludePathPrefixes: ['Assets/Third/'] };
+    const s = await extractPack({ pack, packageFile: file, outDir: out });
+    assert.equal(s.extracted, 2); // Splash + its flattened variant
+    assert.equal(s.excluded['variant-of-excluded-base'], 1);
+    assert.equal(s.excluded['third-party-pack'], 1);
+    assert.deepEqual(s.skippedByReason, { 'gameplay-prefab': 1 });
+    const variant = s.records.find((r) => r.prefabPath.endsWith('SplashHeavy.prefab'));
+    assert.ok(variant);
+    const rec = JSON.parse(await fs.readFile(path.join(out, 'test-pack', `${variant.slug}.json`), 'utf8'));
+    assert.equal(rec.meta.source.variantOf, BASE);
+    assert.match(rec.inline, /startSpeed: \{mode: randomBetweenConstants, min: 4, max: 20\}/);
+    assert.match(rec.name, /^SplashHeavy /);
+    const report = JSON.parse(await fs.readFile(path.join(out, 'nested-report.json'), 'utf8'));
+    assert.equal(report.classAEmpty, false);
+    assert.deepEqual(report.counts, { flattened: 1, 'gameplay-prefab': 1 });
+  });
+});
+
+test('same guid in two games: the first copy that carries a ParticleSystem wins, differing copies are recorded', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'vfx-folderset-'));
+  const put = async (game: string, rel: string, guid: string, body: string): Promise<void> => {
+    const f = path.join(dir, game, 'Assets', rel);
+    await fs.mkdir(path.dirname(f), { recursive: true });
+    await fs.writeFile(f, body);
+    await fs.writeFile(`${f}.meta`, `fileFormatVersion: 2\nguid: ${guid}\n`);
+  };
+  try {
+    const LEVEL = '7'.repeat(32);
+    const SAME = '8'.repeat(32);
+    await put('GameA', 'Game/Level.prefab', LEVEL, prefabYaml({ psCount: 'none' })); // first game: no effect at all
+    await put('GameB', 'Game/Level.prefab', LEVEL, prefabYaml({ name: 'LevelFx', withChild: false }));
+    await put('GameA', 'Game/Same.prefab', SAME, prefabYaml({ name: 'Same', withChild: false }));
+    await put('GameB', 'Game/Same.prefab', SAME, prefabYaml({ name: 'Same', withChild: false }));
+    const pack: PackConfig = {
+      ...PACK,
+      slug: 'game-vfx',
+      sourceType: 'folder-set',
+      pathPrefix: 'Assets',
+      sourceRoots: ['GameA', 'GameB'].map((g) => ({ game: g, path: path.join(dir, g, 'Assets') })),
+      prefabSelect: 'vfx-components',
+    };
+    const s = await extractPack({ pack, source: folderSetSourceFor(pack), outDir: path.join(dir, 'out') });
+    assert.equal(s.extracted, 2);
+    const read = async (guid: string): Promise<{ meta: { source: { games: string[]; copies?: Array<{ game: string; sha256: string }> } }; name: string }> => {
+      const r = s.records.find((x) => x.prefabGuid === guid);
+      assert.ok(r);
+      return JSON.parse(await fs.readFile(path.join(dir, 'out', 'game-vfx', `${r.slug}.json`), 'utf8'));
+    };
+    const level = await read(LEVEL);
+    assert.match(level.name, /^LevelFx /); // GameB's copy won although GameA is first
+    assert.deepEqual(level.meta.source.games, ['GameA', 'GameB']);
+    assert.deepEqual(level.meta.source.copies?.map((c) => c.game), ['GameB', 'GameA']); // winner first
+    assert.equal(new Set(level.meta.source.copies?.map((c) => c.sha256)).size, 2);
+    assert.equal((await read(SAME)).meta.source.copies, undefined); // identical copies need no record
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
 });

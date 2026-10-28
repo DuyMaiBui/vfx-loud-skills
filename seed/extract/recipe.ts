@@ -11,6 +11,7 @@ import {
   type YamlValue,
 } from './unity-yaml.ts';
 import { toYaml } from './yaml-emit.ts';
+import { flattenNested, type NestedContext, type NestedInfo } from './nested.ts';
 
 /**
  * Turns one Unity VFX prefab (text-serialized YAML) into a deterministic "extracted recipe"
@@ -27,7 +28,7 @@ export class SkipError extends Error {
   }
 }
 
-export interface BuildContext {
+export interface BuildContext extends NestedContext {
   /** guid -> source path inside the package (undefined when the asset is not in the package). */
   pathOf(guid: string): string | undefined;
   /** guid -> text of a Material asset when the package contains it. */
@@ -52,6 +53,8 @@ export interface RecipePayload {
   nodeCount: number;
   prefabName: string;
   summary: { durationMax: number; loops: boolean; renderModes: number[] };
+  /** Set when the prefab was a variant flattened onto its base (D9). */
+  nested?: NestedInfo;
 }
 
 const DROP_KEYS = new Set([
@@ -297,9 +300,9 @@ export function buildRecipe(text: string, pack: PackInfo, prefab: { path: string
     if (e instanceof UnityYamlError) throw new SkipError('yaml-parse-error', e.message);
     throw e;
   }
-  if (docs.some((d) => d.type === 'PrefabInstance')) {
-    throw new SkipError('nested-prefab-instance', 'prefab embeds a PrefabInstance (variant/nested); source not flattened');
-  }
+  const flat = flattenNested(docs, ctx); // SkipError with the exact reason unless it is a plain or flattenable prefab
+  docs = flat.docs;
+  const nested = flat.info ? { nested: flat.info } : {};
   const byId = new Map(docs.map((d) => [d.fileId, d]));
   const effectOnly = !docs.some((d) => d.type === 'ParticleSystem');
   if (effectOnly && !docs.some((d) => d.type in EFFECT_KIND)) {
@@ -351,7 +354,7 @@ export function buildRecipe(text: string, pack: PackInfo, prefab: { path: string
   const psNodeByPsId = new Map<string, string>();
   for (const n of nodes) for (const c of n.components) if (c.type === 'ParticleSystem') psNodeByPsId.set(c.fileId, n.path);
   const conv = new Converter(ctx, (id) => psNodeByPsId.get(id));
-  if (effectOnly) return buildEffectPayload(nodes, conv, ctx, pack, prefab);
+  if (effectOnly) return { ...buildEffectPayload(nodes, conv, ctx, pack, prefab), ...nested };
 
   // --- particle nodes
   const particleNodes: Record<string, unknown>[] = [];
@@ -475,6 +478,7 @@ export function buildRecipe(text: string, pack: PackInfo, prefab: { path: string
     nodeCount: nodes.length,
     prefabName: rootName,
     summary: { durationMax: r5(durationMax), loops, renderModes: [...renderModes].sort((a, b) => a - b) },
+    ...nested,
   };
 }
 

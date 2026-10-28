@@ -73,3 +73,34 @@ test('unsupported constructs throw instead of silently degrading', () => {
   assert.throws(() => parseUnityDocs(`${HEAD}--- !u!1 &1\nGameObject:\n  m_A: {fileID: 1\n`), UnityYamlError);
   assert.throws(() => parseUnityDocs(`${HEAD}garbage\n`), UnityYamlError);
 });
+
+test('joins a plain scalar that Unity wraps onto deeper-indented lines (map value and sequence item)', () => {
+  // trimmed from LoseFlowPopupView.prefab / ShopScreenView.prefab: previously "unexpected indent"
+  const docs = parseUnityDocs(`${HEAD}--- !u!114 &7
+MonoBehaviour:
+  m_StringReference:
+    m_TableEntryReference:
+      m_KeyId: 0
+      m_Key: You are in the process of unlocking new features. You will be slowed
+        down!
+    m_FallbackState: 0
+  m_Calls:
+  - m_TargetAssemblyTypeName: TheOneStudio.UITemplate.UITemplate.AutoLocalization,
+      UITemplate.Utils
+    m_MethodName: SetText
+  - plain wrapped item
+      continues here
+  m_After: 1
+`);
+  const b = docs[0].body as Record<string, Record<string, Record<string, unknown>> | Array<unknown>>;
+  const ref = b.m_StringReference as Record<string, Record<string, unknown>>;
+  assert.equal(ref.m_TableEntryReference.m_Key, 'You are in the process of unlocking new features. You will be slowed down!');
+  assert.equal(ref.m_FallbackState, 0);
+  const calls = b.m_Calls as Array<Record<string, unknown> | string>;
+  assert.deepEqual(calls[0], {
+    m_TargetAssemblyTypeName: 'TheOneStudio.UITemplate.UITemplate.AutoLocalization, UITemplate.Utils',
+    m_MethodName: 'SetText',
+  });
+  assert.equal(calls[1], 'plain wrapped item continues here');
+  assert.equal(docs[0].body.m_After, 1);
+});
