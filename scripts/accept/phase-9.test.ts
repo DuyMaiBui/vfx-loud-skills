@@ -18,7 +18,7 @@ process.env.DATABASE_URL = `postgres://vfx:${process.env.VFX_TEST_PG_PASSWORD ??
 const { pool, migrate } = await import('../../server/src/db.ts');
 await migrate();
 const SHA = 'a'.repeat(64);
-let status = 403;
+let status = 401;
 const stub = http.createServer((_q, r) => { r.statusCode = status; r.end(); });
 const reports = fs.mkdtempSync(path.join(os.tmpdir(), 'p9-'));
 let port = 0;
@@ -51,7 +51,7 @@ function run(): Promise<{ code: number; out: Record<string, string> }> {
     });
   });
 }
-const NON_SUITE = ['migration_010_once', 'asset_file_matches_upload', 'no_global_or_ai_training', 'game_recipes_studio_only', 'blob_403_without_key', 'closure_sha_mismatch_zero', 'preexisting_recipes_unchanged'];
+const NON_SUITE = ['migration_010_once', 'asset_file_matches_upload', 'no_global_or_ai_training', 'game_recipes_studio_only', 'blob_401_without_key', 'closure_sha_mismatch_zero', 'preexisting_recipes_unchanged'];
 
 test('phase-9: a conforming fixture passes every non-suite check; the skipped suites still make the exit non-zero (2)', async () => {
   const { code, out } = await run();
@@ -62,8 +62,8 @@ test('phase-9: a conforming fixture passes every non-suite check; the skipped su
 
 test('phase-9: breaking each subject turns exactly its check FAIL', async () => {
   status = 200;
-  assert.equal((await run()).out.blob_403_without_key, 'FAIL');
-  status = 403;
+  assert.equal((await run()).out.blob_401_without_key, 'FAIL');
+  status = 401;
   await pool.query(`UPDATE resource SET license='cc0' WHERE slug='game1'`);
   assert.equal((await run()).out.game_recipes_studio_only, 'FAIL');
   await pool.query(`UPDATE resource SET license='studio-internal' WHERE slug='game1'`);

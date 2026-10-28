@@ -21,7 +21,7 @@ server="${VFX_SERVER:-http://127.0.0.1:8787}"
 reports="${PHASE9_REPORTS:-$repo/data/reports}"
 
 names=(migration_010_once asset_file_matches_upload no_global_or_ai_training game_recipes_studio_only
-  blob_403_without_key closure_sha_mismatch_zero preexisting_recipes_unchanged
+  blob_401_without_key closure_sha_mismatch_zero preexisting_recipes_unchanged
   pinned_baseline_scratch_unseeded pinned_baseline_corpus_clone)
 
 if [[ "${1:-}" == "--dry" ]]; then
@@ -62,9 +62,9 @@ else check game_recipes_studio_only FAIL "recipes=$total non_conforming=$bad (0 
 
 sha="$(q "SELECT asset_sha256 FROM asset_file ORDER BY id LIMIT 1")"
 if [[ "$sha" =~ ^[0-9a-f]{64}$ ]]; then
-  eq blob_403_without_key "$(curl -s -o /dev/null -w '%{http_code}' "$server/v1/blob/$sha")" 403
+  eq blob_401_without_key "$(curl -s -o /dev/null -w '%{http_code}' "$server/v1/blob/$sha")" 401
 else
-  check blob_403_without_key FAIL "no asset_file row to probe ($sha)"
+  check blob_401_without_key FAIL "no asset_file row to probe ($sha)"
 fi
 
 cv="$reports/closure-verify.json"
