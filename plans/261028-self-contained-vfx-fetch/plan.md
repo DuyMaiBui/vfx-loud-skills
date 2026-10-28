@@ -285,6 +285,8 @@ Pin `scratch-unseeded` (identity is `<file> :: <test name>`):
 
 Pinned SKIPS on the same profile (a skip proves nothing, so they are pinned too): `facet-search.test.ts` "POST /v1/facets over the corpus: totals, OR / AND consistency, unknown facet is a 400"; `recolor-service.test.ts` "POST /v1/recolor: hue shift returns payload, tint list and per-key changes; base untouched", "POST /v1/recolor: same input is deterministic; includePayload:false drops the payload", "publish:true creates one derived_from record (licence inherited, project) and is idempotent", "published payload differs from the base only on colour rows (round-trips the emitter)".
 
+Measurement note (phase 9): `node --test` shares ONE scratch DB across files, and `bundle-builder.test.ts` leaves recipe rows behind, so on the wider file list pins #1 and #3 read green by leaked state (pin #2 stayed red); alone, each file is red as pinned. The pin is therefore measured by `scripts/accept/run-pinned-suite.sh` (every test file in its own fresh migrated scratch DB), which reproduces the 9 red + 5 skipped exactly. The pin is unchanged.
+
 Companion rule (inverted pin, both directions, by name, never by count). `scripts/accept/check-pinned-baseline.ts` (phase 9, data in `scripts/accept/pinned-baseline.json`) compares the actual red and skipped name sets with the pin:
 - a red or skipped test NOT in the pin fails the check and names it (a new regression cannot hide behind the 9);
 - a pinned test that is GREEN fails the check and names it ("pinned test is green: remove it from the pin, never re-pin the others"): the pin can only shrink by an explicit edit, and a count-only comparison is forbidden;
