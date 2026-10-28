@@ -4,7 +4,7 @@ Lane: serial
 Depends-on: 10
 Effort: L
 Agent: `t1k-unity-base-developer` for the C# rule changes, `t1k-fullstack-developer` for scripts/uploads; Editor serialized after phase 10, before phase 12.
-Owns: `unity/VFXPreview/Assets/Editor/VfxPreview/MaterialMapping.cs` and `MaterialConverter.cs` (lane R is finished, so this phase is their sole editor), `tools/preview/framing-tests/**`, `tools/preview/magenta-allow.txt`, `tools/preview/run.json`
+Owns: `unity/VFXPreview/Assets/Editor/VfxPreview/MaterialMapping.cs` and `MaterialConverter.cs` (lane R is finished, so this phase is their sole editor), `tools/preview/framing-tests/**`, `tools/preview/magenta-allow.txt`, `tools/preview/run.json`, and (hand-off from lane B, once it finished) `unity/VFXPreview/Assets/Editor/VfxPreview/RecipePrefabBuilder*.cs` and `tools/recipe-prefab/**` for builder defects
 Creates: `scripts/accept/phase-11.sh`
 AX: AX-01 `phase-11.sh` prints the fixable-failure count as `FIXABLE=<n>`; AX-10 exit code is non-zero when `FIXABLE` is not 0
 Accept: `bash scripts/accept/phase-11.sh`
@@ -21,6 +21,7 @@ Zero failed slugs with a fixable cause; every remaining failure carries a docume
 | B. magenta from custom shader that fails to compile in URP | `magenta-pixel` with a `.shader`/Shader Graph in the closure | map to a rule (A) or mark `unfixable-shader` with the compile error in `detail` |
 | C. prefab or material absent from ImportedPacks | `prefab-missing` | re-materialize from the cloud (`vfx-fetch.sh`, step 2 of phase 10) |
 | D. source asset absent (reference to a texture/material that no source holds) | `closure-unresolved` | cannot be fixed by code; record `unfixable-source` (C9 enum; `unfixable-shader` for class B, `unfixable-script` for scripts needing a missing plugin) and the GUIDs; recipe stays listed with `complete:false` |
+| F. recipe-built preview wrong or blank (the 10 hand-written slugs) | `no-visible-output`, or a layer count mismatch in `_recipe-prefabs.json` | fix the mapping in `RecipePrefabBuilderModel.cs` / `RecipePrefabBuilder.cs` with a `dotnet` test per fix; a construct the builder cannot express stays `skipped:no-prefab` with its reason, never an approximated preview |
 | E. nothing visible / script-driven | `no-visible-output` | framing or `Simulate` limit: documented, add to `magenta-allow.txt` only if the slug is genuinely magenta by design |
 
 ## Cycle (repeat up to 3 times; each cycle ends with the numbers in `data/reports/cycle-<n>.txt`)

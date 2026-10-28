@@ -1,6 +1,6 @@
 # Plan: Self-contained VFX fetch (bytes in the cloud, closure download, game-VFX ingest, render-failure fixes)
 
-Hardness: phases=13 new=7 modules=0 lanes=7
+Hardness: phases=14 new=8 modules=0 lanes=8
 Flags: --auto
 
 Repo: `/var/home/mike/Documents/Work/The1/vfx-skill-cloud` (Node 26 TS-stripping server, Postgres in podman `vfx-pg`, Unity 6000.3.15f1 preview project, Unity client package). Branch base: current `fix/preview-magenta-materials` (clean). Delivery: one PR to `main` (origin has no `staging` branch: `git ls-remote --heads origin staging` empty, 2026-10-28).
@@ -19,7 +19,7 @@ Repo: `/var/home/mike/Documents/Work/The1/vfx-skill-cloud` (Node 26 TS-stripping
 | resource rows / recipes | 3404 / 3248 (3237 extracted, each with a distinct `meta.source.prefabGuid`) | `podman exec vfx-pg psql -U vfx -d vfxcloud` SELECT |
 | asset rows (kind) | material 616, texture 584, mesh 131, shader 17 = 1348; `resource_asset` 22272 | same; migration `007_knowledge_graph.sql` |
 | recipe licenses / visibility | asset-store-eula 3057, synty-store-eula 180, cc0 11 (recipes); all `visibility=project` | same |
-| preview state | 1680 `preview_gif` rows = `index.json` items; 1590 `data/recipe` dirs without own preview (1568 are DB rows): 1547 variants (borrow canonical GIF by design), 10 hand-written (no prefab; the DB has 11 recipe rows without `prefabGuid`, `rod-twinkle-box` has a v2), 10 namufx (prefab absent in ImportedPacks), 23 `probe-*` dirs (no DB row) | scratchpad `preview-gap-report.md` |
+| preview state | 1680 `preview_gif` rows = `index.json` items; 1590 `data/recipe` dirs without own preview (1568 are DB rows): 1547 variants (borrow canonical GIF by design), 10 hand-written (no prefab; the DB has 11 recipe rows without `prefabGuid`, `rod-twinkle-box` has a v2: 10 preview slugs; BUILT into prefabs by lane B, phase 14), 10 namufx (prefab absent in ImportedPacks); the 23 `probe-*` dirs (no DB row) are archived and deleted by the orchestrator OUTSIDE this plan and are excluded from every count, scope and phase here (after that, `data/recipe` has 3247 dirs, 1567 without own preview) | scratchpad `preview-gap-report.md` |
 | render history | last `_status.json`: 517 clips, 0 failed, 180.6 s (0.349 s/clip); per-slug failures are NOT persisted anywhere (failed targets are removed from index and GIF purged) | `data/previews/_status.json`, README "Preview GIF" gates |
 | prefab bytes on disk (ImportedPacks) | 4076 prefabs = 1156 MB; textures 950 files = 323 MB; fbx 614 (case-insensitive; 61 are `.FBX`) = 40 MB; wav 278 = 92 MB; ImportedPacks total 1.7 GB / 15236 files | `find ... -printf %s` |
 | DB / data size | 181 MB DB; `data/` 110 MB | `pg_database_size`, `du -sh data` |
@@ -47,8 +47,9 @@ Sizing of the upload (estimate, the uploader `--dry-run` replaces it with exact 
 | 11 | Unity slot 2: fix failure classes, export + upload URP variant, previews, GIF | C (Editor) | serial | L | phase-11-fix-rerender.md |
 | 12 | Unity slot 3: clean-project acceptance (shell client + Unity client + negative control) | C (Editor) | serial | M | phase-12-acceptance.md |
 | 13 | Docs sync and final numbers | D | serial | S | phase-13-docs.md |
+| 14 | Recipe-to-prefab builder so the 10 hand-written recipes get previews (code only; runs in phase 10) | B (added 2026-10-28, parallel with 2-8) | B | M | phase-14-recipe-prefab-builder.md |
 
-Critical path: 1 > 2 > 9 > 10 > 11 > 12 > 13 (lanes 3, 4, 5, 6 also gate 9 (phase 9 runs the fetch client); lane 8 gates 10; lane 7 gates 12). Editor-bound phases 10, 11, 12 run strictly one after another on the single Editor slot.
+Critical path: 1 > 2 > 9 > 10 > 11 > 12 > 13 (lanes 3, 4, 5, 6 also gate 9 (phase 9 runs the fetch client); lane 8 and lane 14 (B) gate 10; lane 7 gates 12). Editor-bound phases 10, 11, 12 run strictly one after another on the single Editor slot.
 
 ## Human steps (do first)
 
@@ -59,8 +60,8 @@ None blocking. Two confirmation gates are built in (preview-first rule): the bul
 Group A: run
 Group B: run
 Review: 1 reviewer
-Fan-out: 7 lanes
-Facts: lanes=7 new-rows=7
+Fan-out: 8 lanes
+Facts: lanes=8 new-rows=8
 
 Group A ran 3 helpers in one message (plus a 4th `t1k-corpus-scout` re-check of the NEW rows that cites this plan dir, so the spawn rows join to it): `t1k-corpus-scout` (corpus has no content-addressed store or GUID-preserving client; 114 repos swept, this repo is not indexed), two `t1k-investigator` lanes (server shape; Unity and tooling shape). Fact-fetcher skipped: no external library question (Fastify, pg, zod already in the repo; Unity facts come from local files).
 
@@ -75,8 +76,9 @@ Group A ran 3 helpers in one message (plus a 4th `t1k-corpus-scout` re-check of 
 | F | `node scripts/vfx-fetch-bundle.test.mjs` (stub HTTP server, temp project dir) | yes |
 | C | `dotnet run --project tools/vfxcloud-tests` through `scripts/accept/phase-7.sh` (pure C# logic, no Editor) | yes, no Editor |
 | R | `dotnet run --project tools/preview/framing-tests` + `node seed/preview-failures.test.ts` through `scripts/accept/phase-8.sh` | yes, no Editor |
+| B | recipe-spec + merge-targets node tests and `dotnet run --project tools/recipe-prefab/tests` through `scripts/accept/phase-14.sh` (no Editor, no DB) | yes, no Editor |
 
-Lane sizing: tier=sonnet UNMEASURED; lanes=7; p=0.8 each; P(all land)=0.21 (information, not a cap). Integration therefore expects stragglers (see below).
+Lane sizing: tier=sonnet UNMEASURED; lanes=8; p=0.8 each; P(all land)=0.17 (information, not a cap). Integration therefore expects stragglers (see below).
 
 Isolation (stated once): every lane works in its own `git worktree` under `../vfx-skill-cloud-worktrees/lane-<id>` because lanes S, G, P, F, R run suites concurrently and S/R touch scratch DBs; all DB-backed tests use `vfxcloud_test_<lane>` and a temp `DATA_DIR` through `scripts/accept/lib-testdb.sh` (phase 1), never the live `vfxcloud` DB.
 
@@ -106,13 +108,14 @@ LANES (disjoint; each lists its files in its phase file):
 - P: `seed/extract/package-guids*.ts`, `server/src/unity-package-guids.json`
 - F: `scripts/vfx-fetch.sh`, `scripts/vfx-fetch-bundle.mjs`, `scripts/vfx-fetch-bundle.test.mjs`
 - C: `unity/Packages/com.mike.vfx-cloud/**`, `tools/vfxcloud-tests/**`
-- R: `unity/VFXPreview/Assets/Editor/VfxPreview/*.cs`, `tools/preview/framing-tests/**`, `tools/preview/targets.ts`, `seed/preview-failures*.ts`, `scripts/preview-restore-originals.ts`
-- Explicit hand-offs (a file named in two phases is a sequential hand-off, never concurrent): `server/src/unity-package-guids.json` phase 1 (empty skeleton) -> lane P (sole writer); `README.md` phase 1 (contract section) -> phase 13 (final); `MaterialMapping.cs`, `MaterialConverter.cs`, `tools/preview/framing-tests/**` lane R -> phase 11 (lane R finished); `tools/preview/run.json` phase 10 -> phase 11; `data/reports/` is written by phases 9, 10 and 11 in turn; `data/accept/` is phase 12's (phase 9 step 8 uses `data/accept/spot` before it exists, then phase 12 may wipe it); phase 11's restore step may rewrite `ImportedPacks/studio-game-vfx` (phase 10 created it).
+- R: `unity/VFXPreview/Assets/Editor/VfxPreview/*.cs` EXCEPT `RecipePrefabBuilder*.cs` (lane B's), `tools/preview/framing-tests/**`, `tools/preview/targets.ts`, `seed/preview-failures*.ts`, `scripts/preview-restore-originals.ts`
+- B (added 2026-10-28, phase 14): `unity/VFXPreview/Assets/Editor/VfxPreview/RecipePrefabBuilder*.cs`, `tools/recipe-prefab/**`, `scripts/accept/phase-14.sh`. Disjoint from R by the explicit exclusion above; no other lane's glob matches either path (checked against every Owns line: S `server/src/blob-store*`/`bundle-builder*`/`http.ts`/`mcp.ts`, U `seed/upload*`, G `seed/extract/*`, P `seed/extract/package-guids*`, F `scripts/vfx-fetch*`, C `unity/Packages/**` and `tools/vfxcloud-tests/**`).
+- Explicit hand-offs (a file named in two phases is a sequential hand-off, never concurrent): `server/src/unity-package-guids.json` phase 1 (empty skeleton) -> lane P (sole writer); `README.md` phase 1 (contract section) -> phase 13 (final); `MaterialMapping.cs`, `MaterialConverter.cs`, `tools/preview/framing-tests/**` lane R -> phase 11 (lane R finished); `tools/preview/run.json` phase 10 -> phase 11; `data/reports/` is written by phases 9, 10 and 11 in turn; `data/accept/` is phase 12's (phase 9 step 8 uses `data/accept/spot` before it exists, then phase 12 may wipe it); phase 11's restore step may rewrite `ImportedPacks/studio-game-vfx` (phase 10 created it); lane B's files -> phase 11 (sole editor for builder defects once lane B finished); `scripts/accept/` gains phase 9's `pinned-baseline.json`, `check-pinned-baseline.ts`, `with-corpus-clone.sh` (new files, no other owner).
 - Phases 9-13 are serial and each owns only the artifacts it creates (`scripts/accept/phase-N.sh`, `tools/preview/run.json`, `unity/VFXAccept/` which is gitignored, `unity/VFXPreview/Packages/manifest.json` in phase 12 only).
 
 Co-change seam check (`cochange-seams.cjs`, advisory): `server <> seed` weak coupling through `pipeline.ts`/`packs.json` with `store.ts` (handled: `packs.json` is phase 1, `pipeline.ts` is lane G, `store.ts` is phase 1); `scripts/smoke.sh` moves with `http.ts`/`mcp.ts`/`store.ts` at confidence 1.0 (assigned to lane S); `unity` is independent of `server` and `seed`.
 
-Editor-bound work: phases 10, 11, 12 only. Lanes C and R are code-only ("implement blind, verify once"): their C# is first compiled in phase 10 (R code, in VFXPreview) and phase 12 (C code, in the clean `VFXAccept` project). Unity runs windowed (rendering needs it); never launch a second Editor on a project that has one, never kill the user's Editor, never `Assets/Reimport All`; check `t1k unity instance list` first and drive an already-open Editor through the CLI.
+Editor-bound work: phases 10, 11, 12 only. Lanes B, C and R are code-only ("implement blind, verify once"): their C# is first compiled in phase 10 (R and B code, in VFXPreview) and phase 12 (C code, in the clean `VFXAccept` project). Unity runs windowed (rendering needs it); never launch a second Editor on a project that has one, never kill the user's Editor, never `Assets/Reimport All`; check `t1k unity instance list` first and drive an already-open Editor through the CLI.
 
 ## Contract
 
@@ -255,9 +258,38 @@ Shell/Node client exit codes: `0` ok, `1` network/server error, `2` usage, `3` c
 | D13 | Acceptance project | Clean `unity/VFXAccept` (gitignored), created by script from `VFXPreview` `ProjectSettings`/`Packages`/`Assets/Editor` plus the client package; a second Editor on a DIFFERENT project, opened only after the VFXPreview Editor work of phases 10-11 is finished. |
 | D14 | Delivery | Lanes push branches from worktrees and report; phase 9 integrates them into one integration branch; ONE PR to `main` at the end of phase 13. Commits by pathspec, never on the default branch. |
 | D16 | Same GUID, different bytes in two sources (non-prefab: material, texture, anim) | The first source in configured order (`packs.json` pack order, then game root order) wins for `variant=original`; the uploader records every differing copy under `source.copies:[{origin, sha256}]` and lists them in `data/upload/plan.json`; re-registration with different bytes is a `conflict` and is never auto-`replace`d (lane U owns the policy, `copiesOf` from phase 1 supplies the data for every kind, not only prefabs). |
+| D17 | Hand-written recipes without a prefab (owner, 2026-10-28) | BUILD a renderable prefab from each recipe's own parameters (lane B, phase 14): a billboard `ParticleSystem` per layer with the layer's texture, blend, lifetime, scale curve, delay, loop and burst count; nested `recipe:` layers instantiate the referenced `vfx` prefab. Generated prefabs live under the gitignored `Assets/RecipePrefabs/` and are NOT registered in the cloud (derived locally, not vendor bytes); the preview is the deliverable. A construct the builder cannot map skips the slug with the reason, never a partial preview. |
+| D18 | Fetching a hand-written recipe | These recipes have no prefab so `GET /v1/closure` reports `reason:"no_prefab"` (C4). The builder's textures and nested `vfx` prefabs are fetched with the legacy per-resource closure (`VFX_FETCH_LEGACY=1 bash scripts/vfx-fetch.sh vfx://recipe/<slug>/1 <project>`), which lane F keeps; this plan does not change C4. OPEN POINT for lane S: C4 says `files` is `[]` for `no_prefab`; if S returns the `origin:"resource"` items instead, phase 10 may use the bundle path. |
+| D19 | Pre-existing red tests (phase 1 result, commit f623303) | Recorded as a named pinned baseline (section `## Pinned baseline`) with an inverted-pin companion; phase 9 runs the full suite once against a clone of the integrated live corpus. |
 | D15 | Live-data safety | `npm test` and every accept script run on scratch DBs that are MIGRATED before the run (`scripts/accept/migrate-testdb.ts`; a bare empty DB makes the tests that do not call `migrate()` fail by race) with `DATA_DIR` in a temp dir (some existing tests `fs.rm` under `config.dataDir`); the live DB is migrated only in phase 9 after `pg_dump` backup; uploads are additive and idempotent by sha256. |
 
 Straggler: integrate lanes that landed by about 2x the median lane time; re-spawn a late lane on the remaining diff; never wait on it. Phase 9 needs lanes 2, 3, 4, 5, 6, phase 10 needs 8 (and 6 through 9), phase 12 needs 7: a missing lane blocks only its dependants.
+
+## Pinned baseline
+
+Phase 1 (commit f623303) left 9 tests red and 5 skipped on an UNSEEDED scratch DB; they were red before phase 1 and depend on a seeded corpus. Measured twice with `bash scripts/accept/with-testdb.sh pin node --test --test-reporter=spec server/src/*.test.ts seed/extract/*.test.ts seed/graph/*.test.ts hooks/*.test.mjs` (199 tests, 185 pass, 9 fail, 5 skipped; identical sets in both runs; live DB still 9 migrations). Every failing assertion is a precondition (`need two recipes without a GIF`, `need a Synty recipe in the corpus`, `previous test published it`), not product logic. One of them (publish-derived #3) is a cascade of the one before it.
+
+Pin `scratch-unseeded` (identity is `<file> :: <test name>`):
+
+| # | File | Test name (exact) |
+|---|---|---|
+| 1 | server/src/preview-gif.test.ts | cards expose gif (and preview_uri) when the slug has one, null otherwise |
+| 2 | server/src/preview-gif.test.ts | a variant without its own GIF borrows its family canonical one, flagged viaFamily |
+| 3 | server/src/preview-gif.test.ts | the review page (flat and set) embeds the DB GIF as an <img> and counts it as a preview |
+| 4 | server/src/publish-derived.test.ts | publish refuses a bad derived record BEFORE writing anything |
+| 5 | server/src/publish-derived.test.ts | derived recipe: provenance, modifications, derived_from edge, searchable, closure is whole and dependency-first |
+| 6 | server/src/publish-derived.test.ts | vfx-fetch.sh fetches the whole closure (dependencies first); VFX_FETCH_DEPS=0 fetches only the file asked for |
+| 7 | server/src/review.test.ts | session/selection round trip, replace semantics, validation |
+| 8 | server/src/review.test.ts | GET /review renders cards with a placeholder when there is no preview, and reopens by session |
+| 9 | server/src/review.test.ts | GET /review escapes hostile query text |
+
+Pinned SKIPS on the same profile (a skip proves nothing, so they are pinned too): `facet-search.test.ts` "POST /v1/facets over the corpus: totals, OR / AND consistency, unknown facet is a 400"; `recolor-service.test.ts` "POST /v1/recolor: hue shift returns payload, tint list and per-key changes; base untouched", "POST /v1/recolor: same input is deterministic; includePayload:false drops the payload", "publish:true creates one derived_from record (licence inherited, project) and is idempotent", "published payload differs from the base only on colour rows (round-trips the emitter)".
+
+Companion rule (inverted pin, both directions, by name, never by count). `scripts/accept/check-pinned-baseline.ts` (phase 9, data in `scripts/accept/pinned-baseline.json`) compares the actual red and skipped name sets with the pin:
+- a red or skipped test NOT in the pin fails the check and names it (a new regression cannot hide behind the 9);
+- a pinned test that is GREEN fails the check and names it ("pinned test is green: remove it from the pin, never re-pin the others"): the pin can only shrink by an explicit edit, and a count-only comparison is forbidden;
+- profile `corpus-clone` (phase 9 step 8b, a restore of the integrated live corpus) pins NOTHING: every one of the 14 names must be green there, and a red or skipped one is a finding;
+- the checker's own test feeds it a synthetic result set and goes red in both directions (an extra red, and a pinned name turning green).
 
 ## Reuse Ledger
 
@@ -293,13 +325,16 @@ Straggler: integrate lanes that landed by about 2x the median lane time; re-spaw
 | 16 | Bulk uploader and closure verifier | NEW | `seed/ingest-extracted.ts` ingests recipes only; no byte uploader anywhere |
 | | | | reuse-search: not-found-after-corpus-and-grep |
 | | | | scope: seed/ingest-extracted.ts, scripts/vfx-fetch.sh, server/src/http.ts, corpus 114 repos \| swept: 2026-10-28 |
+| 17 | Recipe-to-prefab builder (YAML layers -> ParticleSystem prefab) | NEW | no Editor builder reads recipe YAML: grep for `ParticleSystem.MainModule`, `PrefabUtility.SaveAsPrefabAsset` over `unity/VFXPreview/Assets/Editor` and `unity/Packages` hit nothing; `seed/extract/behavior.ts:72` only reads layer names for a description |
+| | | | reuse-search: not-found-after-corpus-and-grep |
+| | | | scope: unity/VFXPreview/Assets/Editor/VfxPreview/PreviewCell.cs, seed/extract/behavior.ts, corpus 114 repos (2 queries: build prefab from particle recipe; generate particle system prefab editor script: only unrelated one-off prefab generators) \| swept: 2026-10-28 |
 
 ## Risk Assessment
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | Migration 010 (visibility CHECK swap, new tables) applied to the live DB by an accidental `npm test`, server start or `previews:gif` before the backup | medium | high | Phase 1 and every lane run tests on scratch DBs only (`lib-testdb.sh`); phase 9 step 1 is `pg_dump -Fc` to `data/backups/` and a `pg_restore --list` check before ANY command that reaches `migrate()`; 010 is additive plus constraint widening, rollback SQL kept in phase 1 |
-| Purchased-pack bytes exposed: `0.0.0.0` bind, `AUTH_DISABLED=1` compose default, unauthenticated `/mcp` | medium | high | D3 (blob routes always keyed), `cache-control: private`, no bytes over MCP, never-global CHECK, orphan blob not served; tests assert 403 without key under `AUTH_DISABLED=1`; open question on bind address |
+| Purchased-pack bytes exposed: `0.0.0.0` bind, `AUTH_DISABLED=1` compose default, unauthenticated `/mcp` | medium | high | D3 (blob routes always keyed), `cache-control: private`, no bytes over MCP, never-global CHECK, orphan blob not served; tests assert 403 without key under `AUTH_DISABLED=1`; loopback/LAN bind restriction DEFERRED by the owner (deferred decision 14) |
 | Pre-existing `vfx_publish` reads any server path via `localPath`/`file_path` through the unauthenticated `/mcp` (store.ts:640-642) | medium | high | Off-scope for this plan, parked: no new tool in this plan reads a server path (uploader PUTs bytes); recommended follow-up issue to key `/mcp` |
 | Upload size or time larger than estimated | medium | medium | Dry-run prints exact files/bytes by kind first; smoke N=5 prints per-file time; gzip at rest; resumable, idempotent by sha256; `--skip-kinds` |
 | `graph:build` deletes `asset` rows it does not recompute (applyAssets) | low | medium | `asset_file` has no FK to `asset`; phase 9 runs `graph:build` after ingest and compares counts before/after |
@@ -310,14 +345,15 @@ Straggler: integrate lanes that landed by about 2x the median lane time; re-spaw
 | Nested-prefab flatten produces wrong parameters | medium | medium | D9 limits scope, unsupported overrides skip; tests built from the real skipped files |
 | Editor unavailable or licence-blocked headless (README records `-batchmode` licence error) | medium | medium | Windowed Editor only, serialized phases 10-12; code lanes verified without Editor; if the Editor cannot be driven, phases 10-12 stay BLOCKED and report |
 | Concurrent Unity access: user already has VFXPreview open | medium | medium | Check `t1k unity instance list` before every Editor step; use the CLI against the open Editor; never kill it |
-| Probe artifacts (23 `data/recipe/probe-*` dirs) skew counts | low | low | Excluded from counts and left in place; deletion is destructive, listed for the user |
+| Recipe-built prefabs look unlike the intended effect (builder maps only what the YAML states) | medium | low | Preview is a faithful render of the recipe's stated parameters, not a guess at motion; unmapped constructs skip the slug with a reason; builder defects are fixed in phase 11 |
+| Pre-existing red tests mask a new regression | medium | medium | Named pinned baseline with an inverted-pin companion (both directions, by test name), plus one full-suite run against a clone of the live corpus in phase 9 |
 
 ## Self-improvement loop
 
 - **Signal:** `bundle-contract.test.ts` and `scripts/accept/phase-*.sh` go red when a lane drifts from the contract; `seed/verify-closure.ts` reports unresolved GUIDs per slug; `preview_render` shows every failed slug with a cause.
 - **Loop:** phase 11 re-runs verify-closure and the render after each fix cycle (max 3).
 - **Fix:** change `plan.md` Contract and re-brief; shared files via a phase 1 re-run.
-- **Guard:** `preview_render` coverage check (rows == targets) in phase 10, the negative control in phase 12 (original-variant fetch must fail the magenta gate), and the never-global/ai_training CHECK tests from phase 1.
+- **Guard:** the pinned-baseline companion (phase 9), `preview_render` coverage check (rows == targets) in phase 10, the negative control in phase 12 (original-variant fetch must fail the magenta gate), and the never-global/ai_training CHECK tests from phase 1.
 
 ## Deferred decisions
 
@@ -329,10 +365,13 @@ Straggler: integrate lanes that landed by about 2x the median lane time; re-spaw
 | 4 | Level.prefab duplicate | first-game / first-copy-with-VFX | first copy with VFX | D8 | `preferCopy` option off in `pipeline.ts` |
 | 5 | Nested prefabs | flatten all / flatten simple / skip | flatten simple variants only | D9 | extend `nested.ts` rules |
 | 6 | Include audio and scripts | include / exclude | include | "everything needed"; 92 MB wav | `--skip-kinds` |
-| 7 | 23 `probe-*` dirs | delete / leave | leave, exclude from counts | deletion is destructive | user deletes `data/recipe/probe-*` |
-| 8 | 10 hand-written recipes with no prefab | build prefab-from-recipe / mark skipped | mark `skipped:no-prefab` in `preview_render` | no prefab exists to render; open question below | add a recipe-to-prefab builder in a later plan |
+| 7 | 23 `probe-*` dirs | delete / leave | the orchestrator archives and deletes them outside this plan (owner decision); removed from every scope and count here | destructive, handled by the owner's session | restore from the archive |
+| 8 | 10 hand-written recipes with no prefab | build prefab-from-recipe / mark skipped | BUILD (owner decision 2026-10-28): lane B, phase 14; builder-skipped slugs stay `skipped:no-prefab` with a reason | D17 | drop lane B; the slugs revert to `skipped:no-prefab` |
 | 9 | Glow cap in published URP variant | cap 1.25 / none | none (preview keeps cap) | real games have bloom | set `glow_cap` in the export options |
 | 10 | Package files | ship / `requires` | `requires` | UPM files belong to the target install | ship selected files via a new `kind` |
 | 11 | Acceptance project | reuse VFXPreview / clean copy | clean `VFXAccept` | only a clean project proves "arrives with everything" | n/a |
 | 12 | PR target | staging / main | main | origin has no `staging` branch | `gh pr edit --base` |
 | 13 | Merge-up tree | flat phases / tree | flat | `t1k-tree.cjs trigger` printed `tree:true` (54 owned files >= 6) and `preflight` passed, but the user fixed the structure (Phase A shared, parallel Phase B lanes, serial Editor slots, `plan.md` + `phase-*.md`); a tree's per-node merge scheme would duplicate D14 and its leaves target `.claude/**` | re-plan as a tree with `/t1k:plan --tree` if wanted |
+| 14 | `studio-only` protection beyond the key | bind to loopback/LAN or per-user tokens / key-required blob routes only | key-required blob routes only (D3); NO bind or token change now (owner decision) | one shared key is the accepted protection for this internal studio server | add a loopback bind or tokens in a later plan |
+| 15 | Third-party GUIDs no source can resolve | fetch their bytes from elsewhere / report only | report-only first: bundles say `unresolved`, `complete:false`, listed per recipe; no bytes sourced elsewhere | owner decision; phase 5 output decides if a follow-up is worth it | add sources to `packs.json` later |
+| 16 | The 9 pre-existing red tests | fix now / pin | pin by test name with an inverted companion (section `## Pinned baseline`); not fixed in this plan | they depend on an unseeded corpus and were red before phase 1 | seed a corpus fixture and delete the pin |
