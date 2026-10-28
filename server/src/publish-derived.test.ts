@@ -159,12 +159,16 @@ test('vfx-fetch.sh fetches the whole closure (dependencies first); VFX_FETCH_DEP
   const app = await buildHttp();
   await app.listen({ port: 0, host: '127.0.0.1' });
   const port = (app.server.address() as { port: number }).port;
+  // manifest download_url is built from config.publicBaseUrl / config.port: point it at THIS server, never at whatever
+  // happens to listen on :8787 (a live server with another DB answers 404 for the fixtures).
+  const prevBase = config.publicBaseUrl;
+  config.publicBaseUrl = `http://127.0.0.1:${port}`;
   try {
     const script = path.join(config.repoRoot, 'scripts', 'vfx-fetch.sh');
     // ASYNC on purpose: the server under test lives in THIS process, so a blocking spawnSync would starve it of the event loop.
     const sh = (project: string, env: Record<string, string> = {}) =>
       new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve) => {
-        const child = spawn('bash', [script, uri, project], { env: { PATH: process.env.PATH, VFX_SERVER: `http://127.0.0.1:${port}`, ...env } });
+        const child = spawn('bash', [script, uri, project], { env: { PATH: process.env.PATH, VFX_FETCH_LEGACY: '1', VFX_SERVER: `http://127.0.0.1:${port}`, ...env } });
         let stdout = '';
         let stderr = '';
         child.stdout.on('data', (d) => (stdout += d));
@@ -194,6 +198,7 @@ test('vfx-fetch.sh fetches the whole closure (dependencies first); VFX_FETCH_DEP
     assert.equal(o.status, 0, o.stderr);
     assert.deepEqual(fs.readdirSync(path.join(only, 'Assets/VFXCloud')), ['recipe']);
   } finally {
+    config.publicBaseUrl = prevBase;
     await app.close();
   }
 });
