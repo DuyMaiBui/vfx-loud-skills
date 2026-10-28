@@ -57,6 +57,15 @@ test('classifyPath: only Prefabs-folder, non-demo, in-root prefabs are candidate
   assert.equal(classifyPath('Assets/Synty/PolygonParticleFX/Prefabs/A.prefab', roots), null);
 });
 
+test('classifyPath: third-party pack prefixes are excluded before prefabRoots, demo still wins', () => {
+  const pack = { excludePathPrefixes: ['Assets/Epic Toon FX/', 'Assets/NamuFX/'] };
+  assert.equal(classifyPath('Assets/Epic Toon FX/Prefabs/Fire.prefab', pack), 'third-party-pack');
+  assert.equal(classifyPath('Assets/NamuFX/StylizedWaterEffects/Prefabs/Splash.prefab', pack), 'third-party-pack');
+  assert.equal(classifyPath('Assets/Epic Toon FX/Prefabs/Fire.prefab', {}), null);
+  assert.equal(classifyPath('Assets/Plugins/AllIn1SpriteShader/Demo/Prefabs/X.prefab', pack), 'demo');
+  assert.equal(classifyPath('Assets/Game/Prefabs/Boom.prefab', pack), null);
+});
+
 test('assignSlugs: valid, deterministic, guid suffix only on collision', () => {
   const m = assignSlugs('p', [
     { path: 'A/Prefabs/FX_Fire.prefab', guid: 'abcdef111' },
@@ -189,5 +198,23 @@ test('Synty-style prefabRoots keep PolygonGeneric out', async () => {
     const rec = JSON.parse(await fs.readFile(path.join(out, 'synty-x', `${s.records[0].slug}.json`), 'utf8'));
     assert.equal(rec.license, 'synty-store-eula');
     assert.equal(rec.meta.license_class, 'proprietary-commercial');
+  });
+});
+
+test('vfx-components selection: folder-agnostic, keeps only prefabs with a ParticleSystem or VisualEffect', async () => {
+  const assets: FakeAsset[] = [
+    { guid: 'd'.repeat(32), path: 'Assets/T/Anywhere/Fire.prefab', asset: prefabYaml({ name: 'Fire' }) },
+    { guid: 'e'.repeat(32), path: 'Assets/T/Screens/Menu.prefab', asset: prefabYaml({ psCount: 'none' }) },
+    { guid: 'f'.repeat(32), path: 'Assets/T/Demo/Prefabs/Demo.prefab', asset: prefabYaml() },
+    { guid: MAT, path: 'Assets/T/Mat/Fire.mat', asset: materialYaml(SHADER, TEX) },
+  ];
+  await withPackage(assets, async (file, out) => {
+    const pack: PackConfig = { ...PACK, prefabSelect: 'vfx-components' };
+    const s = await extractPack({ pack, packageFile: file, outDir: out });
+    assert.equal(s.eligible, 1);
+    assert.equal(s.extracted, 1);
+    assert.equal(s.records[0].prefabPath, 'Assets/T/Anywhere/Fire.prefab');
+    assert.equal(s.excluded['no-vfx-component'], 1);
+    assert.equal(s.excluded.demo, 1);
   });
 });

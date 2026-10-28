@@ -154,6 +154,60 @@
       "metaStyle": [
         "stylized"
       ]
+    },
+    {
+      "slug": "studio-game-vfx",
+      "name": "Studio Game VFX",
+      "vendor": "The1Studio",
+      "license": "studio-internal",
+      "style": [
+        "stylized"
+      ],
+      "tags": [
+        "studio",
+        "game"
+      ],
+      "sourceType": "folder-set",
+      "pathPrefix": "Assets",
+      "sourceRoots": [
+        {
+          "game": "Mahjong3D",
+          "path": "/var/home/mike/Documents/Work/The1/Unity/Mahjong3D/UnityMahjong3D/Assets"
+        },
+        {
+          "game": "NutSort",
+          "path": "/var/home/mike/Documents/Work/The1/Unity/NutSort/UnityNutSort/Assets"
+        },
+        {
+          "game": "SexyArrow",
+          "path": "/var/home/mike/Documents/Work/The1/Unity/SexyArrow/UnitySexyArrow/Assets"
+        },
+        {
+          "game": "SgameArrow3D",
+          "path": "/var/home/mike/Documents/Work/The1/Unity/SgameArrow3D/UnitySgameArrow3D/Assets"
+        },
+        {
+          "game": "SgameRotateRing",
+          "path": "/var/home/mike/Documents/Work/The1/Unity/SgameRotateRing/UnitySgameRotateRing/Assets"
+        },
+        {
+          "game": "SgameTemplate",
+          "path": "/var/home/mike/Documents/Work/The1/Unity/SgameTemplate/UnitySgameTemplate/Assets"
+        },
+        {
+          "game": "SmashFest",
+          "path": "/var/home/mike/Documents/Work/The1/Unity/SmashFest/UnitySmashFest/Assets"
+        }
+      ],
+      "excludePathPrefixes": [
+        "Assets/Epic Toon FX/",
+        "Assets/NamuFX/",
+        "Assets/Plugins/"
+      ],
+      "metaStyle": [
+        "stylized"
+      ],
+      "prefabSelect": "vfx-components"
     }
   ]
 }

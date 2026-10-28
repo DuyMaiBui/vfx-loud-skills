@@ -5,7 +5,7 @@ import type { PoolClient } from 'pg';
 import { config } from './config.ts';
 import { pool } from './db.ts';
 import { getEmbedder } from './embed.ts';
-import { aiTrainingAllowed, extractedLicenseProblem, licenseClassOf } from './license.ts';
+import { aiTrainingAllowed, EXTRACTED_LICENSE_CLASSES, extractedLicenseProblem, licenseClassOf } from './license.ts';
 import { SLUG_RE } from './slug.ts';
 import { searchDocument } from './search-doc.ts';
 import { candidateFilter, FilterError, normalizeFilters, type FacetFilters } from './facet-query.ts';
@@ -612,8 +612,8 @@ export async function publish(
     const m = args.meta;
     const problem =
       extractedLicenseProblem(license) ??
-      (m.license_class !== undefined && m.license_class !== 'proprietary-commercial'
-        ? `meta.license_class "${String(m.license_class)}" must be proprietary-commercial`
+      (m.license_class !== undefined && !(EXTRACTED_LICENSE_CLASSES as readonly string[]).includes(String(m.license_class))
+        ? `meta.license_class "${String(m.license_class)}" must be ${EXTRACTED_LICENSE_CLASSES.join(' | ')}`
         : m.ai_training === true
           ? 'meta.ai_training must be false'
           : null);

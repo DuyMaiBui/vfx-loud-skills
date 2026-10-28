@@ -10,9 +10,14 @@ export interface PackConfig extends PackInfo {
   slug: string;
   /** `.unitypackage` file name (default source type). */
   file?: string;
-  /** 'folder' = a loose imported Unity folder read via its .meta files; configured by sourcePath + pathPrefix. */
-  sourceType?: 'unitypackage' | 'folder';
+  /**
+   * 'folder' = one loose imported Unity folder (sourcePath + pathPrefix).
+   * 'folder-set' = several loose Unity Assets folders read as one pack (sourceRoots + pathPrefix), deduped by guid.
+   */
+  sourceType?: 'unitypackage' | 'folder' | 'folder-set';
   sourcePath?: string;
+  /** folder-set only: one entry per game project, in dedupe-priority order (first wins). */
+  sourceRoots?: Array<{ game: string; path: string }>;
   /** Unity path of the folder root, e.g. "Assets/NamuFX". */
   pathPrefix?: string;
   license: string;
@@ -20,6 +25,16 @@ export interface PackConfig extends PackInfo {
   tags: string[];
   /** When set, only prefabs under one of these path prefixes are eligible. */
   prefabRoots?: string[];
+  /**
+   * 'prefabs-folder' (default): a prefab must sit in a `Prefabs/` folder. 'vfx-components': any prefab
+   * (folder-agnostic) that carries a ParticleSystem or VisualEffect component.
+   */
+  prefabSelect?: 'prefabs-folder' | 'vfx-components';
+  /**
+   * Unity path prefixes whose prefabs belong to a third-party pack (already ingested or not ours): never
+   * republished under this pack's licence.
+   */
+  excludePathPrefixes?: string[];
   /** Pack-level style words stored as meta.style (toon / retro / sci-fi / low-poly / stylized). */
   metaStyle?: string[];
 }
@@ -65,6 +80,8 @@ export interface PackSummary {
   excluded: Record<string, number>;
   selected: number;
   extracted: number;
+  /** Extra copies folded away by guid dedupe across roots (games carrying an already-counted guid). */
+  duplicatesCollapsed: number;
   skipped: SkipEntry[];
   records: RecordSummary[];
   timingsMs: { index: number; materials: number; prefabs: number; total: number };
@@ -74,14 +91,30 @@ const DEFAULT_MAX_PREFAB_BYTES = 32 * 1024 * 1024;
 
 /* ---------------------------------------------------------------- selection */
 
-export type Exclusion = 'not-a-prefab' | 'not-in-prefabs-folder' | 'demo' | 'outside-prefab-roots';
+export type Exclusion =
+  | 'not-a-prefab'
+  | 'not-in-prefabs-folder'
+  | 'demo'
+  | 'third-party-pack'
+  | 'outside-prefab-roots'
+  | 'no-vfx-component';
+
+/** True when a prefab's YAML carries a ParticleSystem (classID 198) or VisualEffect (VFX Graph) component. */
+export function hasVfxComponent(prefabYaml: string): boolean {
+  return /^--- !u!198 /m.test(prefabYaml) || /VisualEffect/.test(prefabYaml);
+}
 
 /** Why a package path is NOT an extraction candidate, or null when it is. */
-export function classifyPath(p: string, pack: Pick<PackConfig, 'prefabRoots'>): Exclusion | null {
+export function classifyPath(
+  p: string,
+  pack: Pick<PackConfig, 'prefabRoots' | 'excludePathPrefixes' | 'prefabSelect'>,
+): Exclusion | null {
   if (!p.endsWith('.prefab')) return 'not-a-prefab';
   const segs = p.split('/');
   if (segs.some((s) => /demo/i.test(s))) return 'demo';
-  if (!segs.slice(0, -1).includes('Prefabs')) return 'not-in-prefabs-folder';
+  // vfx-components packs select by content (see extractPack), not by folder name.
+  if (pack.prefabSelect !== 'vfx-components' && !segs.slice(0, -1).includes('Prefabs')) return 'not-in-prefabs-folder';
+  if (pack.excludePathPrefixes?.some((x) => p.startsWith(x))) return 'third-party-pack';
   if (pack.prefabRoots && !pack.prefabRoots.some((r) => p.startsWith(r))) return 'outside-prefab-roots';
   return null;
 }
@@ -143,12 +176,29 @@ export async function extractPack(opts: ExtractOptions): Promise<PackSummary> {
   const tIndex = performance.now();
 
   const excluded: Record<string, number> = {};
-  const eligible: Array<{ path: string; guid: string }> = [];
+  let eligible: Array<{ path: string; guid: string }> = [];
   for (const [guid, p] of paths) {
     const why = classifyPath(p, pack);
     if (why === null) eligible.push({ path: p, guid });
     else if (why !== 'not-a-prefab') excluded[why] = (excluded[why] ?? 0) + 1;
   }
+  // vfx-components selection: a path-eligible prefab must carry a ParticleSystem / VisualEffect component.
+  // Only candidate bodies are read (oversized ones are left to the size skip, never read here).
+  if (pack.prefabSelect === 'vfx-components') {
+    const maxBytes = opts.maxPrefabBytes ?? DEFAULT_MAX_PREFAB_BYTES;
+    const candidate = new Set(eligible.map((e) => e.guid));
+    const withVfx = new Set<string>();
+    for await (const e of source.assets((g, size) => candidate.has(g) && size <= maxBytes)) {
+      if (hasVfxComponent(e.data.toString('utf8'))) withVfx.add(e.guid);
+    }
+    const oversized = eligible.filter((e) => (assetSizes.get(e.guid) ?? 0) > maxBytes).length;
+    const dropped = eligible.length - withVfx.size - oversized;
+    if (dropped > 0) excluded['no-vfx-component'] = dropped;
+    eligible = eligible.filter((e) => withVfx.has(e.guid) || (assetSizes.get(e.guid) ?? 0) > maxBytes);
+  }
+  const duplicatesCollapsed = source.gamesOf
+    ? eligible.reduce((n, e) => n + Math.max(0, (source.gamesOf?.(e.guid).length ?? 1) - 1), 0)
+    : 0;
   eligible.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const slugs = assignSlugs(pack.slug, eligible);
   const candidates = opts.onlyGuids ? eligible.filter((e) => opts.onlyGuids?.has(e.guid)) : eligible;
@@ -218,7 +268,13 @@ export async function extractPack(opts: ExtractOptions): Promise<PackSummary> {
         visibility: 'project',
         fileName: `${slug}.yaml`,
         meta: {
-          source: { pack: pack.name, vendor: pack.vendor, prefabPath, prefabGuid: guid },
+          source: {
+            pack: pack.name,
+            vendor: pack.vendor,
+            prefabPath,
+            prefabGuid: guid,
+            ...(source.gamesOf ? { games: source.gamesOf(guid) } : {}),
+          },
           extracted: true,
           extractor: 'unitypackage-recipe/1',
           pack: pack.slug,
@@ -281,6 +337,7 @@ export async function extractPack(opts: ExtractOptions): Promise<PackSummary> {
     excluded,
     selected: selected.length,
     extracted: records.length,
+    duplicatesCollapsed,
     skipped,
     records,
     timingsMs: {

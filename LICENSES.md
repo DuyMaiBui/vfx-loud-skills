@@ -12,6 +12,7 @@ luyện model được không"*.
 | `cc0` | Public domain. Dùng commercial, sửa, redistribute, không bắt buộc credit. | ✅ tự do |
 | `cc-attribution` | CC-BY / CC-BY-SA. Commercial được, **bắt buộc credit**, share-alike nếu BY-SA. | ✅ kèm `meta.attribution` |
 | `proprietary-commercial` | EULA của store (Synty, Asset Store...). Dùng trong game OK, **không được redistribute pack rời**. | ⚠️ chỉ `visibility=project`, payload phải là link/metadata chứ không phải file |
+| `studio-internal` | Asset do studio tự làm trong các game Unity của mình (không mua). Chỉ dùng nội bộ studio, không training, không redistribute. | ⚠️ chỉ `visibility=project` (xem ghi chú bên dưới về `studio-only`), payload là metadata + `vfx://`, không phải file |
 | `restricted` | Không cho redistribute / AI training / chỉ dùng nội bộ. | ❌ không publish |
 | `unknown` | Chưa rõ nguồn. | ❌ server reject |
 
@@ -33,9 +34,14 @@ Không bao giờ suy luận `ai_training=true` từ im lặng. Thiếu bằng ch
 | `cc-by-sa` | `cc-attribution` | `true` | share-alike: bản derivative cũng phải CC-BY-SA. |
 | `synty-store-eula` | `proprietary-commercial` | `false` | trong-game OK, pack rời không OK. |
 | `asset-store-eula` | `proprietary-commercial` | `false` | Unity Asset Store pack không phải Synty (Hovl, Lana, Archanor...). Cùng ràng buộc như `synty-store-eula`. |
+| `studio-internal` | `studio-internal` | `false` | Asset do studio tự làm (prefab VFX trong các game Unity nội bộ, vendor `The1Studio`). Không phải EULA mua ngoài nên không có điều khoản bên thứ ba; vẫn không redistribute ra ngoài studio. |
 | `ai-training-allowed` | theo nguồn | `true` | chỉ dùng khi nguồn ghi rõ. |
 | `restricted` | `restricted` | `false` | giữ local. |
 | `unknown` | — | `false` | **bị `seed` và `vfx_publish` từ chối.** |
+
+> **`studio-internal` và `visibility`:** DB chỉ chấp nhận `visibility` ∈ `project | team | global`
+> (`migrations/001_init.sql`). Record `studio-internal` hiện là `visibility=project`. Giá trị
+> `studio-only` mong muốn cần một migration nới CHECK constraint — chưa làm.
 
 ## Quy tắc khi contribute
 
@@ -47,4 +53,4 @@ Không bao giờ suy luận `ai_training=true` từ im lặng. Thiếu bằng ch
 3. Synty → `synty-store-eula`; pack Asset Store khác → `asset-store-eula`; `visibility=project`, **không upload file binary**, chỉ metadata + path local.
 4. Tự viết code/shader/technique → `cc0` + `license_class=cc0`.
 5. Khi `license_class` là `proprietary-commercial` trở xuống, payload chỉ được chứa metadata và `vfx://` URI dẫn về máy đã có asset — không chứa bytes của asset.
-6. Record trích từ prefab của pack đã mua (`meta.extracted = true`, `seed/extract-unitypackage.ts`) chỉ được mang `synty-store-eula` hoặc `asset-store-eula` (`license_class=proprietary-commercial`, `ai_training=false`, `visibility=project`). Không `cc0`, không `unknown`, không default: `publish()` và extractor đều từ chối. Payload là tham số ParticleSystem; texture/material/shader/mesh chỉ là `{guid, path}`. `meta.source = {pack, vendor, prefabPath, prefabGuid}`.
+6. Record trích từ prefab (`meta.extracted = true`, `seed/extract-unitypackage.ts`) chỉ được mang `synty-store-eula`, `asset-store-eula` (`license_class=proprietary-commercial`) hoặc `studio-internal` (`license_class=studio-internal`); tất cả `ai_training=false`, `visibility=project`. Prefab của pack thứ ba đã có trong corpus không được publish lại dưới licence khác (`excludePathPrefixes` trong `packs.json`). Không `cc0`, không `unknown`, không default: `publish()` và extractor đều từ chối. Payload là tham số ParticleSystem; texture/material/shader/mesh chỉ là `{guid, path}`. `meta.source = {pack, vendor, prefabPath, prefabGuid}`.

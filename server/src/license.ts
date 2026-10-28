@@ -9,6 +9,7 @@ export function licenseClassOf(license: string): string {
   if (l === 'cc0') return 'cc0';
   if (l.startsWith('cc-by')) return 'cc-attribution';
   if (l === 'synty-store-eula' || l === 'asset-store-eula') return 'proprietary-commercial';
+  if (l === 'studio-internal') return 'studio-internal';
   if (l === 'restricted') return 'restricted';
   return 'unknown';
 }
@@ -19,8 +20,15 @@ export function aiTrainingAllowed(license: string): boolean {
   return l === 'cc0' || l.startsWith('cc-by') || l === 'ai-training-allowed';
 }
 
-/** Store-EULA licenses: the only ones an extracted (derived-from-purchased-asset) record may carry. */
-export const EXTRACTED_LICENSES = ['synty-store-eula', 'asset-store-eula'] as const;
+/**
+ * Store-EULA licenses (purchased packs) and the studio's own in-house game assets. Both are
+ * proprietary: no ai_training, never redistributed as files. `studio-internal` = authored by the
+ * studio in its own Unity projects, not bought, but still not licensable outside the studio.
+ */
+export const EXTRACTED_LICENSES = ['synty-store-eula', 'asset-store-eula', 'studio-internal'] as const;
+
+/** license_class values an extracted record may carry (publish() and the extractor both enforce this). */
+export const EXTRACTED_LICENSE_CLASSES = ['proprietary-commercial', 'studio-internal'] as const;
 
 /**
  * Gate for `meta.extracted = true` records (recipes derived from purchased Unity packages).
@@ -34,7 +42,9 @@ export function extractedLicenseProblem(license: string | undefined | null): str
   if (!(EXTRACTED_LICENSES as readonly string[]).includes(l)) {
     return `license "${l}" is not a store-EULA license (${EXTRACTED_LICENSES.join(' | ')})`;
   }
-  if (licenseClassOf(l) !== 'proprietary-commercial') return `license "${l}" is not proprietary-commercial`;
+  if (!(EXTRACTED_LICENSE_CLASSES as readonly string[]).includes(licenseClassOf(l))) {
+    return `license "${l}" is not ${EXTRACTED_LICENSE_CLASSES.join(' | ')}`;
+  }
   if (aiTrainingAllowed(l)) return `license "${l}" would allow ai_training`;
   return null;
 }

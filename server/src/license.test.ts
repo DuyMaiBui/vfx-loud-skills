@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { aiTrainingAllowed, extractedLicenseProblem, licenseClassOf } from './license.ts';
+import { derivedLicenseProblem } from './derived.ts';
 import { publish } from './store.ts';
 
 test('both store EULAs map to proprietary-commercial with ai_training=false', () => {
@@ -37,4 +38,25 @@ test('publish() refuses an extracted record with a non-store license before touc
     publish({ ...base, license: 'asset-store-eula', meta: { extracted: true, ai_training: true } }),
     /ai_training/,
   );
+});
+
+test('studio-internal: own in-house assets, own class, no ai_training, extractable', () => {
+  assert.equal(licenseClassOf('studio-internal'), 'studio-internal');
+  assert.equal(aiTrainingAllowed('studio-internal'), false);
+  assert.equal(extractedLicenseProblem('studio-internal'), null);
+});
+
+test('studio-internal records refuse a licence class outside the extracted set', async () => {
+  const base = { type: 'recipe' as const, slug: 'x-y', name: 'n', b64: Buffer.from('x').toString('base64') };
+  await assert.rejects(
+    publish({ ...base, license: 'studio-internal', meta: { extracted: true, license_class: 'cc0' } }),
+    /proprietary-commercial \| studio-internal/,
+  );
+});
+
+test('a derived record cannot relabel a studio-internal source as a store EULA', () => {
+  const src = [{ uri: 'vfx://recipe/studio-game-vfx-fire/1', license: 'studio-internal' }];
+  assert.equal(derivedLicenseProblem('studio-internal', src), null);
+  assert.notEqual(derivedLicenseProblem('synty-store-eula', src), null);
+  assert.notEqual(derivedLicenseProblem('cc0', src), null);
 });
