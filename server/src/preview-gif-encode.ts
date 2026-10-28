@@ -14,7 +14,7 @@ import { PREVIEW_FILE_RE, previewDir } from './previews.ts';
  * Size budget: a set review puts 24-48 GIFs on one page, so **each GIF is capped at 130 KB** and most are far
  * smaller. The cap is a ceiling, not a target: the ladder starts at 192 px / 12 fps / 96 colours and steps down
  * only when an encode is over the cap. Measured on the 14 rendered previews (256 px, 24 fps, 48 frames source):
- * rung 1 gives 1.9 KB min, 10.1 KB median, 127.1 KB max (confetti-falling); the last rung gives 43.1 KB for the
+ * rung 1 gives 1.9 KB min, 13.5 KB median, 127.1 KB max (confetti-falling); the last rung gives 43.1 KB for the
  * same worst case.
  */
 
