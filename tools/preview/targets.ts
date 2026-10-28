@@ -1,5 +1,7 @@
 // Emits targets.json for the VFXPreview renderer:
-// extracted recipes with empty meta.family + the canonical (lowest-slug) member of each family.
+// extracted recipes with empty meta.family + the canonical (lowest-slug) member of each family,
+// plus every published DERIVED recipe (publish-back: skills/vfx-authoring) that depends on a `.prefab` record.
+// A derived recipe's prefab must be on disk in the preview project first: scripts/vfx-fetch.sh <recipe uri> unity/VFXPreview.
 // usage: node tools/preview/targets.ts [out=tools/preview/targets.json]
 import { writeFileSync } from 'node:fs';
 import pg from 'pg';
@@ -14,7 +16,18 @@ const { rows } = await pool.query(`
     FROM resource
    WHERE type = 'recipe' AND meta->>'extracted' = 'true' AND meta->'source'->>'prefabGuid' IS NOT NULL
    ORDER BY COALESCE(NULLIF(meta->>'family',''), slug), slug`);
+const derived = await pool.query(`
+  SELECT DISTINCT ON (r.slug) r.slug, r.meta->>'pack' AS pack, p.slug AS "prefabSlug",
+         COALESCE(p.meta->'unity'->>'guid', '') AS "prefabGuid", r.meta->'facets'->>'playback' AS playback
+    FROM resource r
+    JOIN resource_edge e ON e.src = r.id AND e.rel = 'uses'
+    JOIN resource p ON p.id = e.dst AND p.type = 'vfx' AND p.storage_uri LIKE '%.prefab'
+   WHERE r.type = 'recipe' AND r.meta ? 'derived'
+   ORDER BY r.slug, p.slug`);
 await pool.end();
 const targets = rows.map((r) => ({ slug: r.slug, pack: r.pack, prefabPath: r.prefabPath, prefabGuid: r.prefabGuid, family: r.family, playback: r.playback ?? '' }));
+for (const d of derived.rows) {
+  targets.push({ slug: d.slug, pack: d.pack ?? '', prefabPath: `Assets/VFXCloud/vfx/${d.prefabSlug}/${d.prefabSlug}.prefab`, prefabGuid: d.prefabGuid, family: '', playback: d.playback ?? '' });
+}
 writeFileSync(out, JSON.stringify(targets, null, 1));
 console.log(`${targets.length} targets -> ${out}`);

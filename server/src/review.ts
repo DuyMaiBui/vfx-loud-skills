@@ -274,9 +274,19 @@ interface RenderCard extends store.Card {
 
 const TEMPLATE = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), 'review.html'), 'utf8');
 
-function mediaHtml(p: CardPreview | null): string {
+const FAMNOTE = '<span class="famnote" title="Chưa có preview riêng: dùng bản gốc của họ biến thể">bản gốc họ</span>';
+
+/**
+ * One card's preview. The DB GIF wins: it is a plain <img>, so it animates in every column at once with no script
+ * and no per-video fetch, which is what comparing a whole set side by side needs. The disk webm/poster stay as
+ * fallbacks for an effect that has been rendered but not ingested yet.
+ */
+function mediaHtml(p: CardPreview | null, gif: store.Card['gif']): string {
+  if (gif) {
+    return `<img class="gif" loading="lazy" src="${esc(gif.path)}" width="${gif.width}" height="${gif.height}" alt="">${gif.viaFamily ? FAMNOTE : ''}`;
+  }
   if (!p) return '<div class="noprev">chưa có preview</div>';
-  const note = p.viaFamily ? '<span class="famnote" title="Chưa có preview riêng: dùng bản gốc của họ biến thể">bản gốc họ</span>' : '';
+  const note = p.viaFamily ? FAMNOTE : '';
   if (p.video) {
     return `<video autoplay muted loop playsinline preload="none" data-src="${esc(p.video)}"${p.poster ? ` poster="${esc(p.poster)}"` : ''}></video>${note}`;
   }
@@ -299,7 +309,7 @@ function cardHtml(c: RenderCard, i: number, place: { col: number; row: number } 
   const pos = place ? ` style="--c:${place.col + 1};--r:${place.row + 2}"` : '';
   return (
     `<article class="card${picked ? ' picked' : ''}" id="c${i}" data-uri="${esc(c.uri)}" data-role="${esc(c.role)}"${pos}>` +
-    `<div class="media">${mediaHtml(c.preview)}</div>` +
+    `<div class="media">${mediaHtml(c.preview, c.gif)}</div>` +
     `<div class="body"><h3>${esc(c.name)}</h3>` +
     `<div class="sub">${esc([c.pack, c.style.join(' / ')].filter(Boolean).join(' · '))}</div>` +
     `<p class="behavior">${behavior}</p>` +
@@ -350,7 +360,8 @@ export async function renderPage(sessionId: string): Promise<string> {
     body = `<section class="flat">${rc.map((c, i) => cardHtml(c, i, null, picked.has(c.uri), onPage)).join('')}</section>`;
   }
 
-  const previewCount = rc.filter((c) => c.preview).length;
+  // A DB GIF is a preview too: without it the count would read "0 có preview" on a page full of moving cards.
+  const previewCount = rc.filter((c) => c.gif || c.preview?.video || c.preview?.poster).length;
   const title = s.query.q ? `Review: ${s.query.q}${set.length ? ` (${set.join(', ')})` : ''}` : 'Review: danh sách chọn tay';
   const slots: Record<string, string> = {
     TITLE: esc(title),

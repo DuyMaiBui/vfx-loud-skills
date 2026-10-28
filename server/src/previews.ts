@@ -33,6 +33,12 @@ export interface CardPreview {
 /** Only flat `<slug>.webm|webp` names are ever served: the traversal guard is the grammar itself. */
 export const PREVIEW_FILE_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*\.(webm|webp)$/;
 
+/**
+ * `<slug>.gif` — the DB-served GIF name (see preview-gif.ts). Kept out of PREVIEW_FILE_RE on purpose: that
+ * regex is the DISK grammar (previewPath), and a .gif is answered from Postgres, never from a loose file.
+ */
+export const PREVIEW_GIF_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*\.gif$/;
+
 export const PREVIEW_MIME: Record<string, string> = { '.webm': 'video/webm', '.webp': 'image/webp' };
 
 export function previewDir(): string {

@@ -94,7 +94,7 @@ test('GET /review renders cards with a placeholder when there is no preview, and
   const page = await api('GET', `/review?uris=${encodeURIComponent(`${a},${b}`)}`);
   assert.equal(page.status, 200);
   assert.equal((page.body.match(/<article /g) ?? []).length, 2);
-  assert.match(page.body, /chưa có preview|<video /);
+  assert.match(page.body, /chưa có preview|<video |<img class="gif"/);
   assert.match(page.body, /Gửi lựa chọn/);
   const sid = /data-session="([0-9a-f-]{36})"/.exec(page.body)![1];
   sessions.push(sid);

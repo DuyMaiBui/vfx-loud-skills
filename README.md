@@ -48,8 +48,8 @@ Skills + MCP cho Unity project đã được bật sẵn:
 | `vfx_facets` | Đếm record theo từng facet cho `query` + `filters` → biết nên hỏi user câu gì tiếp |
 | `vfx_resolve` | URI → version, `file_name`, `download_url`, `sha256`, `dependencies` |
 | `vfx_review` / `vfx_review_result` | Mở trang review cho ứng viên / bộ (trả `url` + `session`) và đọc lựa chọn của user |
-| `vfx_fetch` | URL tải payload. `scripts/vfx-fetch.sh <uri> <unity project root>` ghi file + verify sha256, không đụng `.meta` |
-| `vfx_publish` | Payload mới → version mới + `linkDependencies` (cập nhật graph, không overwrite) |
+| `vfx_fetch` | URL tải payload + `closure` (mọi file record cần để import đủ: prefab → material → texture, phụ thuộc trước). `scripts/vfx-fetch.sh <uri> <unity project root>` ghi file + verify sha256, tải cả closure (`VFX_FETCH_DEPS=0` để tắt), không đụng `.meta` |
+| `vfx_publish` | Payload mới → version mới + `linkDependencies` (cập nhật graph, không overwrite). Effect đã chỉnh từ record có sẵn: `derived_from`, `modifications`, `unity`, `visibility` (xem **Publish-back**) |
 
 ## Knowledge graph
 
@@ -77,7 +77,71 @@ Skills + MCP cho Unity project đã được bật sẵn:
 
 **Preview** (`data/previews/`, gitignored, do lane Unity điền): `GET /previews/<slug>.webm|.webp` (MIME đúng, `Range` → 206 để seek, `ETag`/`Cache-Control`, chỉ nhận tên phẳng `<slug>.webm|webp` nên không path traversal). Trang review đọc `data/previews/index.json` = `{"version":1,"items":{"<slug>":{"webm","poster","bytes","fps","frames","size":256,"renderedAt"}}}` (slug = đoạn giữa của `vfx://recipe/<slug>/<version>`), tự nạp lại khi file đổi (mtime), không cần restart. Biến thể không có entry riêng dùng bản canonical (slug thấp nhất) của họ; không có gì thì card ghi "chưa có preview" — toàn bộ luồng chạy được khi thư mục trống.
 
+### Preview GIF trong DB
+
+Webm/poster ở lại trên đĩa; **GIF nằm trong Postgres** (bảng `preview_gif`, migration 009) nên một bộ effect xem được từ DB, bằng `<img>` thường, không cần video element hay file rời.
+
+| Cột | Nghĩa |
+| --- | --- |
+| `slug` (PK) | đoạn giữa của `vfx://recipe/<slug>/<version>`; một dòng mỗi slug (bản encode mới nhất) |
+| `gif` | bytes GIF (`bytea`, loop vô hạn) |
+| `width`, `height`, `frames`, `fps`, `bytes` | đọc lại từ chính file GIF; `bytes = octet_length(gif)` có CHECK |
+| `sha256` | hash nội dung GIF = ETag |
+| `source_sha256`, `builder` | hash webm nguồn + thế hệ encoder: khoá idempotent |
+| `encoder` | nấc ladder thắng, vd `192px@12fps/96c` |
+| `created_at`, `updated_at` | lần nạp đầu / lần thay bytes gần nhất |
+
+**Encode** (ffmpeg `palettegen`/`paletteuse`, `-loop 0`) từ `data/previews/<slug>.webm`. **Ngân sách: tối đa 130 KB mỗi GIF, rộng ≤ 192 px** (nguồn 256 px; một trang review bộ có 24–48 GIF). Ladder bước xuống chỉ khi vượt trần: `192px/12fps/96c` → `160/12/64` → `144/10/48` → `128/10/32`; nếu cả nấc cuối vẫn vượt thì lưu bản nhỏ nhất và báo `OVER BUDGET`. Đo trên 14 preview thật (nguồn 256 px, 24 fps, 48 frame): nấc 1 cho **min 1.9 KB, median 13.5 KB, max 127.1 KB, tổng 14 file 404 KB** (`confetti-falling`); cùng ca xấu nhất ở nấc cuối 43.1 KB.
+
+**Nạp vào DB** (idempotent theo hash nội dung: webm không đổi + cùng `builder` thì không ghi gì):
+
+```bash
+npm run previews:gif                       # mọi slug trong data/previews/index.json
+npm run previews:gif -- --only a,b         # một phần
+npm run previews:gif -- --force            # encode lại dù hash khớp
+npm run previews:gif -- --json             # tóm tắt một dòng JSON
+```
+
+Render đi vào DB thế nào: lane Unity ghi `data/previews/*.webm` + `index.json` → `BatchEntry.Run` (`-executeMethod VfxPreview.BatchEntry.Run`) chạy `node seed/preview-gif-ingest.ts --json` ở bước cuối (bỏ bằng `-skipGifIngest`; lỗi chỉ log, không đổi exit code của render). Render bằng Editor đang mở (`tools/preview/run.json`) không qua `BatchEntry`: chạy `npm run previews:gif` sau khi `_status.json` có `state: done`. Đổi cách encode (ladder/filter) thì tăng `GIF_BUILDER` trong `server/src/preview-gif-encode.ts`.
+
+- `GET|HEAD /previews/<slug>.gif` → `200 image/gif` từ DB, `ETag: "<sha256>"` (`If-None-Match` → 304), `Cache-Control: public, max-age=300, must-revalidate` (URL không đánh dấu nội dung nên không `immutable`). Slug không có GIF hoặc tên sai ngữ pháp → 404.
+- Card (`vfx_search`, `vfx_review`, `/v1/search`): trường mới `gif: {url, path, width, height, frames, fps, bytes, sha256, viaFamily} | null` (`viaFamily: true` = mượn GIF của bản canonical trong họ biến thể). `preview_uri` (trước đây luôn `null`) nay bằng `gif.url` khi chưa có giá trị riêng, nên client cũ chỉ đọc `preview_uri` vẫn có preview.
+- `/review` (cả chế độ `set` theo role) dùng `<img class="gif" src="/previews/<slug>.gif">` khi có GIF — tự chạy ở mọi cột cùng lúc, không cần JS; webm/poster là fallback cho effect đã render mà chưa nạp. Header đếm GIF là "có preview".
+
 REST kèm: `/healthz`, `/v1/search`, `/v1/facets`, `/v1/resource/:type/:slug/:version[/file]`, `/v1/publish`.
+
+## Publish-back (effect đã chỉnh → recipe tái dùng)
+
+Owner chấp nhận một VFX đã chỉnh trong game (bỏ layer, rescale, retime, recolor, ghép nhiều effect) → publish thành recipe `derived` + preview để lần sau `vfx_search` ra. Quy trình đầy đủ (4 bước, trigger, "không publish khi owner chưa chấp nhận") nằm ở **`skills/vfx-authoring` § "Publish-back on accept"**; server hỗ trợ:
+
+- `vfx_publish` / `POST /v1/publish`: `derived_from` (URI nguồn, mỗi URI một cạnh `derived_from`), `modifications` (`[{op, target, from?, to?, note?}]`, lưu ở `meta.derived.modifications`), `unity: {path, guid}` (lưu `meta.unity`), `visibility`. License phải **kế thừa**: yếu hơn nguồn hoặc đổi nhãn cùng mức → 400; ghép nhiều nguồn thì nguồn chặt nhất thắng. Record derived bắt buộc `category`, `tags`, `meta.behavior`. `dependencies` nêu rõ mà không tồn tại → 404 (không bỏ lặng lẽ); mọi lỗi được kiểm **trước** khi ghi file.
+- Closure: `vfx_fetch` trả `closure` (phụ thuộc bắc cầu qua cạnh `uses`, sâu nhất trước, không gồm chính nó, không theo `derived_from`); `scripts/vfx-fetch.sh` tải cả closure.
+- Preview: `node tools/preview/targets.ts` thêm recipe derived có prefab vào danh sách render.
+
+**Hook nhắc**: `hooks/vfx-publish-back-check.mjs` (Node, không dependency, fail-open, ~30 ms). Event `Stop`: quét record provenance của game (`art/provenance/**/vfxcloud-*.json`, mặc định) và in **một dòng cho mỗi record có `modification` / `modifications` / `composed_from` mà chưa có `published_uri`**; không bao giờ chặn (luôn exit 0). Record được coi là xong khi có `published_uri` (`vfx://…`), `publish_waiver` (lý do), hoặc `owner_accepted: false`. Mỗi record chỉ nhắc một lần cho mỗi phiên bản file (`VFX_PUBLISH_BACK_ALWAYS=1` để nhắc mỗi lượt). Biến: `VFX_PROVENANCE_DIRS` (mặc định `art/provenance`, ngăn cách `:`), `VFX_PUBLISH_BACK_JSON=1` (in `{"systemMessage": …}`), `VFX_PUBLISH_BACK_OFF=1`.
+
+Project dùng đăng ký trong `.claude/settings.json` (giữ `"_t1k_owner": "user"` để `t1k update` không xoá):
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /var/home/mike/Documents/Work/The1/vfx-skill-cloud/hooks/vfx-publish-back-check.mjs",
+            "timeout": 5,
+            "_t1k_owner": "user"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+(Sửa đường dẫn nếu repo này nằm chỗ khác.) Test: `node --test hooks/*.test.mjs`.
 
 ## Facets, behavior và hỏi-đáp thu hẹp
 
@@ -193,7 +257,7 @@ image, visibility phân quyền, `feedback` tool. Nằm ở ladder V0.1–V0.5 t
 
 Chưa làm: ingestion Brackeys (đã có Kenney + Synty + OpenGameArt flipbook), texture
 semantic schema mở rộng ngoài flipbook (provenance/UV hints cho texture thường),
-`preview_uri` (toàn NULL; video preview phục vụ qua `/previews` + `data/previews/index.json`, xem Review).
+`preview_uri` riêng cho từng record (cột vẫn NULL; card lấy URL GIF từ `preview_gif`, video qua `/previews` + `data/previews/index.json`, xem Review).
 
 ## Extractor (unitypackage -> recipe)
 
