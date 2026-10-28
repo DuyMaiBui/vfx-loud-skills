@@ -93,7 +93,7 @@ namespace VfxPreview
         static void Quit(int code, string msg)
         {
             Debug.Log($"[BatchEntry] exit {code}: {msg}");
-            if (code != 2) IngestGifs(); // 2 = the render never finished: there is nothing new to encode
+            if (code != 2) { IngestGifs(); IngestFailures(); } // 2 = the render never finished: there is nothing new to encode or record
             File.Delete(StageFile);
             EditorApplication.Exit(code);
         }
@@ -127,6 +127,33 @@ namespace VfxPreview
                 }
             }
             catch (Exception e) { Debug.LogWarning("[BatchEntry] gif ingest not run (" + e.Message + "); run `npm run previews:gif`"); }
+        }
+
+        /// <summary>Persist data/previews/_failures.json into preview_render (node seed/preview-failures-ingest.ts, plan.md C9). Best effort, same
+        /// pattern as the GIF ingest: a failure is logged and never changes the render's exit code; re-run with `npm run ingest:failures`.</summary>
+        static void IngestFailures()
+        {
+            var file = RenderFailures.FilePath;
+            if (!File.Exists(file)) { Debug.LogWarning("[BatchEntry] no _failures.json to ingest"); return; }
+            try
+            {
+                var repo = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", ".."));
+                var psi = new System.Diagnostics.ProcessStartInfo("node", $"seed/preview-failures-ingest.ts --json --file \"{file}\"")
+                {
+                    WorkingDirectory = repo, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
+                };
+                using (var p = System.Diagnostics.Process.Start(psi)!)
+                {
+                    var stdout = p.StandardOutput.ReadToEndAsync();
+                    var stderr = p.StandardError.ReadToEndAsync();
+                    if (!p.WaitForExit(IngestTimeoutMs)) { p.Kill(); Debug.LogWarning("[BatchEntry] failure ingest timed out and was killed; run `npm run ingest:failures`"); return; }
+                    var last = "";
+                    foreach (var line in stdout.Result.Split('\n')) if (line.TrimStart().StartsWith("{")) last = line;
+                    if (last.Length > 0) Debug.Log($"[BatchEntry] failure ingest exit {p.ExitCode}: {last.Trim()}");
+                    else Debug.LogWarning($"[BatchEntry] failure ingest exit {p.ExitCode}, no summary: {stderr.Result.Trim()}");
+                }
+            }
+            catch (Exception e) { Debug.LogWarning("[BatchEntry] failure ingest not run (" + e.Message + "); run `npm run ingest:failures`"); }
         }
 
         static void Static(Type t, string field, object v) =>

@@ -19,6 +19,9 @@ namespace VfxPreview
             public string slug; public bool ok; public string error, note; public long bytes;
             /// <summary>The render is known-bad (missing-shader magenta): its media and index entry are dropped, never ingested.</summary>
             public bool broken;
+            /// <summary>C9 cause: for a failure, why; for an ok clip, only "no-visible-output" (rendered, but nothing was visible).</summary>
+            public string cause;
+            public List<string> shaders = new List<string>();
         }
 
         public static List<Result> Run(List<Target> targets, PreviewOptions o, JObject timings)
@@ -33,7 +36,7 @@ namespace VfxPreview
             try
             {
                 for (int i = 0; i < targets.Count; i++) cells.Add(new PreviewCell(targets[i], new Vector3((i % n) * 5000f, 0, (i / n) * 5000f), size));
-                foreach (var c in cells.Where(c => !c.Ok)) results.Add(new Result { slug = c.Target.slug, error = c.Error, broken = c.Broken });
+                foreach (var c in cells.Where(c => !c.Ok)) results.Add(new Result { slug = c.Target.slug, error = c.Error, broken = c.Broken, cause = c.Cause, shaders = c.Shaders });
                 var live = cells.Where(c => c.Ok).ToList();
                 if (live.Count == 0) return results;
                 float dt = 1f / o.fps;
@@ -88,15 +91,18 @@ namespace VfxPreview
                     var webp = Path.Combine(PreviewOptions.PreviewDir, slug + ".webp");
                     string err = encErr;
                     bool broken = false;
+                    string cause = err != null ? RenderFailures.Exception : null; // an encoder error
                     if (err == null && MagentaMath.IsMagentaClip(c.MagentaFrames) && !MagentaAllow.Contains(slug))
                     {
                         err = $"magenta (missing-shader colour) in {c.MagentaFrames}/{frames} frames; shader or material was not converted, see magenta-allow.txt if it is meant to be magenta";
-                        broken = true;
+                        broken = true; cause = RenderFailures.MagentaPixel;
                     }
                     if (err == null) err = Poster(c, webp, size);
                     if (err == null && (!File.Exists(webm) || new FileInfo(webm).Length == 0)) err = "webm missing";
-                    results.Add(err != null ? new Result { slug = slug, error = err, note = c.Note, broken = broken }
-                        : new Result { slug = slug, ok = true, note = c.Note, bytes = new FileInfo(webm).Length + new FileInfo(webp).Length });
+                    if (err != null && cause == null) cause = RenderFailures.Exception;
+                    var shaders = broken ? c.ShaderNames() : new List<string>();
+                    results.Add(err != null ? new Result { slug = slug, error = err, note = c.Note, broken = broken, cause = cause, shaders = shaders }
+                        : new Result { slug = slug, ok = true, note = c.Note, bytes = new FileInfo(webm).Length + new FileInfo(webp).Length, cause = c.NothingVisible ? RenderFailures.NoVisibleOutput : null });
                 }
                 timings["prepMs"] = Math.Round(tPrep); timings["simMs"] = Math.Round(tSim); timings["renderMs"] = Math.Round(tRender);
                 timings["readbackMs"] = Math.Round(tRead); timings["streamMs"] = Math.Round(tEnc); timings["encodeWaitMs"] = Math.Round(tWait);

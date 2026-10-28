@@ -13,6 +13,12 @@ namespace VfxPreview
     {
         public readonly Target Target;
         public string Error, Note;
+        /// <summary>C9 cause for Error (RenderFailures.*), set together with Error by the constructor gates.</summary>
+        public string Cause;
+        /// <summary>Offending shader names for unrenderable-material; PreviewBatch adds the clip's shaders for magenta-pixel.</summary>
+        public List<string> Shaders = new List<string>();
+        /// <summary>Frame() found no visible particle or renderer in the whole clip: it still renders, but is recorded as no-visible-output.</summary>
+        public bool NothingVisible;
         public bool Loop, HasParticles, HasScript;
         /// <summary>Set with Error when the target cannot be previewed correctly (a material URP draws as magenta): stale media of it must go.</summary>
         public bool Broken;
@@ -37,11 +43,11 @@ namespace VfxPreview
             Target = t; _size = size;
             var path = AssetDatabase.GUIDToAssetPath(t.prefabGuid);
             var asset = string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath<GameObject>(path);
-            if (asset == null) { Error = "prefab not found for guid " + t.prefabGuid; return; }
+            if (asset == null) { Error = "prefab not found for guid " + t.prefabGuid; Cause = RenderFailures.PrefabMissing; return; }
             _go = (GameObject)PrefabUtility.InstantiatePrefab(asset);
             _go.transform.position = origin;
-            var unrenderable = MaterialConverter.Unrenderable(_go);
-            if (unrenderable != null) { Error = unrenderable; Broken = true; return; }
+            var unrenderable = MaterialConverter.Unrenderable(_go, out var badShaders);
+            if (unrenderable != null) { Error = unrenderable; Broken = true; Cause = RenderFailures.UnrenderableMaterial; Shaders = badShaders; return; }
             var all = _go.GetComponentsInChildren<ParticleSystem>(true);
             _roots = all.Where(p => p.transform.parent == null || p.transform.parent.GetComponentInParent<ParticleSystem>(true) == null).ToArray();
             _all = all; HasParticles = all.Length > 0;
@@ -154,7 +160,7 @@ namespace VfxPreview
         {
             var balls = new List<Ball>(_balls); balls.AddRange(_staticBounds);
             Vector3 c = _go.transform.position + Vector3.up * 0.5f; float r = 1f;
-            if (balls.Count == 0) Note = (Note == null ? "" : Note + "; ") + "nothing visible in the clip: default framing";
+            if (balls.Count == 0) { NothingVisible = true; Note = (Note == null ? "" : Note + "; ") + "nothing visible in the clip: default framing"; }
             else if (FramingMath.TryFit(balls, PreviewOptions.FrameOutlierFraction, PreviewOptions.FrameMargin, PreviewOptions.FrameMinRadius, out var fit))
             { c = new Vector3(fit.Cx, fit.Cy, fit.Cz); r = fit.Radius; }
             var dir = new Vector3(0f, PreviewOptions.FramePitch, -1f).normalized;
@@ -164,6 +170,16 @@ namespace VfxPreview
         }
 
         public void Render() { _cam.Render(); }
+
+        /// <summary>Distinct shader names of every enabled renderer's materials (for the magenta-pixel record).</summary>
+        public List<string> ShaderNames()
+        {
+            var set = new SortedSet<string>();
+            if (_renderers != null)
+                foreach (var r in _renderers)
+                    if (r != null) foreach (var m in r.sharedMaterials) if (m != null && m.shader != null) set.Add(m.shader.name);
+            return new List<string>(set);
+        }
 
         public void Dispose()
         {

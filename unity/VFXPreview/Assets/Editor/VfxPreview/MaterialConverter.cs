@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
@@ -21,25 +22,75 @@ namespace VfxPreview
         [MenuItem("Tools/VFX Preview/3. Convert Materials For URP")]
         static void Menu() => ConvertAll();
 
-        /// <summary>Remap every material under Assets/ImportedPacks that URP cannot draw (or draws as nothing) to URP Particles/Unlit.</summary>
-        public static void ConvertAll()
+        /// <summary>A material whose shader this pass changed (what UrpExport publishes, plan.md C8).</summary>
+        public sealed class Converted { public string Guid, Path, Rule, OriginalShaderGuid, ShaderGuid; }
+
+        /// <summary>Remap every material under Assets/ImportedPacks that URP cannot draw (or draws as nothing) to URP Particles/Unlit.
+        /// Rewrites the .mat files IN PLACE (the preview project is disposable); `o` defaults to the preview options (GlowCap 1.25), the URP
+        /// export passes <see cref="MaterialMapping.Options.Export"/>. Returns the materials whose shader changed.</summary>
+        public static List<Converted> ConvertAll(MaterialMapping.Options o = null)
         {
+            o = o ?? MaterialMapping.Options.Preview;
+            var changed = new List<Converted>();
             var urp = Shader.Find(MaterialMapping.UrpParticlesUnlit);
-            if (urp == null) { Debug.LogWarning("[BatchEntry] URP particle shader missing, materials left as is"); return; }
+            if (urp == null) { Debug.LogWarning("[BatchEntry] URP particle shader missing, materials left as is"); return changed; }
             int fixedKw = 0;
             var byRule = new SortedDictionary<string, int>();
             foreach (var g in AssetDatabase.FindAssets("t:Material", new[] { "Assets/ImportedPacks" }))
             {
-                var m = AssetDatabase.LoadAssetAtPath<Material>(AssetDatabase.GUIDToAssetPath(g));
+                var path = AssetDatabase.GUIDToAssetPath(g);
+                var m = AssetDatabase.LoadAssetAtPath<Material>(path);
                 if (m == null || m.shader == null) continue;
-                var plan = MaterialMapping.Plan(Snapshot(m));
+                var plan = MaterialMapping.Plan(Snapshot(m), o);
                 if (plan == null) { if (m.shader == urp && DropSoftParticleKeywords(m)) { EditorUtility.SetDirty(m); fixedKw++; } continue; }
-                Apply(m, plan, urp);
-                byRule[plan.Rule] = byRule.TryGetValue(plan.Rule, out var c) ? c + 1 : 1;
+                var originalShader = ShaderGuid(m.shader);
+                var rule = plan.Rule;
+                if (plan.Rule == "generic:Standard" && TryUnityUpgrade(m, "Standard")) rule = "urp-upgrader:Standard";
+                else Apply(m, plan, urp);
+                byRule[rule] = byRule.TryGetValue(rule, out var c) ? c + 1 : 1;
+                changed.Add(new Converted { Guid = g, Path = path, Rule = rule, OriginalShaderGuid = originalShader, ShaderGuid = ShaderGuid(m.shader) });
             }
             AssetDatabase.SaveAssets();
             foreach (var kv in byRule) Debug.Log($"[BatchEntry] converted {kv.Value,4} x {kv.Key}");
-            Debug.Log($"[BatchEntry] converted {byRule.Values.Sum()} materials to URP Particles/Unlit, dropped soft-particle keywords on {fixedKw} more");
+            Debug.Log($"[BatchEntry] converted {byRule.Values.Sum()} materials to URP, dropped soft-particle keywords on {fixedKw} more (GlowCap={(o.GlowCap.HasValue ? o.GlowCap.Value.ToString() : "none")})");
+            return changed;
+        }
+
+        /// <summary>GUID of a shader asset (built-in shaders report Unity's fixed built-in GUIDs), "" when it has none.</summary>
+        public static string ShaderGuid(Shader sh)
+        {
+            if (sh == null) return "";
+            return AssetDatabase.TryGetGUIDAndLocalFileIdentifier(sh, out var guid, out long _) ? guid : "";
+        }
+
+        static Type FindType(string full)
+        {
+            foreach (var a in AppDomain.CurrentDomain.GetAssemblies()) { var t = a.GetType(full, false); if (t != null) return t; }
+            return null;
+        }
+
+        /// <summary>A built-in Standard material with no named rule goes through Unity's own URP upgrader (UnityEditor.Rendering.Universal.StandardUpgrader
+        /// via MaterialUpgrader.Upgrade) instead of one more hand mapping. Reflection, because the upgrader types are internal to the URP editor
+        /// assembly. Any failure leaves the material as it was and returns false, so the caller falls back to the hand-written generic plan.</summary>
+        static bool TryUnityUpgrade(Material m, string oldShaderName)
+        {
+            var before = m.shader;
+            try
+            {
+                var upT = FindType("UnityEditor.Rendering.Universal.StandardUpgrader");
+                var muT = FindType("UnityEditor.Rendering.MaterialUpgrader");
+                var flagsT = FindType("UnityEditor.Rendering.MaterialUpgrader+UpgradeFlags");
+                if (upT == null || muT == null || flagsT == null) return false;
+                var up = Activator.CreateInstance(upT, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic, null, new object[] { oldShaderName }, null);
+                var upgrade = muT.GetMethod("Upgrade", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic, null, new[] { typeof(Material), muT, flagsT }, null);
+                if (up == null || upgrade == null) return false;
+                upgrade.Invoke(null, new[] { m, up, Enum.ToObject(flagsT, 0) });
+                if (m.shader != null && m.shader != before && m.shader.name.StartsWith("Universal Render Pipeline/", StringComparison.Ordinal) && IsUrpDrawable(m))
+                { DropSoftParticleKeywords(m); EditorUtility.SetDirty(m); return true; }
+            }
+            catch (Exception e) { Debug.LogWarning("[BatchEntry] URP upgrader unavailable for " + m.name + ": " + e.Message); }
+            m.shader = before;
+            return false;
         }
 
         static MaterialSnapshot Snapshot(Material m)
@@ -112,9 +163,13 @@ namespace VfxPreview
 
         /// <summary>Pre-render gate: why this prefab instance would draw as the missing-shader colour, or null. Checks every enabled renderer's
         /// materials (and the trail material of a particle system with trails) AFTER ConvertAll, so what is left is a shader with no rule.</summary>
-        public static string Unrenderable(GameObject instance)
+        public static string Unrenderable(GameObject instance) => Unrenderable(instance, out _);
+
+        /// <summary>As <see cref="Unrenderable(GameObject)"/>, also returning the offending shader names (C9 `shaders`).</summary>
+        public static string Unrenderable(GameObject instance, out List<string> shaders)
         {
             var bad = new SortedSet<string>();
+            var names = new SortedSet<string>();
             foreach (var r in instance.GetComponentsInChildren<Renderer>(true))
             {
                 if (r == null || !r.enabled || !r.gameObject.activeInHierarchy) continue;
@@ -122,17 +177,21 @@ namespace VfxPreview
                 {
                     if (pr.renderMode == ParticleSystemRenderMode.None) continue;
                     var ps = pr.GetComponent<ParticleSystem>();
-                    if (ps != null && ps.trails.enabled) Check(pr.trailMaterial, r, bad);
+                    if (ps != null && ps.trails.enabled) Check(pr.trailMaterial, r, bad, names);
                 }
-                foreach (var m in r.sharedMaterials) Check(m, r, bad);
+                foreach (var m in r.sharedMaterials) Check(m, r, bad, names);
             }
+            shaders = new List<string>(names);
             return bad.Count == 0 ? null : "unrenderable material (URP draws it as missing-shader magenta): " + string.Join("; ", bad);
         }
 
-        static void Check(Material m, Renderer r, ISet<string> bad)
+        static void Check(Material m, Renderer r, ISet<string> bad, ISet<string> shaderNames)
         {
             if (m == null) { bad.Add("null material on " + r.name); return; }
-            if (!IsUrpDrawable(m)) bad.Add($"'{m.name}' uses shader '{(m.shader == null ? "<null>" : m.shader.name)}'");
+            if (IsUrpDrawable(m)) return;
+            var sn = m.shader == null ? "<null>" : m.shader.name;
+            bad.Add($"'{m.name}' uses shader '{sn}'");
+            shaderNames.Add(sn);
         }
 
         /// <summary>One log line per shader under Assets/ImportedPacks: how many materials use it and whether URP can draw it (before conversion).</summary>

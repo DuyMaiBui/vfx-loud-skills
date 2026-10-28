@@ -34,7 +34,23 @@ namespace VfxPreview
         public const float StretchMinViewportFraction = 0.012f; // minimum on-screen size of a stretched spark (fraction of the frame, ~3 px)
 
         public static string RepoRoot => Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", ".."));
-        public static string PreviewDir => Path.Combine(RepoRoot, "data", "previews");
+        /// <summary>Command-line value of a flag such as -vfxOut, or null (plan.md C10).</summary>
+        public static string Arg(string name)
+        {
+            var a = Environment.GetCommandLineArgs();
+            for (int i = 0; i < a.Length - 1; i++) if (a[i] == name) return a[i + 1];
+            return null;
+        }
+        public static bool HasArg(string name) => Array.IndexOf(Environment.GetCommandLineArgs(), name) >= 0;
+        /// <summary>Output directory: `-vfxOut <dir>` (relative paths resolve against the repo root), default data/previews.</summary>
+        public static string PreviewDir
+        {
+            get
+            {
+                var o = Arg("-vfxOut");
+                return string.IsNullOrEmpty(o) ? Path.Combine(RepoRoot, "data", "previews") : Path.GetFullPath(Path.Combine(RepoRoot, o));
+            }
+        }
         public static string RunFile => Path.Combine(RepoRoot, "tools", "preview", "run.json");
         public int GridN => mode == "single" ? 1 : 4;
         public int Frames => (int)Math.Round(seconds * fps);
@@ -42,6 +58,8 @@ namespace VfxPreview
         public static PreviewOptions Load()
         {
             var o = File.Exists(RunFile) ? JsonConvert.DeserializeObject<PreviewOptions>(File.ReadAllText(RunFile)) : new PreviewOptions();
+            var t = Arg("-vfxTargets");
+            if (!string.IsNullOrEmpty(t)) o.targets = Path.GetFullPath(Path.Combine(RepoRoot, t));
             o.targets ??= Path.Combine(RepoRoot, "tools", "preview", "targets.json");
             return o;
         }
