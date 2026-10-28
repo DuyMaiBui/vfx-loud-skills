@@ -16,7 +16,8 @@
     "graph:build": "node seed/graph/build.ts",
     "recolor": "node seed/recolor.ts",
     "recolor:validate": "node seed/recolor-validate.ts",
-    "corpus:sha": "node seed/corpus-sha.ts"
+    "corpus:sha": "node seed/corpus-sha.ts",
+    "previews:gif": "node seed/preview-gif-ingest.ts"
   },
   "keywords": [],
   "author": "",

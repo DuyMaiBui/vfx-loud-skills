@@ -11,7 +11,8 @@ import { searchDocument } from './search-doc.ts';
 import { candidateFilter, FilterError, normalizeFilters, type FacetFilters } from './facet-query.ts';
 import { ranking } from './rank.ts';
 import { VfxError } from './errors.ts';
-import { W_GRAPH, GRAPH, graphBonus, keyOf, pairsOf, variantsOf, type PairsWith, type Variant } from './graph.ts';
+import { W_GRAPH, GRAPH, canonicalSlugs, graphBonus, keyOf, pairsOf, variantsOf, type PairsWith, type Variant } from './graph.ts';
+import { gifCards, type CardGif } from './preview-gif.ts';
 import type { Facets } from './facets.ts';
 
 export { aiTrainingAllowed, licenseClassOf, VfxError };
@@ -68,6 +69,12 @@ export interface Card {
   behavior: string | null;
   license: string;
   preview_uri: string | null;
+  /**
+   * DB-stored animated GIF (`preview_gif`, served at `/previews/<slug>.gif`): the always-loadable preview a card
+   * grid shows, with the pixel size so the grid never reflows. null = this effect has no GIF encoded yet.
+   * When set and the record has no preview_uri of its own, `preview_uri` carries the same absolute URL.
+   */
+  gif: CardGif | null;
   /**
    * true when recolouring the family base reproduces every real colour variant (graph:build verdict
    * `good`), so a recolour is a substitute for fetching one. false = fetch the real variant. null = a
@@ -151,6 +158,7 @@ function toCard(row: ResourceRow): Card {
     behavior: typeof row.meta?.behavior === 'string' ? row.meta.behavior : null,
     license: row.license,
     preview_uri: row.preview_uri,
+    gif: null,
     recolorable: typeof row.meta?.recolorable === 'boolean' ? row.meta.recolorable : null,
     recolorReason: typeof row.meta?.recolorReason === 'string' ? row.meta.recolorReason : null,
     pack: typeof row.meta?.pack === 'string' ? row.meta.pack : null,
@@ -228,7 +236,24 @@ export async function search(args: SearchArgs): Promise<Card[]> {
     if (collapse && fam) cards[i].variants = [...(variants.get(fam) ?? [])].sort((a, b) => Number(b.uri === x.uri) - Number(a.uri === x.uri)).slice(0, GRAPH.maxVariants);
     cards[i].pairsWith = pairs.get(x.id) ?? [];
   });
+  await attachGifs(cards);
   return cards;
+}
+
+/**
+ * Fill `card.gif` from the DB, one query for the whole page. A card whose own slug has no GIF falls back to the
+ * canonical slug of its variant family — the same fallback the disk preview uses, so a recolour still shows a
+ * moving preview of the effect it was derived from.
+ */
+async function attachGifs(cards: Card[]): Promise<void> {
+  if (!cards.length) return;
+  const canon = await canonicalSlugs(cards.map((c) => c.uri));
+  const gifs = await gifCards(cards.map((c) => ({ uri: c.uri, canonicalSlug: canon.get(c.uri) })));
+  for (const c of cards) {
+    c.gif = gifs.get(c.uri) ?? null;
+    // Backward compatible: preview_uri has always been NULL; a client that only reads it now gets the GIF.
+    if (c.gif && !c.preview_uri) c.preview_uri = c.gif.url;
+  }
 }
 
 /** Cards for the given URIs, in the given order (variants NOT collapsed: each URI is its own card, family shown in `variants`). */
@@ -248,6 +273,7 @@ export async function cardsByUris(uris: string[]): Promise<Card[]> {
     if (fam) cards[i].variants = [...(variants.get(fam) ?? [])].sort((a, b) => Number(b.uri === x.uri) - Number(a.uri === x.uri)).slice(0, GRAPH.maxVariants);
     cards[i].pairsWith = pairs.get(x.id) ?? [];
   });
+  await attachGifs(cards);
   return cards;
 }
 

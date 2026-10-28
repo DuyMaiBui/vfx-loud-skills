@@ -1,11 +1,31 @@
 import fs from 'node:fs';
 import Fastify from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { config } from './config.ts';
 import { facets } from './facet-search.ts';
+import { gifBySlug, GIF_MIME } from './preview-gif.ts';
+import { parseRange, PREVIEW_GIF_RE, PREVIEW_MIME, previewPath } from './previews.ts';
 import { recolorRecord, type RecolorRequest } from './recolor-service.ts';
-import { parseRange, PREVIEW_MIME, previewPath } from './previews.ts';
 import * as review from './review.ts';
 import * as store from './store.ts';
+
+/**
+ * `<slug>.gif` from the DB. The URL is not content-addressed (a re-render replaces the bytes under the same slug), so
+ * it is revalidated like the webm: short max-age plus a sha256 ETag, which makes the common case a 304.
+ */
+async function sendGif(req: FastifyRequest<{ Params: { file: string } }>, reply: FastifyReply): Promise<unknown> {
+  const name = req.params.file;
+  const row = PREVIEW_GIF_RE.test(name) ? await gifBySlug(name.slice(0, -'.gif'.length)) : null;
+  if (!row) return reply.code(404).send({ error: 'not found', code: 'not_found' });
+  const etag = `"${row.sha256}"`;
+  reply.header('content-type', GIF_MIME);
+  reply.header('cache-control', 'public, max-age=300, must-revalidate');
+  reply.header('etag', etag);
+  reply.header('last-modified', new Date(row.updatedAt).toUTCString());
+  if (req.headers['if-none-match'] === etag) return reply.code(304).send();
+  reply.header('content-length', String(row.gif.length));
+  return reply.send(row.gif);
+}
 
 export async function buildHttp(): Promise<Fastify.FastifyInstance> {
   const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'info' } });
@@ -109,10 +129,13 @@ export async function buildHttp(): Promise<Fastify.FastifyInstance> {
   });
 
   /**
-   * Preview media from data/previews. Only flat `<slug>.webm|webp` names resolve (previewPath is the traversal guard);
-   * single-range requests get 206 so <video> can seek; ETag/Last-Modified allow 304.
+   * Preview media. A `.gif` is answered from the DB (`preview_gif`): that copy is the one that travels with the
+   * row. Everything else comes from data/previews — only flat `<slug>.webm|webp` names resolve (previewPath is
+   * the traversal guard); single-range requests get 206 so <video> can seek; ETag/Last-Modified allow 304.
    */
   app.get<{ Params: { file: string } }>('/previews/:file', async (req, reply) => {
+    if (req.params.file.endsWith('.gif')) return sendGif(req, reply);
+
     const abs = previewPath(req.params.file);
     if (!abs) return reply.code(404).send({ error: 'not found', code: 'not_found' });
     let st: fs.Stats;

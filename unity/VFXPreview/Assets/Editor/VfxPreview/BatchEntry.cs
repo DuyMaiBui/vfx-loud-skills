@@ -9,8 +9,9 @@ using UnityEngine.Rendering;
 
 namespace VfxPreview
 {
-    /// <summary>Headless driver: -executeMethod VfxPreview.BatchEntry.Run [-packs a,b,c]. Queues PackImporter for the given
-    /// packs, then starts PreviewRunner, waits for _status.json state=done and exits the Editor (0 ok, 1 failed targets, 2 timeout).
+    /// <summary>Headless driver: -executeMethod VfxPreview.BatchEntry.Run [-packs a,b,c] [-skipGifIngest]. Queues PackImporter for the given
+    /// packs, then starts PreviewRunner, waits for _status.json state=done, encodes the fresh webm files into the VFX Cloud DB as GIFs
+    /// (node seed/preview-gif-ingest.ts) and exits the Editor (0 ok, 1 failed targets, 2 timeout).
     /// Stage lives in Library/ so it survives the domain reloads pack imports cause.</summary>
     [InitializeOnLoad]
     static class BatchEntry
@@ -20,6 +21,7 @@ namespace VfxPreview
         static readonly string ImportFile = Path.Combine(Lib, "VfxPreviewImport.json");
         static readonly string StatusFile = Path.Combine(PreviewOptions.PreviewDir, "_status.json");
         const double TimeoutMin = 120;
+        const int IngestTimeoutMs = 10 * 60 * 1000;
 
         sealed class Stage { public string stage; public long startedAt, runStartedAt; }
         static bool _hooked;
@@ -136,8 +138,40 @@ namespace VfxPreview
         static void Quit(int code, string msg)
         {
             Debug.Log($"[BatchEntry] exit {code}: {msg}");
+            if (code != 2) IngestGifs(); // 2 = the render never finished: there is nothing new to encode
             File.Delete(StageFile);
             EditorApplication.Exit(code);
+        }
+
+        /// <summary>Last step of a render: node seed/preview-gif-ingest.ts encodes data/previews/*.webm into the DB (idempotent by content hash,
+        /// so unchanged previews cost nothing). Best effort: a failure is logged and never changes the render's exit code; the same work is
+        /// `npm run previews:gif` from the repo root.</summary>
+        static void IngestGifs()
+        {
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-skipGifIngest") >= 0) { Debug.Log("[BatchEntry] gif ingest skipped (-skipGifIngest)"); return; }
+            try
+            {
+                var repo = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", ".."));
+                var psi = new System.Diagnostics.ProcessStartInfo("node", "seed/preview-gif-ingest.ts --json")
+                {
+                    WorkingDirectory = repo, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
+                };
+                using (var p = System.Diagnostics.Process.Start(psi)!)
+                {
+                    var stdout = p.StandardOutput.ReadToEndAsync();
+                    var stderr = p.StandardError.ReadToEndAsync();
+                    if (!p.WaitForExit(IngestTimeoutMs)) { p.Kill(); Debug.LogWarning("[BatchEntry] gif ingest timed out and was killed; run `npm run previews:gif`"); return; }
+                    var last = "";
+                    foreach (var line in stdout.Result.Split('\n')) if (line.TrimStart().StartsWith("{")) last = line;
+                    if (last.Length > 0)
+                    {
+                        var j = JObject.Parse(last);
+                        Debug.Log($"[BatchEntry] gif ingest exit {p.ExitCode}: stored={(int)j["stored"]} unchanged={(int)j["unchanged"]} skipped={(int)j["skipped"]} failed={(int)j["failed"]}");
+                    }
+                    else Debug.LogWarning($"[BatchEntry] gif ingest exit {p.ExitCode}, no summary: {stderr.Result.Trim()}");
+                }
+            }
+            catch (Exception e) { Debug.LogWarning("[BatchEntry] gif ingest not run (" + e.Message + "); run `npm run previews:gif`"); }
         }
 
         static void Static(Type t, string field, object v) =>

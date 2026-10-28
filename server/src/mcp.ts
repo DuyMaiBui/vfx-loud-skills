@@ -46,6 +46,7 @@ export function createMcpServer(): McpServer {
         'Biến thể cùng một effect (khác màu/version) được GỘP thành MỘT card: `variants: [{uri, colors, name}]` liệt kê tất cả (gồm chính card); ' +
         'đặt `collapseVariants: false` để mỗi record là một card riêng. ' +
         '`pairsWith: [{uri, name, category}]` là các effect cùng bộ (vd muzzle + projectile + impact của cùng một loại vũ khí) — gợi ý dùng kèm sau khi user chọn. ' +
+        '`gif: {url, width, height, frames, fps, bytes, viaFamily}` (null nếu chưa có) là preview động lưu trong DB: mở được bằng mọi trình xem ảnh; `preview_uri` = cùng URL đó. ' +
         'Xem thêm hàng xóm trong graph bằng vfx_related. ' +
         'Không chắc user muốn gì? Gọi vfx_facets trước để hỏi đúng câu.',
       inputSchema: {
@@ -265,7 +266,7 @@ export function createMcpServer(): McpServer {
     {
       title: 'Open a visual review page for candidates',
       description:
-        'Tạo phiên REVIEW để user xem các ứng viên dạng lưới card (video preview lặp nếu có, hành vi, màu, cùng bộ) và bấm chọn. ' +
+        'Tạo phiên REVIEW để user xem các ứng viên dạng lưới card (GIF preview lặp từ DB nếu có, hành vi, màu, cùng bộ) và bấm chọn. ' +
         'Dùng khi user muốn SO SÁNH bằng mắt, hoặc xin cả BỘ skill (vd "bộ lửa: muzzle, projectile, impact"). ' +
         'Input: `uris` (danh sách vfx:// đã chọn tay) HOẶC `q` (+ `type`, `filters`) — `set: ["muzzle","projectile","impact"]` chia thành cột theo role (category), ' +
         'mỗi role top `per` ứng viên, effect cùng bộ (pairs_with) nằm cùng hàng. Trả `{session, url, count}`: đưa `url` cho user, ' +
