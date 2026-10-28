@@ -7,7 +7,10 @@ import {
   BUILTIN_NAMES,
   builtinName,
   classifyGuid,
+  isDangling,
   isBuiltinGuid,
+  loadDanglingGuids,
+  DANGLING_GUID_MAP_PATH,
   loadPackageGuids,
   PACKAGE_GUID_MAP_PATH,
   scanRefs,
@@ -128,4 +131,27 @@ test('loadPackageGuids refuses a malformed map: package entry without a package 
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('isDangling: a guid in the map, referenced only by files of the packs the map names', () => {
+  const map = new Map([[SCRIPT, { packs: ['studio-game-vfx', 'retro-arsenal'] }]]);
+  assert.equal(isDangling(SCRIPT, [{ pack: 'retro-arsenal' }], map), true);
+  assert.equal(isDangling(SCRIPT, [{ pack: 'retro-arsenal' }, { pack: 'studio-game-vfx' }], map), true);
+  assert.equal(isDangling(TEX, [{ pack: 'retro-arsenal' }], map), false, 'not in the map');
+  assert.equal(isDangling(SCRIPT, [{ pack: 'namufx-stylized-water' }], map), false, 'a pack the map does not name (partial source)');
+  assert.equal(isDangling(SCRIPT, [{ pack: 'retro-arsenal' }, { pack: 'namufx-stylized-water' }], map), false, 'one unswept referrer keeps it an error');
+  assert.equal(isDangling(SCRIPT, [{ pack: null }], map), false, 'a referrer that is not a shipped pack file (resource root) keeps it an error');
+  assert.equal(isDangling(SCRIPT, [], map), false, 'no referrer');
+});
+
+test('the committed dangling map loads and validates; a malformed one throws', () => {
+  const m = loadDanglingGuids(DANGLING_GUID_MAP_PATH);
+  for (const [guid, e] of m) {
+    assert.match(guid, /^[0-9a-f]{32}$/);
+    assert.ok(e.packs.length > 0);
+    assert.equal(classifyGuid(guid, loadPackageGuids()).kind, 'unresolved', `${guid} must not also be a package/builtin guid`);
+  }
+  const bad = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'dangling-')), 'm.json');
+  fs.writeFileSync(bad, JSON.stringify({ version: 1, entries: { nope: { packs: [] } } }));
+  assert.throws(() => loadDanglingGuids(bad), /dangling-guids\.json invalid/);
 });

@@ -94,6 +94,41 @@ export function loadPackageGuids(file: string = PACKAGE_GUID_MAP_PATH): Map<stri
   return new Map(Object.entries(parsed.data.entries));
 }
 
+export const DANGLING_GUID_MAP_PATH = path.join(here, 'dangling-guids.json');
+
+const DanglingEntry = z.strictObject({ packs: z.array(z.string().min(1)).min(1) });
+export type DanglingEntry = z.infer<typeof DanglingEntry>;
+
+/**
+ * Committed map of GUIDs that are referenced by shipped files but defined in no readable source although every
+ * complete source of the referencing pack was swept (written by the uploader, `--dangling-map`). `packs` lists the
+ * packs whose files reference the guid: only those packs were fully swept for it.
+ */
+export const DanglingGuidMapSchema = z.strictObject({
+  version: z.literal(1),
+  entries: z.record(Guid, DanglingEntry),
+});
+
+export function loadDanglingGuids(file: string = DANGLING_GUID_MAP_PATH): Map<string, DanglingEntry> {
+  const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as unknown;
+  const parsed = DanglingGuidMapSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(`dangling-guids.json invalid: ${parsed.error.issues.map((i) => i.message).join('; ')}`);
+  }
+  return new Map(Object.entries(parsed.data.entries));
+}
+
+/**
+ * True iff `guid` is in the dangling map and EVERY referrer is a shipped pack file of a pack the entry names.
+ * A referrer with `pack: null` (a resource root, a recipe prefab, anything not a shipped pack file) or a pack the
+ * map does not name keeps the guid an error: roots never dangle.
+ */
+export function isDangling(guid: string, referrers: Array<{ pack: string | null }>, map: Map<string, DanglingEntry>): boolean {
+  const entry = map.get(guid);
+  if (!entry || referrers.length === 0) return false;
+  return referrers.every((r) => r.pack !== null && entry.packs.includes(r.pack));
+}
+
 export type GuidClass =
   | { kind: 'builtin'; name: string; package: null; version: null }
   | { kind: 'package'; name: string; package: string; version: string | null }

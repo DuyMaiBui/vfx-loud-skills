@@ -47,6 +47,23 @@ test('a bundle whose file_count disagrees with files, or that is complete with u
   assert.equal(BundleSchema.safeParse(unresolved).success, false, 'complete true with unresolved');
 });
 
+test('dangling is a required array of {guid, referenced_by}; a complete bundle may carry it, a guid is never both dangling and unresolved', () => {
+  const missing = clone(fixture('bundle-sample.json')) as Record<string, unknown>;
+  delete missing.dangling;
+  assert.equal(BundleSchema.safeParse(missing).success, false, 'dangling is always present (C4 null semantics)');
+  const ok = clone(fixture('bundle-sample.json')) as { dangling: unknown[]; complete: boolean };
+  ok.dangling = [{ guid: GUID, referenced_by: [GUID] }];
+  assert.equal(ok.complete, true);
+  assert.equal(BundleSchema.safeParse(ok).success, true, 'complete true with dangling is valid');
+  const both = clone(ok) as unknown as { unresolved: unknown[]; complete: boolean };
+  both.unresolved = [{ guid: GUID, referenced_by: [GUID] }];
+  both.complete = false;
+  assert.equal(BundleSchema.safeParse(both).success, false, 'same guid in dangling and unresolved');
+  const extra = clone(ok) as { dangling: Array<Record<string, unknown>> };
+  extra.dangling[0].paths = ['x'];
+  assert.equal(BundleSchema.safeParse(extra).success, false, 'strict entry');
+});
+
 test('reason set means files is empty and complete is false (C4)', () => {
   const b = clone(fixture('bundle-sample.json')) as Record<string, unknown>;
   b.reason = 'no_prefab';

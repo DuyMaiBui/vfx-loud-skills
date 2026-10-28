@@ -110,6 +110,7 @@
     }
   ],
   "unresolved": [],
+  "dangling": [],
   "cycles": [],
   "file_count": 5,
   "total_bytes": 84550

@@ -192,6 +192,12 @@ const RequireSchema = z
   });
 
 const UnresolvedSchema = z.strictObject({ guid: Guid, referenced_by: z.array(Guid) });
+/**
+ * C4 `dangling` entry: same shape as `unresolved`. A GUID a shipped file references that no readable source
+ * of the (fully swept) pack defines: the vendor pack has the same hole and Unity renders the slot empty.
+ * Non-blocking: it does not make the bundle incomplete.
+ */
+const DanglingSchema = z.strictObject({ guid: Guid, referenced_by: z.array(Guid) });
 
 /** C4 `Bundle`: the closure response. */
 export const BundleSchema = z
@@ -205,6 +211,7 @@ export const BundleSchema = z
     files: z.array(BundleFileSchema),
     requires: z.array(RequireSchema),
     unresolved: z.array(UnresolvedSchema),
+    dangling: z.array(DanglingSchema),
     cycles: z.array(z.array(Guid)),
     file_count: Count,
     total_bytes: Count,
@@ -213,6 +220,8 @@ export const BundleSchema = z
     const issue = (message: string, p: string): void => ctx.addIssue({ code: 'custom', path: [p], message });
     if (b.file_count !== b.files.length) issue('file_count must equal files.length', 'file_count');
     if (b.unresolved.length > 0 && b.complete) issue('unresolved entries make the bundle incomplete', 'complete');
+    const unresolvedGuids = new Set(b.unresolved.map((u) => u.guid));
+    if (b.dangling.some((d) => unresolvedGuids.has(d.guid))) issue('a guid is dangling or unresolved, never both', 'dangling');
     if (b.reason !== null && (b.files.length > 0 || b.complete)) issue('reason set: files is empty and complete is false', 'reason');
   });
 export type Bundle = z.infer<typeof BundleSchema>;

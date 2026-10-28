@@ -17,7 +17,7 @@ import { config } from './config.ts';
 import { pool } from './db.ts';
 import { VfxError } from './errors.ts';
 import * as store from './store.ts';
-import { classifyGuid, loadPackageGuids, scanRefs, type PackageEntry } from './unity-refs.ts';
+import { classifyGuid, isDangling, loadDanglingGuids, loadPackageGuids, scanRefs, type DanglingEntry, type PackageEntry } from './unity-refs.ts';
 
 const GUID_RE = /^[0-9a-f]{32}$/;
 
@@ -117,6 +117,7 @@ function emptyBundle(uri: string, variant: Variant, rootGuid: string | null, rea
     files: [],
     requires: [],
     unresolved: [],
+    dangling: [],
     cycles: [],
     file_count: 0,
     total_bytes: 0,
@@ -163,6 +164,7 @@ export async function buildBundle(
   uri: string,
   variant: Variant,
   packageMap: Map<string, PackageEntry> = loadPackageGuids(),
+  danglingMap: Map<string, DanglingEntry> = loadDanglingGuids(),
 ): Promise<Bundle> {
   const root = await store.getByUri(uri);
   const prefabGuid = prefabGuidOf(root);
@@ -206,11 +208,16 @@ export async function buildBundle(
   // ---- classify guids that are not shipped ----
   const requires = new Map<string, Bundle['requires'][number]>();
   const unresolved = new Map<string, Set<string>>();
+  const dangling = new Map<string, Set<string>>();
   for (const [guid, refSet] of referencedBy) {
     if (byGuid.has(guid)) continue;
     const cls = classifyGuid(guid, packageMap);
     const by = [...refSet].sort();
-    if (cls.kind === 'unresolved') unresolved.set(guid, refSet);
+    if (cls.kind === 'unresolved') {
+      // dangling only when every referrer is a shipped pack file; a root (resource file, the recipe prefab) is never a shipped pack file
+      const referrers = [...refSet].map((g) => ({ pack: byGuid.get(g)?.file.pack ?? null }));
+      (isDangling(guid, referrers, danglingMap) && guid !== prefabGuid ? dangling : unresolved).set(guid, refSet);
+    }
     else requires.set(guid, { guid, kind: cls.kind, name: cls.name, package: cls.package, version: cls.version, referenced_by: by });
   }
 
@@ -263,6 +270,7 @@ export async function buildBundle(
     files,
     requires: [...requires.values()].sort((a, b) => (a.guid < b.guid ? -1 : 1)),
     unresolved: [...unresolved].sort(([a], [b]) => (a < b ? -1 : 1)).map(([guid, by]) => ({ guid, referenced_by: [...by].sort() })),
+    dangling: [...dangling].sort(([a], [b]) => (a < b ? -1 : 1)).map(([guid, by]) => ({ guid, referenced_by: [...by].sort() })),
     cycles,
     file_count: files.length,
     total_bytes: files.reduce((s, f) => s + f.bytes + f.meta_bytes, 0),

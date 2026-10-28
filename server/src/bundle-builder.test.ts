@@ -10,7 +10,7 @@ import { registerFiles } from './blob-store-register.ts';
 import { putBlob } from './blob-store.ts';
 import { assertScratchDb } from './test-fixtures/scratch-db.ts';
 import * as store from './store.ts';
-import type { PackageEntry } from './unity-refs.ts';
+import type { DanglingEntry, PackageEntry } from './unity-refs.ts';
 
 assertScratchDb();
 
@@ -222,4 +222,45 @@ test('batch register: created / unchanged / replaced / rejected (conflict, forbi
   assert.equal((await app.inject({ method: 'POST', url: '/v1/asset-file/batch', headers: H, payload: { files: Array.from({ length: 501 }, () => base) } })).statusCode, 400);
   assert.equal((await app.inject({ method: 'POST', url: '/v1/asset-file/batch', headers: H, payload: {} })).json().code, 'invalid');
   await app.close();
+});
+
+const DANGLE = g('defined-nowhere');
+const danglingMap = (packs: string[]): Map<string, DanglingEntry> => new Map([[DANGLE, { packs }]]);
+
+test('a ref defined nowhere in a complete pack is dangling: complete stays true, unresolved is empty', async () => {
+  const d = g('dangle-prefab');
+  const dmat = g('dangle-mat');
+  const { results } = await registerFiles([
+    await upload({ name: 'D.mat', kind: 'material', body: yaml(T, DANGLE) }, dmat),
+    await upload({ name: 'D.prefab', kind: 'prefab', body: yaml(dmat, BUILTIN) }, d),
+  ]);
+  assert.deepEqual(results.map((r) => r.status), ['created', 'created']);
+  const b = await buildBundle(await recipe('bb-recipe-dangling', { prefabGuid: d }), 'urp', pkgMap, danglingMap(['bb-pack']));
+  assert.equal(BundleSchema.safeParse(b).success, true, JSON.stringify(BundleSchema.safeParse(b)));
+  assert.deepEqual(b.dangling, [{ guid: DANGLE, referenced_by: [dmat] }]);
+  assert.deepEqual(b.unresolved, []);
+  assert.equal(b.complete, true);
+  assert.equal(b.reason, null);
+  assert.equal(b.requires.some((r) => r.guid === DANGLE), false);
+});
+
+test('the same guid from a pack the dangling map does not name (partial folder source) stays unresolved', async () => {
+  const b = await buildBundle(await recipe('bb-recipe-dangling-partial', { prefabGuid: g('dangle-prefab') }), 'urp', pkgMap, danglingMap(['some-other-pack']));
+  assert.deepEqual(b.dangling, []);
+  assert.deepEqual(b.unresolved, [{ guid: DANGLE, referenced_by: [g('dangle-mat')] }]);
+  assert.equal(b.complete, false);
+});
+
+test('a dangling-map guid that is a ROOT stays an error (bytes_not_uploaded), never dangling', async () => {
+  const b = await buildBundle(await recipe('bb-recipe-dangling-root', { prefabGuid: DANGLE }), 'urp', pkgMap, danglingMap(['bb-pack']));
+  assert.equal(b.reason, 'bytes_not_uploaded');
+  assert.equal(b.complete, false);
+  assert.deepEqual(b.dangling, []);
+});
+
+test('every bundle shape carries a dangling array (empty by default)', async () => {
+  const b = await buildBundle(await recipe('bb-recipe-nodangling', { prefabGuid: P }), 'urp', pkgMap);
+  assert.deepEqual(b.dangling, []);
+  const none = await buildBundle(await recipe('bb-recipe-nodangling-nopref'), 'urp', pkgMap);
+  assert.deepEqual(none.dangling, []);
 });
