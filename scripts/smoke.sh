@@ -18,6 +18,9 @@ ok()   { PASS=$((PASS+1)); echo "  PASS  $1"; }
 bad()  { FAIL=$((FAIL+1)); echo "  FAIL  $1"; }
 step() { echo; echo "== $1"; }
 
+BLOB_ONLY=0
+[[ "${1:-}" == "--blob-only" ]] && BLOB_ONLY=1
+
 cd "$ROOT"
 
 step "0. server health"
@@ -26,6 +29,39 @@ if curl -fsS "$SERVER/healthz" >/dev/null; then
 else
   bad "server không sống ở $SERVER — chạy ./scripts/dev-db.sh rồi AUTH_DISABLED=1 npm start"
   echo; echo "RESULT: PASS=$PASS FAIL=$FAIL"; exit 1
+fi
+
+step "B. vfx-bytes/1 blob + bundle routes (needs VFX_API_KEY when the server has one)"
+KEY_H=(-H "x-vfx-key: ${VFX_API_KEY:-}")
+BODY="smoke blob $(date +%s%N)"
+BSHA="$(printf '%s' "$BODY" | sha256sum | awk '{print $1}')"
+BGUID="${BSHA:0:32}"
+code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+[[ "$(code -X PUT "${KEY_H[@]}" -H 'content-type: application/octet-stream' -H 'x-vfx-kind: material' --data-binary "$BODY" "$SERVER/v1/blob/$BSHA")" == "201" ]] \
+  && ok "PUT /v1/blob/:sha -> 201" || bad "PUT /v1/blob/:sha"
+[[ "$(curl -s "${KEY_H[@]}" -H 'content-type: application/json' -d "{\"sha256\":[\"$BSHA\"]}" "$SERVER/v1/blob/missing")" == '{"missing":[]}' ]] \
+  && ok "POST /v1/blob/missing -> []" || bad "POST /v1/blob/missing"
+[[ "$(code "${KEY_H[@]}" "$SERVER/v1/blob/$BSHA")" == "404" ]] \
+  && ok "GET orphan blob -> 404" || bad "GET orphan blob not 404"
+REG="$(curl -s "${KEY_H[@]}" -H 'content-type: application/json' -d "{\"files\":[{\"guid\":\"$BGUID\",\"variant\":\"original\",\"kind\":\"material\",\"path\":\"Assets/Smoke/probe.mat\",\"asset_sha256\":\"$BSHA\",\"meta_sha256\":null,\"pack\":\"smoke-probe\",\"license\":\"studio-internal\",\"visibility\":\"studio-only\",\"source\":{\"game\":null,\"origin\":\"smoke\"}}]}" "$SERVER/v1/asset-file/batch")"
+grep -q '"status":"created"' <<<"$REG" && ok "POST /v1/asset-file/batch -> created" || bad "POST /v1/asset-file/batch: $REG"
+[[ "$(curl -s "${KEY_H[@]}" "$SERVER/v1/blob/$BSHA")" == "$BODY" ]] \
+  && ok "GET /v1/blob/:sha -> same bytes" || bad "GET /v1/blob/:sha bytes differ"
+NOKEY="$(code "$SERVER/v1/blob/$BSHA")"
+[[ "$NOKEY" == "401" || "$NOKEY" == "403" ]] && ok "GET blob without key -> $NOKEY" || bad "GET blob without key -> $NOKEY (must never be 200)"
+[[ "$(code "${KEY_H[@]}" "$SERVER/v1/closure/recipe/probe-none/1")" == "404" ]] \
+  && ok "GET /v1/closure unknown -> 404" || bad "GET /v1/closure unknown not 404"
+PUBURI="$(curl -s "${KEY_H[@]}" -H 'content-type: application/json' -d "{\"type\":\"texture\",\"slug\":\"probe-blob-smoke\",\"name\":\"probe blob smoke\",\"license\":\"cc0\",\"b64\":\"$(printf 'png' | base64)\",\"fileName\":\"probe-blob-smoke.png\"}" "$SERVER/v1/publish" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{process.stdout.write(JSON.parse(s).uri||'')}catch{}})")"
+if [[ -n "$PUBURI" ]]; then
+  CL="$(curl -s "${KEY_H[@]}" "$SERVER/v1/closure/${PUBURI#vfx://}")"
+  grep -q '"schema":"vfx-bundle/1"' <<<"$CL" && grep -q '"file_count":1' <<<"$CL" && ok "GET /v1/closure -> vfx-bundle/1 with the root file" || bad "GET /v1/closure: ${CL:0:200}"
+else
+  bad "POST /v1/publish (probe texture) failed"
+fi
+
+if [[ $BLOB_ONLY -eq 1 ]]; then
+  echo; echo "RESULT: PASS=$PASS FAIL=$FAIL"
+  [[ $FAIL -eq 0 ]]; exit $?
 fi
 
 step "G1. claude mcp add --transport http"
@@ -121,6 +157,7 @@ import('./server/src/store.ts').then(async (s) => {
 step "cleanup canary"
 podman exec vfx-pg psql -U vfx -d vfxcloud -tAc "DELETE FROM resource WHERE slug LIKE 'probe-%' OR slug = 'smoke-unknown-license'" >/dev/null 2>&1 \
   && ok "đã dọn probe rows" || echo "  (bỏ qua: không gọi được psql)"
+podman exec vfx-pg psql -U vfx -d vfxcloud -tAc "DELETE FROM asset_file WHERE pack = 'smoke-probe'" >/dev/null 2>&1 || true
 if [[ -n "${REVIEW_SESSION:-}" ]]; then
   podman exec vfx-pg psql -U vfx -d vfxcloud -tAc "DELETE FROM review_session WHERE id = '$REVIEW_SESSION'" >/dev/null 2>&1 \
     && ok "đã dọn review session" || echo "  (bỏ qua: không xoá được review session $REVIEW_SESSION)"
