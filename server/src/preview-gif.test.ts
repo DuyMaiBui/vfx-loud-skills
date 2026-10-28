@@ -232,7 +232,7 @@ test('cards expose gif (and preview_uri) when the slug has one, null otherwise',
 });
 
 test('a variant without its own GIF borrows its family canonical one, flagged viaFamily', async () => {
-  const famQuery = (): ReturnType<typeof pool.query<{ uri: string; canon: string }>> => pool.query<{ uri: string; canon: string }>(
+  const famQuery = (): Promise<import('pg').QueryResult<{ uri: string; canon: string }>> => pool.query<{ uri: string; canon: string }>(
     `SELECT r.uri, (SELECT c.slug FROM resource c WHERE c.meta->>'family' = r.meta->>'family' ORDER BY c.slug, c.version LIMIT 1) AS canon
        FROM resource r
       WHERE r.type = 'recipe' AND r.meta->>'family' IS NOT NULL
