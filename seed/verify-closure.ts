@@ -9,6 +9,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createClient, ServerUnavailableError } from './upload/client.ts';
+import { incompleteByDesignPacks, recordClosure } from './closure-record.ts';
 import { verifyClosures, type RecipeRef, type VerifyReport } from './upload/verify.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -20,7 +21,7 @@ export const HELP = `usage: verify-closure.ts (--slugs a,b@2 | --sample N | --al
   --sample N        N recipes (evenly spread over the extracted recipes)
   --all             every extracted recipe with a prefab
   --variant urp|original   (default urp)
-  --record          upsert preview_render(state='failed', cause='closure-unresolved') for incomplete slugs with a prefab; clears that row for checked slugs now complete
+  --record          upsert preview_render(state='failed', cause='closure-unresolved') for incomplete slugs with a prefab (never over an unfixable-* row, nor an ok render of an incomplete-by-design pack); clears that row for checked slugs now complete
                     (dangling GUIDs are a warning in the report, never incomplete)
   --out <file>      report path (default data/reports/closure-verify.json)
   --json            one-line JSON summary on stdout
@@ -113,18 +114,8 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
       const undecided = new Set([...report.incomplete.map((i) => i.slug), ...report.errors.map((e) => e.slug)]);
       const cleared = recipes.map((r) => r.slug).filter((slug) => !undecided.has(slug));
       const runId = `verify-${new Date().toISOString()}`;
-      await withDb(false, async (q) => {
-        for (const r of rows) {
-          await q(
-            `INSERT INTO preview_render (slug, state, cause, detail, shaders, run_id, rendered_at)
-             VALUES ($1, 'failed', 'closure-unresolved', $2, '{}', $3, now())
-             ON CONFLICT (slug) DO UPDATE SET state = 'failed', cause = 'closure-unresolved', detail = EXCLUDED.detail,
-               shaders = '{}', run_id = EXCLUDED.run_id, rendered_at = EXCLUDED.rendered_at`,
-            [r.slug, `${r.reason}: ${r.unresolved.slice(0, 8).join(',')}`, runId],
-          );
-        }
-        await q(`DELETE FROM preview_render WHERE state = 'failed' AND cause = 'closure-unresolved' AND slug = ANY($1)`, [cleared]);
-      });
+      const rec = await withDb(false, (q) => recordClosure(q, rows, cleared, runId, incompleteByDesignPacks()));
+      for (const p of rec.protectedSlugs) console.error(`record: kept ${p.slug} (${p.why})`);
     }
     const line = { checked: report.checked, complete: report.complete, incomplete: report.incomplete.length, sha_mismatch: report.sha_mismatch.length, errors: report.errors.length, dangling_recipes: report.dangling.length, dangling_guids: new Set(report.dangling.flatMap((d) => d.guids)).size, report: out };
     console.log(values.json ? JSON.stringify(line) : `checked ${line.checked}, complete ${line.complete}, incomplete ${line.incomplete}, sha mismatch ${line.sha_mismatch}, errors ${line.errors}, dangling ${line.dangling_guids} guid(s) in ${line.dangling_recipes} recipe(s) -> ${out}`);
