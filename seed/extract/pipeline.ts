@@ -6,6 +6,7 @@ import { folderSetSource, tarSource, type PackageSource } from './source.ts';
 import { enrichExtracted } from './enrich.ts';
 import { buildRecipe, SkipError, type PackInfo } from './recipe.ts';
 import { buildNestedReport, isNestedOutcome, type NestedEntry } from './nested.ts';
+import { unfixableScriptsFor, type UnfixableEntry } from './unfixable-scripts.ts';
 
 export interface PackConfig extends PackInfo {
   slug: string;
@@ -53,6 +54,8 @@ export interface ExtractOptions {
   onlyGuids?: Set<string>;
   /** Prefab assets above this many bytes are skipped with a logged reason. */
   maxPrefabBytes?: number;
+  /** Recipes to skip as `unfixable-script` (from `unfixable-scripts.json`); only entries of this pack apply. */
+  unfixableScripts?: UnfixableEntry[];
   log?: (line: string) => void;
 }
 
@@ -289,6 +292,7 @@ export async function extractPack(opts: ExtractOptions): Promise<PackSummary> {
   };
   const nestedEntries: NestedEntry[] = [];
   const seenGuids = new Set<string>();
+  const unfixable = new Map((opts.unfixableScripts ?? []).filter((u) => u.pack === pack.slug).map((u) => [u.prefabGuid, u]));
   const skip = (guid: string, code: string, reason: string): void => {
     const prefabPath = selectedGuids.get(guid) ?? '';
     skipped.push({ pack: pack.name, prefabPath, prefabGuid: guid, code, reason });
@@ -307,7 +311,15 @@ export async function extractPack(opts: ExtractOptions): Promise<PackSummary> {
     const prefabPath = selectedGuids.get(guid) as string;
     const started = performance.now();
     try {
-      const built = buildRecipe(e.data.toString('utf8'), pack, { path: prefabPath, guid }, ctx);
+      const text = e.data.toString('utf8');
+      const bad = unfixableScriptsFor(unfixable.get(guid), text);
+      if (bad) {
+        // A re-run must reproduce the skip: drop a record an earlier run wrote for this slug.
+        const stale = path.join(outDir, slugs.get(guid) as string);
+        for (const ext of ['.yaml', '.json']) await fs.rm(`${stale}${ext}`, { force: true });
+        throw new SkipError(bad.cause, `prefab needs game script(s) not shipped in bundles and renders nothing without: ${bad.scripts.map((s) => s.name).join(', ')}`);
+      }
+      const built = buildRecipe(text, pack, { path: prefabPath, guid }, ctx);
       const slug = slugs.get(guid) as string;
       const recordName = `${built.prefabName} (${pack.name})`;
       const en = enrichExtracted({

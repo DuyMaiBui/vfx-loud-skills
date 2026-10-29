@@ -264,3 +264,30 @@ test('every bundle shape carries a dangling array (empty by default)', async () 
   const none = await buildBundle(await recipe('bb-recipe-nodangling-nopref'), 'urp', pkgMap);
   assert.deepEqual(none.dangling, []);
 });
+
+const GAME_CS = g('game-script');
+const strippedMap = (packs: string[]): Map<string, DanglingEntry> => new Map([[GAME_CS, { packs, stripped: true }]]);
+
+test('a stripped game script is not shipped even though its row exists: dangling, complete stays true', async () => {
+  const p = g('stripped-prefab');
+  const { results } = await registerFiles([
+    await upload({ name: 'Game.cs', kind: 'script', body: Buffer.from('class GameView {}\n') }, GAME_CS),
+    await upload({ name: 'Stripped.prefab', kind: 'prefab', body: yaml(GAME_CS, BUILTIN) }, p),
+  ]);
+  assert.deepEqual(results.map((r) => r.status), ['created', 'created']);
+  const uri = await recipe('bb-recipe-stripped', { prefabGuid: p });
+  // without the flag the script ships like any other file (the map entry is what strips it)
+  const shipped = await buildBundle(uri, 'urp', pkgMap, new Map([[GAME_CS, { packs: ['bb-pack'] }]]));
+  assert.equal(shipped.files.some((f) => f.guid === GAME_CS), true);
+  const b = await buildBundle(uri, 'urp', pkgMap, strippedMap(['bb-pack']));
+  assert.equal(BundleSchema.safeParse(b).success, true, JSON.stringify(BundleSchema.safeParse(b)));
+  assert.equal(b.files.some((f) => f.kind === 'script'), false);
+  assert.equal(b.files.some((f) => f.guid === p), true);
+  assert.deepEqual(b.dangling, [{ guid: GAME_CS, referenced_by: [p] }]);
+  assert.deepEqual(b.unresolved, []);
+  assert.equal(b.complete, true);
+  assert.equal(b.reason, null);
+  // an entry naming another pack never strips this pack's script
+  const other = await buildBundle(uri, 'urp', pkgMap, strippedMap(['some-other-pack']));
+  assert.equal(other.files.some((f) => f.guid === GAME_CS), true);
+});

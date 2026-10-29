@@ -335,3 +335,34 @@ test('CLI: --help lists the exit codes; usage errors exit 2', () => {
   assert.equal(run('--variant', 'urp').status, 2);
   assert.equal(run('--skip-kinds', 'nope').status, 2);
 });
+
+test('stripScripts: a game script of the pack is not shipped, its asmdefs are not pulled in, the guid is dangling + stripped', async () => {
+  const fx = await makeFixture();
+  const stub = await startStub();
+  try {
+    const packs = fx.packs.map((p) => ({ ...p, stripScripts: true }));
+    const c = await collectClosure(await buildSources(packs, fx.dir), ROOTS, { packageGuids: PACKAGE_GUIDS });
+    assert.deepEqual(c.files.map((f) => f.kind), ['prefab', 'material', 'audio', 'texture']);
+    assert.equal(c.files.some((f) => f.guid === GUID.script || f.guid === GUID.asm || f.guid === GUID.asm2), false);
+    assert.equal(c.unresolved.has(GUID.script), false, 'a stripped script is never unresolved');
+    assert.deepEqual([...c.dangling.keys()], [GUID.script]);
+    assert.deepEqual([...c.dangling.get(GUID.script)!.referencedBy], [GUID.prefab]);
+    assert.deepEqual([...c.dangling.get(GUID.script)!.packs], ['retro-arsenal']);
+    assert.equal(c.dangling.get(GUID.script)!.stripped, true);
+    // without the flag the script and both asmdefs ship (existing behaviour)
+    const plain = await collectClosure(await buildSources(fx.packs, fx.dir), ROOTS, { packageGuids: PACKAGE_GUIDS });
+    assert.equal(plain.files.some((f) => f.guid === GUID.script), true);
+    // the plan and the server map record it
+    const mapOut = path.join(await fs.mkdtemp(path.join(os.tmpdir(), 'vfx-dmap-')), 'dangling-guids.json');
+    const o = await opts({ ...fx, packs }, stub.url, { yes: false, danglingMapOut: mapOut });
+    await runUpload(o);
+    const plan = JSON.parse(await fs.readFile(path.join(o.outDir, 'plan.json'), 'utf8'));
+    assert.deepEqual(plan.files.filter((f: { guid: string }) => f.guid === GUID.script), []);
+    const map = JSON.parse(await fs.readFile(mapOut, 'utf8'));
+    assert.deepEqual(map.entries[GUID.script], { packs: ['retro-arsenal'], stripped: true });
+    assert.equal(loadDanglingGuids(mapOut).get(GUID.script)?.stripped, true);
+  } finally {
+    await stub.close();
+    await fx.cleanup();
+  }
+});

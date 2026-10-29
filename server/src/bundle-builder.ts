@@ -17,7 +17,7 @@ import { config } from './config.ts';
 import { pool } from './db.ts';
 import { VfxError } from './errors.ts';
 import * as store from './store.ts';
-import { classifyGuid, isDangling, loadDanglingGuids, loadPackageGuids, scanRefs, type DanglingEntry, type PackageEntry } from './unity-refs.ts';
+import { classifyGuid, isDangling, isStripped, loadDanglingGuids, loadPackageGuids, scanRefs, type DanglingEntry, type PackageEntry } from './unity-refs.ts';
 
 const GUID_RE = /^[0-9a-f]{32}$/;
 
@@ -193,7 +193,8 @@ export async function buildBundle(
     const wave = frontier;
     frontier = [];
     const r = await pool.query<FileRow>(`${FILE_SQL} WHERE f.guid = ANY($1)`, [wave]);
-    const chosen = chooseRows(r.rows, variant);
+    // a stripped game script is never shipped even when its row exists: it falls through to `dangling` below
+    const chosen = chooseRows(r.rows.filter((row) => !isStripped(row.guid, row.pack, danglingMap)), variant);
     for (const [guid, row] of chosen) {
       byGuid.set(guid, { key: guid, guid, file: toBundleFile(row), refs: row.refs });
       if (byGuid.size + resNodes.length > config.bundleMaxFiles) throw overflow(byGuid.size + resNodes.length);

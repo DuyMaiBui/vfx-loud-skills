@@ -96,7 +96,14 @@ export function loadPackageGuids(file: string = PACKAGE_GUID_MAP_PATH): Map<stri
 
 export const DANGLING_GUID_MAP_PATH = path.join(here, 'dangling-guids.json');
 
-const DanglingEntry = z.strictObject({ packs: z.array(z.string().min(1)).min(1) });
+const DanglingEntry = z.strictObject({
+  packs: z.array(z.string().min(1)).min(1),
+  /**
+   * True for a game script the pack ships WITHOUT (packs.json `stripScripts`): the file may exist in `asset_file`
+   * (uploaded earlier) but a bundle never carries it, so the reference reports as `dangling`, never `unresolved`.
+   */
+  stripped: z.literal(true).optional(),
+});
 export type DanglingEntry = z.infer<typeof DanglingEntry>;
 
 /**
@@ -116,6 +123,12 @@ export function loadDanglingGuids(file: string = DANGLING_GUID_MAP_PATH): Map<st
     throw new Error(`dangling-guids.json invalid: ${parsed.error.issues.map((i) => i.message).join('; ')}`);
   }
   return new Map(Object.entries(parsed.data.entries));
+}
+
+/** True iff `guid` is a stripped game script of `pack`: its file is never put in a bundle (see `DanglingEntry.stripped`). */
+export function isStripped(guid: string, pack: string, map: Map<string, DanglingEntry>): boolean {
+  const entry = map.get(guid);
+  return entry?.stripped === true && entry.packs.includes(pack);
 }
 
 /**

@@ -417,7 +417,7 @@ export async function runUpload(opts: UploadOptions): Promise<{ exitCode: number
     unresolved: [...(closure?.unresolved ?? [])].map(([guid, by]) => ({ guid, referenced_by: [...by].sort() })),
     dangling: [...(closure?.dangling ?? [])]
       .sort(([a], [b]) => (a < b ? -1 : 1))
-      .map(([guid, d]) => ({ guid, referenced_by: [...d.referencedBy].sort(), packs: [...d.packs].sort() })),
+      .map(([guid, d]) => ({ guid, referenced_by: [...d.referencedBy].sort(), packs: [...d.packs].sort(), ...(d.stripped ? { stripped: true } : {}) })),
     requires: [...(closure?.requires ?? [])].map(([guid, r]) => ({ guid, name: r.name, kind: r.kind, package: r.package, referenced_by: [...r.referencedBy].sort() })),
     roots_missing: closure?.rootsMissing ?? [],
     skipped: closure?.skipped ?? [],
@@ -428,7 +428,7 @@ export async function runUpload(opts: UploadOptions): Promise<{ exitCode: number
 
   if (opts.danglingMapOut) {
     if (!closure) throw new Error('--dangling-map needs variant original (the closure sweep)');
-    const entries = Object.fromEntries([...closure.dangling].sort(([a], [b]) => (a < b ? -1 : 1)).map(([g, d]) => [g, { packs: [...d.packs].sort() }]));
+    const entries = Object.fromEntries([...closure.dangling].sort(([a], [b]) => (a < b ? -1 : 1)).map(([g, d]) => [g, { packs: [...d.packs].sort(), ...(d.stripped ? { stripped: true as const } : {}) }]));
     await fs.writeFile(opts.danglingMapOut, `${JSON.stringify(DanglingGuidMapSchema.parse({ version: 1, entries }), null, 2)}\n`);
   }
 

@@ -23,6 +23,13 @@ export interface UploadPack extends PackConfig {
    * folder copy (namufx) must NOT set it: an absent file there may simply not have been copied.
    */
   completeSource?: boolean;
+  /**
+   * True when the pack's game C# is NOT shipped (it needs VContainer/UniTask/GameFoundation the target lacks): a
+   * `script` file of this pack is left out and its GUID reported `dangling` + `stripped`, so the prefabs that reference
+   * it still install (Unity shows a Missing script) and the bundle stays `complete`. Asmdefs are only ever pulled in
+   * by a shipped script, so none are shipped either.
+   */
+  stripScripts?: boolean;
 }
 
 export interface PackSource {
@@ -67,7 +74,7 @@ export interface Closure {
    * GUIDs shipped files reference that no readable source defines although every referencing pack is a
    * `completeSource` (non-blocking, C4 `dangling`). Never a root. `packs` = the referencing packs.
    */
-  dangling: Map<string, { referencedBy: Set<string>; packs: Set<string> }>;
+  dangling: Map<string, { referencedBy: Set<string>; packs: Set<string>; stripped?: true }>;
   /** Files skipped by --skip-kinds. */
   skipped: Array<{ guid: string; kind: Kind; path: string }>;
   /** Roots no source carries. */
@@ -181,6 +188,7 @@ export async function collectClosure(sources: PackSource[], roots: Root[], opts:
   const rootGuids = new Set(roots.map((r) => r.guid));
   // guid -> referencing file guid -> its pack; split into unresolved / dangling once every referrer is known
   const unknown = new Map<string, Map<string, string>>();
+  const strippedScripts = new Map<string, string>(); // game script guid -> its pack (not shipped)
   const seen = new Set<string>();
   let level: string[] = [];
   const enqueue = (guid: string): void => {
@@ -272,6 +280,10 @@ export async function collectClosure(sources: PackSource[], roots: Root[], opts:
         closure.skipped.push({ guid: rec.guid, kind: rec.kind, path: rec.path });
         continue;
       }
+      if (rec.kind === 'script' && sources[rec.sourceIndex].pack.stripScripts === true) {
+        strippedScripts.set(rec.guid, rec.pack);
+        continue;
+      }
       closure.files.push(rec);
       for (const ref of rec.refs) if (!note(ref, rec.guid, rec.pack)) enqueue(ref);
       if (rec.kind === 'script') {
@@ -280,6 +292,11 @@ export async function collectClosure(sources: PackSource[], roots: Root[], opts:
       }
     }
     log(`closure: level of ${current.length}, total ${closure.files.length} files`);
+  }
+  for (const [guid, pack] of strippedScripts) {
+    const by = closure.files.filter((f) => f.refs.includes(guid));
+    if (!by.length) continue;
+    closure.dangling.set(guid, { referencedBy: new Set(by.map((f) => f.guid)), packs: new Set([pack, ...by.map((f) => f.pack)]), stripped: true });
   }
   for (const [guid, by] of unknown) {
     const packs = new Set(by.values());

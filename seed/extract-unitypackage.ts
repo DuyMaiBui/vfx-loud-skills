@@ -13,6 +13,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { extractPack, folderSetSourceFor, type PackConfig } from './extract/pipeline.ts';
+import { loadUnfixableScripts } from './extract/unfixable-scripts.ts';
 import { folderSource, tarSource, type PackageSource } from './extract/source.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -81,6 +82,7 @@ async function main(): Promise<void> {
     pack,
     source,
     outDir: path.resolve(values.out),
+    unfixableScripts: loadUnfixableScripts(),
     limit,
     log: (l) => console.error(l),
   });

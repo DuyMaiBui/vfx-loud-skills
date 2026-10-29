@@ -1,0 +1,104 @@
+{
+  "note": "Recipes the extractor must NOT emit: the prefab references a game C# script (bundles ship without game code, see packs.json stripScripts) and renders nothing without it. cause is the contract's unfixable-script (plan.md C9/D21). Keyed by prefabGuid; slug/prefabPath are informational. Each entry's scripts[].guid must still appear in the prefab YAML or the extractor throws (stale list).",
+  "version": 1,
+  "entries": [
+    {
+      "slug": "studio-game-vfx-bg-top",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "12cd222d7ede4214c9aa09892859fe42",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Common/Prefabs/BgTop.prefab",
+      "scripts": [
+        {
+          "name": "AutoLocalization",
+          "guid": "3d9d6446e3254d9c92c4fc1069e39914"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "Unity render of the recipe without its game script(s) showed no-visible-output (data/reports/render-failures.json; plans/reports/261029-0904-game-cs-dependency.md class B)"
+    },
+    {
+      "slug": "studio-game-vfx-daily-reward-item-view",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "3c388d70237237d4a8bf245ebb0a3e3a",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Features/DailyReward/Prefabs/DailyRewardItemView.prefab",
+      "scripts": [
+        {
+          "name": "AutoLocalization",
+          "guid": "3d9d6446e3254d9c92c4fc1069e39914"
+        },
+        {
+          "name": "DailyRewardItemView",
+          "guid": "bc0f24554bd34ae9b9640742147ccf7a"
+        },
+        {
+          "name": "FlexibleLayoutGroup",
+          "guid": "9b50f904642f4bedb9bb33ca564ff93e"
+        },
+        {
+          "name": "TrueShadow",
+          "guid": "52c162dc854d2f24fa639ba0623de5ef"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "Unity render of the recipe without its game script(s) showed no-visible-output (data/reports/render-failures.json; plans/reports/261029-0904-game-cs-dependency.md class B)"
+    },
+    {
+      "slug": "studio-game-vfx-eff-wand-dissolve",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "fa60bcf624e809ab78fb3c350fa5f530",
+      "prefabPath": "Assets/_Game/RotateRing/Art/Vfx/eff_wand_dissolve.prefab",
+      "scripts": [
+        {
+          "name": "ShapeDissolveView",
+          "guid": "ee6044b60e10578e8acd8a1b5d977dcd"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "Unity render of the recipe without its game script(s) showed no-visible-output (data/reports/render-failures.json; plans/reports/261029-0904-game-cs-dependency.md class B)"
+    },
+    {
+      "slug": "studio-game-vfx-header-row-view",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "81239da4a00267e4997e0c28fe6d6d02",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Features/BattlePass/Prefabs/Rows/HeaderRowView.prefab",
+      "scripts": [
+        {
+          "name": "AutoLocalization",
+          "guid": "3d9d6446e3254d9c92c4fc1069e39914"
+        },
+        {
+          "name": "BattlePassInfoButton",
+          "guid": "f6be786715d2466cbf1bcb4d5264be01"
+        },
+        {
+          "name": "BattlePassPurchaseButton",
+          "guid": "34d87754752c49b8b705da6fb70d8b92"
+        },
+        {
+          "name": "HeaderRowView",
+          "guid": "34b960d261b04c13ad11299128fbbe01"
+        },
+        {
+          "name": "TrueShadow",
+          "guid": "52c162dc854d2f24fa639ba0623de5ef"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "Unity render of the recipe without its game script(s) showed no-visible-output (data/reports/render-failures.json; plans/reports/261029-0904-game-cs-dependency.md class B)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-firework-explosion",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "aac241f6d295c274fb0b11138ca4fc19",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Common/VFX/FxFirework/Prefabs/VFX_firework_explosion.prefab",
+      "scripts": [
+        {
+          "name": "PlayVibrationPreset",
+          "guid": "28e4d6b3ab364c29a1df763563e41b54"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "Unity render of the recipe without its game script(s) showed no-visible-output (data/reports/render-failures.json; plans/reports/261029-0904-game-cs-dependency.md class B)"
+    }
+  ]
+}

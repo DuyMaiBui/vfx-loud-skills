@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { assignSlugs, classifyPath, extractPack, folderSetSourceFor, type PackConfig } from './pipeline.ts';
+import type { UnfixableEntry } from './unfixable-scripts.ts';
 import { makeUnityPackage, materialYaml, prefabYaml, type FakeAsset } from './test-helpers.ts';
 
 const MAT = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -309,4 +310,34 @@ test('same guid in two games: the first copy that carries a ParticleSystem wins,
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }
+});
+
+test('unfixable-scripts: a listed prefab is skipped as unfixable-script, stale output removed, other prefabs untouched; a stale entry throws', async () => {
+  const SCRIPT = 'dddddddddddddddddddddddddddddddd';
+  const withScript = `${prefabYaml({ name: 'NeedsCode' }).toString()}\n--- !u!114 &9\nMonoBehaviour:\n  m_Script: {fileID: 11500000, guid: ${SCRIPT}, type: 3}\n`;
+  const assets: FakeAsset[] = [
+    { guid: '11111111111111111111111111111111', path: 'Assets/T/Prefabs/Boom.prefab', asset: prefabYaml({ name: 'Boom' }) },
+    { guid: '77777777777777777777777777777777', path: 'Assets/T/Prefabs/NeedsCode.prefab', asset: withScript },
+  ];
+  const entry = (script: string): UnfixableEntry => ({
+    slug: 'test-pack-needs-code', pack: PACK.slug, prefabGuid: '77777777777777777777777777777777', prefabPath: 'Assets/T/Prefabs/NeedsCode.prefab',
+    scripts: [{ name: 'NeedsCodeView', guid: script }], cause: 'unfixable-script', evidence: 'test',
+  });
+  await withPackage(assets, async (file, out) => {
+    const first = await extractPack({ pack: PACK, packageFile: file, outDir: out });
+    assert.deepEqual(first.records.map((r) => r.slug).sort(), ['test-pack-boom', 'test-pack-needs-code']);
+    const second = await extractPack({ pack: PACK, packageFile: file, outDir: out, unfixableScripts: [entry(SCRIPT)] });
+    assert.deepEqual(second.records.map((r) => r.slug), ['test-pack-boom']);
+    assert.deepEqual(second.skippedByReason, { 'unfixable-script': 1 });
+    const dir = path.join(out, PACK.slug);
+    assert.deepEqual((await fs.readdir(dir)).filter((f) => f.startsWith('test-pack-needs-code')), []);
+    assert.ok((await fs.readdir(dir)).includes('test-pack-boom.json'));
+    // an entry of another pack never applies
+    const other = await extractPack({ pack: PACK, packageFile: file, outDir: out, unfixableScripts: [{ ...entry(SCRIPT), pack: 'other' }] });
+    assert.equal(other.records.length, 2);
+    // the prefab no longer references the listed script: the list is stale, loud not silent
+    const stale = await extractPack({ pack: PACK, packageFile: file, outDir: out, unfixableScripts: [entry('eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee')] });
+    assert.deepEqual(stale.skippedByReason, { 'unexpected-error': 1 });
+    assert.match(stale.skipped[0].reason, /no longer references/);
+  });
 });
