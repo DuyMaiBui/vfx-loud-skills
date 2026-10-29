@@ -21,6 +21,8 @@ export interface EnrichInput {
   effectKinds?: string[];
   yaml: string;
   existingTags: string[];
+  /** The pack's source is complete (packs.json `completeSource: true`), so the stored bundle carries every referenced asset. */
+  bundleComplete: boolean;
 }
 
 export interface Enriched {
@@ -129,6 +131,9 @@ export function payloadFacts(yaml: string): PayloadFacts {
   return facts;
 }
 
+const BUNDLE_COMPLETE_NOTE = 'Fetch with vfx_fetch for the self-contained bundle (shaders, materials, textures, prefab).';
+const BUNDLE_PARTIAL_NOTE = 'Fetch with vfx_fetch for the bundle; this pack ships partial source, so some referenced assets are not in it.';
+
 const uniq = (xs: string[]): string[] => [...new Set(xs)];
 
 export function enrichExtracted(i: EnrichInput): Enriched {
@@ -165,7 +170,7 @@ export function enrichExtracted(i: EnrichInput): Enriched {
       : `${facts.nodes} particle node(s), ${facts.looping ? 'looping' : 'one-shot'}, ${facts.durationMax}s${facts.hasSubEmitters ? ', with sub-emitters' : ''}`;
   const description =
     `${what} ${i.kind === 'effect' ? 'effect' : 'VFX'} "${coreName(i.name)}" from ${i.vendor} ${i.packName}` +
-    ` (${style.join(', ') || 'unstyled'} style): ${shape}. Parameters only; assets are guid + path references.`;
+    ` (${style.join(', ') || 'unstyled'} style): ${shape}. ${i.bundleComplete ? BUNDLE_COMPLETE_NOTE : BUNDLE_PARTIAL_NOTE}`;
 
   const tags = uniq([
     ...i.existingTags.filter((t) => t !== 'particle' || i.kind === 'particle'),

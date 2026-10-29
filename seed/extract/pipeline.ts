@@ -23,6 +23,8 @@ export interface PackConfig extends PackInfo {
   /** Unity path of the folder root, e.g. "Assets/NamuFX". */
   pathPrefix?: string;
   license: string;
+  /** The source holds every asset the prefabs reference (read from packs.json, never hardcoded by slug). */
+  completeSource?: boolean;
   style: string[];
   tags: string[];
   /** When set, only prefabs under one of these path prefixes are eligible. */
@@ -332,6 +334,7 @@ export async function extractPack(opts: ExtractOptions): Promise<PackSummary> {
         effectKinds: built.effectKinds,
         yaml: built.yaml,
         existingTags: tagsFor(prefabPath, pack, built.kind),
+        bundleComplete: pack.completeSource === true,
       });
       // D8: when several game copies of this guid differ, say which bytes each carried.
       const gamesOfGuid = source.gamesOf?.(guid) ?? [];
