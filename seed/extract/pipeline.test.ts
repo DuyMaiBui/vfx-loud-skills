@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { assignSlugs, classifyPath, extractPack, folderSetSourceFor, type PackConfig } from './pipeline.ts';
-import type { UnfixableEntry } from './unfixable-scripts.ts';
+import { loadUnfixableScripts, type UnfixableEntry } from './unfixable-scripts.ts';
 import { makeUnityPackage, materialYaml, prefabYaml, type FakeAsset } from './test-helpers.ts';
 
 const MAT = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -340,4 +340,12 @@ test('unfixable-scripts: a listed prefab is skipped as unfixable-script, stale o
     assert.deepEqual(stale.skippedByReason, { 'unexpected-error': 1 });
     assert.match(stale.skipped[0].reason, /no longer references/);
   });
+});
+
+test('unfixable-scripts.json: parses, unique prefab guids and slugs, slugs belong to their pack, every cause is unfixable-script', () => {
+  const entries = loadUnfixableScripts();
+  assert.ok(entries.length > 0);
+  assert.equal(new Set(entries.map((e) => e.prefabGuid)).size, entries.length);
+  assert.equal(new Set(entries.map((e) => e.slug)).size, entries.length);
+  for (const e of entries) assert.ok(e.slug.startsWith(`${e.pack}-`), e.slug);
 });

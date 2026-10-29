@@ -1,5 +1,5 @@
 {
-  "note": "Recipes the extractor must NOT emit: the prefab references a game C# script (bundles ship without game code, see packs.json stripScripts) and renders nothing without it. cause is the contract's unfixable-script (plan.md C9/D21). Keyed by prefabGuid; slug/prefabPath are informational. Each entry's scripts[].guid must still appear in the prefab YAML or the extractor throws (stale list).",
+  "note": "Recipes the extractor must NOT emit because they render nothing without or with their scripts: (a) the prefab references a game C# script that bundles do not ship (packs.json stripScripts, D21); (b) the prefab's only emitters have their renderer off and rely on a com.coffee.ui-particle UIParticle component, which a plain preview/target project does not drive. cause is the contract's unfixable-script (plan.md C9/D21). Keyed by prefabGuid; slug/prefabPath are informational. Each entry's scripts[].guid must still appear in the prefab YAML or the extractor throws (stale list).",
   "version": 1,
   "entries": [
     {
@@ -57,6 +57,146 @@
       "evidence": "Unity render of the recipe without its game script(s) showed no-visible-output (data/reports/render-failures.json; plans/reports/261029-0904-game-cs-dependency.md class B)"
     },
     {
+      "slug": "studio-game-vfx-fog-frost",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "979cd8c5f2b39a843811eadfe5e0906d",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Common/VFX/VFX Snow/Prefabs/Fog_frost.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (fog:renderer-off, snowflakes:renderer-off, snow:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-fx-glow-04",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "ba092af8466324f4382fad5b9a9c48e4",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Common/VFX/GUI PRO Kit - Fantasy RPG/fx1/Fx_Glow_04.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Fx_Glow_04:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-fx-glow-05",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "0bb00f9658b6dbf43b1b6d4553d8595d",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Common/VFX/GUI PRO Kit - Fantasy RPG/fx1/Fx_Glow_05.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Fx_Glow_05:renderer-off, Fx_Dust:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-fx-icon-01",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "f8645bd2fc8ab434fab20656753217e9",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/VFX/FX_UI(URP)/Prefab/FX_ICON_01.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (FX_ICON_01:renderer-off, Ring:renderer-off, Icon:renderer-off, Lightning:renderer-off, Ring_Out:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-fx-snow",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "deda3f74b896bdb468e49c480336c0c4",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Common/VFX/GUI PRO Kit - Fantasy RPG/fx1/Fx_Snow.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Particle System:renderer-off, Particle System_1:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-fx-star",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "bbdb03749b464134f8c4db9454d91291",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Common/VFX/GUI PRO Kit - Fantasy RPG/fx1/Fx_Star.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Fx_Star:renderer-off, Fx_Glow:renderer-off, Fx_LoopStar:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-fx-star-03",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "a25d47665fcf58d45bb3994f270a9737",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Common/VFX/GUI PRO Kit - Fantasy RPG/fx1/Fx_Star_03.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Fx_Star_03:renderer-off, Fx_Glow:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-fx-ui-shock-loop",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "6218bf26222e149459300d25c362c48d",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/VFX/FX_UI(URP)/Prefab/FX_UI_ShockLoop.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (smallstar:renderer-off, ring:renderer-off, glow:renderer-off, Star:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-fx-ui-square-light",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "c59410911a4fcab47a1b533045a02537",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/VFX/FX_UI(URP)/Prefab/FX_UI_SquareLight.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (smallstar:renderer-off, Star:renderer-off, glow:renderer-off, card:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-gate-chain",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "e8fe9a1d5a618564d97241d858fe4ddd",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Features/GridLevelSelect/Prefabs/Animation/GateChain.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Glow:renderer-off, SparkDirectionalSmall:renderer-off, Glow:Billboard); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
       "slug": "studio-game-vfx-header-row-view",
       "pack": "studio-game-vfx",
       "prefabGuid": "81239da4a00267e4997e0c28fe6d6d02",
@@ -87,6 +227,146 @@
       "evidence": "Unity render of the recipe without its game script(s) showed no-visible-output (data/reports/render-failures.json; plans/reports/261029-0904-game-cs-dependency.md class B)"
     },
     {
+      "slug": "studio-game-vfx-impact",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "8549b89f1aac8ab44923f654bca11524",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Features/Currency/VFXs/Prefabs/impact.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (flash:renderer-off, sparks:renderer-off, circle:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-particle-shines-glow",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "052c74f99e4a3f545ad0ed2a8fefe314",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Common/VFX/GUI PRO Kit - Fantasy RPG/fx1/Particle_Shines_Glow.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Particle_Shines_Glow:renderer-off, Fx_Shines_Glow:renderer-off, Fx_Spread_Star:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-particle-sun-light",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "5b28e23e819371142ac8131d4bcb81e1",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Common/VFX/GUI PRO Kit - Fantasy RPG/fx1/Particle_SunLight.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Particle System:renderer-off, Particle System:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-rank-up-climb-vfx",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "8f8d816e12831c24a801656e6b94007e",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Features/StreakLeaderboard/Prefabs/RankUpClimbVfx.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Particle System:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-star-impact-m",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "cfc55c9f72870ba4baa3618b4210dae2",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Features/Currency/VFXs/Prefabs/star_impact_M.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (flash:renderer-off, glow:renderer-off, flares (1):renderer-off, dot:renderer-off, boke:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-star-impact-s",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "8081dbd59eabe3b458f1cecf160000bf",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Features/Currency/VFXs/Prefabs/star_impact_S.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (flash:renderer-off, glow:renderer-off, flares:renderer-off, boke:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-uiparticle-sink-player",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "d14fde4d594df1b41831a3b599c7d699",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Features/StreakSuddenDead/Prefabs/Vfx/Prefab/UIParticleSinkPlayer.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Particle System:renderer-off, Impack:renderer-off, Impack:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-uiparticle-wave-water",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "9fc2ef7e47fbb0b46a82ac5674977e8a",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Features/StreakSuddenDead/Prefabs/Vfx/Prefab/UIParticleWaveWater.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Wave:renderer-off, Wave:renderer-off, Wave:renderer-off, Wave:renderer-off, Wave:renderer-off, Wave:renderer-off, Wave_01:renderer-off, Wave_01:renderer-off, Wave_01:renderer-off, Wave_02:renderer-off, Wave_02:renderer-off, Wave_02:renderer-off, Wave_03:renderer-off, Wave_03:renderer-off, Wave_03:renderer-off, Wave_03:renderer-off, Wave_03:renderer-off, Wave_03:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-uivfx-star-shine",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "bf5aa7e1762ec95438ea6a891983e88f",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Common/VFX/VFX_TA/Prefabs/UIVFX_StarShine.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (UIVFX_StarShine:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-confetti",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "a720f2869a1c7bb4d86eded2fd77959b",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Common/VFX/FxFirework/Prefabs/VFX_Confetti.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Confetti_Top:renderer-off, Confetti_Right:renderer-off, Confetti_Left:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
       "slug": "studio-game-vfx-vfx-firework-explosion",
       "pack": "studio-game-vfx",
       "prefabGuid": "aac241f6d295c274fb0b11138ca4fc19",
@@ -99,6 +379,328 @@
       ],
       "cause": "unfixable-script",
       "evidence": "Unity render of the recipe without its game script(s) showed no-visible-output (data/reports/render-failures.json; plans/reports/261029-0904-game-cs-dependency.md class B)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-lotus-platform",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "2d4fa3c0cc6ed2146ad457eb3032d00a",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Features/StreakSuddenDead/Prefabs/Vfx/Prefab/VfxLotusPlatform.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Particle System:renderer-off, Lasen:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-sink-lotus-platform",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "3bc0902f689c8224ebda12b4a079cd8f",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Features/StreakSuddenDead/Prefabs/Vfx/Prefab/VfxSinkLotusPlatform.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Particle System:renderer-off, Impack:renderer-off, Lasen:renderer-off, Lasen:renderer-off, Lasen:renderer-off, Impack:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-touch",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "df141667f391a0ab68aa658ddf0bda43",
+      "prefabPath": "Assets/_Game/PuppyGo/Prefabs/VFXs/VFX_Touch.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Ring:renderer-off, Star_1:renderer-off, Star_2:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-ui-appear-text",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "ddfbc6bee63f3244b95399b12014a7a0",
+      "prefabPath": "Assets/VFX_TA/UIs/Prefabs/VFX_UI_AppearText.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (LightSub:renderer-off, Head:renderer-off, Dust:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-ui-blink-trail",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "48f2a3b3ae7ff434482913fbf6531b93",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/VFX/VFX_TA/Prefabs/VFX_UI_BlinkTrail.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (SparksSub:renderer-off, SparksLight:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-ui-bubble-shield",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "2c4025c7f28414c4aa92763a20ce6514",
+      "prefabPath": "Assets/_Game/PuppyGo/VFX_TA/VFX_Bubble/Prefabs/VFX_UI_BubbleShield.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (BubbleBase:renderer-off, BubbleSub:renderer-off, BubbleMain:renderer-off, Spark:renderer-off, SparkLight:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-ui-bubble-shield-impact",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "19a72e3a08a4d3749a322c736621549a",
+      "prefabPath": "Assets/_Game/PuppyGo/VFX_TA/VFX_Bubble/Prefabs/VFX_UI_BubbleShieldImpact.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Bubble:renderer-off, Ring:renderer-off, Fragment:renderer-off, Sparks:renderer-off, Impact:renderer-off, Glow:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-ui-confetti",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "f872b2c90ac04bc4abb9ffcd52210052",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Common/VFX/VFX_TA/Prefabs/VFX_UI_Confetti.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Confetti_R:renderer-off, Confetti_L:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-ui-discard-card",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "64867d85d6d64a94298909258b2058d0",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Common/VFX/VFX_TA/Prefabs/VFX_UI_DiscardCard.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Glow:renderer-off, Sparks:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-ui-fireworks",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "f3d5a9da5462b0f49b6a801fe8f3d365",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Common/VFX/VFX_TA/Prefabs/VFX_UI_Fireworks.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Start:renderer-off, Red:renderer-off, Sub:renderer-off, Yellow:renderer-off, Orange:renderer-off, Flare:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-ui-glow-card",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "d033a12a79acb304695844fe22805159",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Common/VFX/VFX_TA/Prefabs/VFX_UI_GlowCard.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (RayLight:renderer-off, Glow:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-ui-glow-reward",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "ef56e91a7f7993d41bd85c1026eac853",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Common/VFX/VFX_TA/Prefabs/VFX_UI_GlowReward.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (FlareSub:renderer-off, Sparks:renderer-off, Flare:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-ui-impact-text-combo-34c6eb",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "34c6eb71386b8bf49b8b6c1be16e899b",
+      "prefabPath": "Assets/VFX_TA/Arrow3D/Prefabs/VFX_UI_ImpactTextCombo.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Dust:renderer-off, FlashGlow:renderer-off, Glow:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-ui-impact-text-combo-a93e02",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "a93e02ba0db8ddd4abe66382fa3610d5",
+      "prefabPath": "Assets/_Game/Arrow3D/VFX_TA/Prefabs/Encourage_VFX/VFX_UI_ImpactTextCombo.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Dust:renderer-off, FlashGlow:renderer-off, Glow:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-ui-meteor-ver2-72d82e",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "72d82eef861dc754bb2ab9c05fc025e7",
+      "prefabPath": "Assets/VFX_TA/Arrow3D/Prefabs/VFX_UI_Meteor_Ver2.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Star:renderer-off, Glow:renderer-off, Meteor:renderer-off, Glow:renderer-off, StarBGR:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-ui-meteor-ver2-d31da5",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "d31da5d572424f3bcab45c1c2c8bfb0d",
+      "prefabPath": "Assets/_Game/Arrow3D/VFX_TA/Prefabs/Background_Gameplay_VFX/VFX_UI_Meteor_Ver2.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Star:renderer-off, Glow:renderer-off, Meteor:renderer-off, Glow:renderer-off, StarBGR:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-ui-screen-cosmic-l",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "6a76191ff41f3b05d900d6bc44e172d9",
+      "prefabPath": "Assets/_Game/Arrow3D/VFX_TA/Prefabs/Encourage_VFX/VFX_UI_Screen_Cosmic_L.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Glow:renderer-off, Fragment:renderer-off, Flash:renderer-off, StarLight:renderer-off, Spark:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-ui-screen-cosmic-l-ver2-116f1f",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "116f1f7e92a57082c9eddcb8f542dbe2",
+      "prefabPath": "Assets/_Game/Arrow3D/VFX_TA/Prefabs/Encourage_VFX/VFX_UI_Screen_Cosmic_L_Ver2.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Glow:renderer-off, Flash:renderer-off, Spark:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-ui-screen-cosmic-l-ver2-8dac99",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "8dac9912deeed1d419a176090c803c31",
+      "prefabPath": "Assets/VFX_TA/Arrow3D/Prefabs/VFX_UI_Screen_Cosmic_L_Ver2.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Glow:renderer-off, Flash:renderer-off, Spark:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-ui-screen-cosmic-l-ver3",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "7ee14964e02d05456a9da81b45c82d67",
+      "prefabPath": "Assets/_Game/Arrow3D/VFX_TA/Prefabs/Encourage_VFX/VFX_UI_Screen_Cosmic_L_Ver3.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Glow:renderer-off, Flash:renderer-off, Spark:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-ui-star-discard",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "a69350d8f8de31d4c8fcb66aead3c721",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Common/VFX/VFX_TA/Prefabs/VFX_UI_StarDiscard.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Glow:renderer-off, Glow2:renderer-off, Flare:renderer-off, Sparks:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-ui-star-open-card",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "6ecbaa2ff3f920140be9776db8c6ebc3",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Common/VFX/VFX_TA/Prefabs/VFX_UI_StarOpenCard.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Sparks:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
+    },
+    {
+      "slug": "studio-game-vfx-vfx-ui-star-trail",
+      "pack": "studio-game-vfx",
+      "prefabGuid": "1d5e509ff7d99f74f9c58998ebdac87d",
+      "prefabPath": "Assets/TheOneFeature.PuzzleUI/Common/VFX/VFX_TA/Prefabs/VFX_UI_StarTrail.prefab",
+      "scripts": [
+        {
+          "name": "UIParticle (com.coffee.ui-particle)",
+          "guid": "16f0b0b6d0b7542bfbd20a3e05b04ff1"
+        }
+      ],
+      "cause": "unfixable-script",
+      "evidence": "every emitting particle system has its renderer disabled or mode None (Trail:renderer-off, TrailSub:renderer-off, Spark:renderer-off, Star:renderer-off); prefab references com.coffee.ui-particle script guid(s) 16f0b0b6d0b7542bfbd20a3e05b04ff1 (data/reports/uiparticle-remove-list.json: empty in all four harness simulations)"
     }
   ]
 }

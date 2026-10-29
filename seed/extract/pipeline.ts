@@ -317,7 +317,7 @@ export async function extractPack(opts: ExtractOptions): Promise<PackSummary> {
         // A re-run must reproduce the skip: drop a record an earlier run wrote for this slug.
         const stale = path.join(outDir, slugs.get(guid) as string);
         for (const ext of ['.yaml', '.json']) await fs.rm(`${stale}${ext}`, { force: true });
-        throw new SkipError(bad.cause, `prefab needs game script(s) not shipped in bundles and renders nothing without: ${bad.scripts.map((s) => s.name).join(', ')}`);
+        throw new SkipError(bad.cause, `prefab renders nothing because of script(s) the target cannot run (game code not shipped, or UIParticle-driven emitters): ${bad.scripts.map((s) => s.name).join(', ')}`);
       }
       const built = buildRecipe(text, pack, { path: prefabPath, guid }, ctx);
       const slug = slugs.get(guid) as string;
