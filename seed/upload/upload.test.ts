@@ -11,7 +11,6 @@ import { loadDanglingGuids } from '../../server/src/unity-refs.ts';
 import { loadUrpExport, urpRejection } from './urp.ts';
 import { makeUnityPackage } from '../extract/test-helpers.ts';
 import { GUID, MAT_BYTES, PACKAGE_GUIDS, makeFixture, pkgAssets, startStub, type Fixture } from './test-support.ts';
-import './verify.test.ts';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const ROOTS = [{ guid: GUID.prefab, pack: 'retro-arsenal' }];

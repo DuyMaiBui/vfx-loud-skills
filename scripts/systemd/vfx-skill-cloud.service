@@ -1,0 +1,28 @@
+# systemd USER unit for the VFX Skill Cloud dev server (port 8787).
+#
+# Template: @REPO@ and @NODE_DIR@ are placeholders. Render and install (outside the repo) with:
+#   repo="$PWD"; node_dir="$(dirname "$(command -v node)")"
+#   mkdir -p ~/.config/systemd/user
+#   sed -e "s|@REPO@|$repo|g" -e "s|@NODE_DIR@|$node_dir|g" scripts/systemd/vfx-skill-cloud.service \
+#     > ~/.config/systemd/user/vfx-skill-cloud.service
+#   systemctl --user daemon-reload && systemctl --user enable --now vfx-skill-cloud
+#
+# The user manager does not inherit your shell PATH (node lives under linuxbrew here), hence NODE_DIR.
+# Starts at LOGIN of this user, not at boot, unless lingering is enabled (`loginctl show-user $USER -p Linger`).
+# Logs: journalctl --user -u vfx-skill-cloud -f   (the key is never logged; server-run.sh does not echo it).
+
+[Unit]
+Description=VFX Skill Cloud dev server (port 8787)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=@REPO@
+Environment=PATH=@NODE_DIR@:/usr/local/bin:/usr/bin:/bin
+ExecStart=@REPO@/scripts/server-run.sh
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

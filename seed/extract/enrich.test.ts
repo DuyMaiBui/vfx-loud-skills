@@ -35,6 +35,7 @@ test('enrichExtracted is deterministic and puts plain words in the description',
     kind: 'particle' as const,
     yaml,
     existingTags: ['water', 'test'],
+    bundleComplete: true,
   };
   const a = enrichExtracted(input);
   assert.deepEqual(a, enrichExtracted(input));
@@ -44,4 +45,13 @@ test('enrichExtracted is deterministic and puts plain words in the description',
   assert.ok(a.tags.includes('water') && a.tags.includes('toon'));
   assert.match(a.description, /^orange water explosion VFX "Water_Explosion"/);
   assert.doesNotMatch(a.description, /particle recipe/i);
+});
+
+test('description tells the truth about the bundle, decided by bundleComplete, never the stale parameters-only claim', () => {
+  const base = { name: 'Water_Explosion (Test Pack)', prefabPath: 'Assets/T/Prefabs/Water/Water_Explosion.prefab', packName: 'Test Pack', vendor: 'V', metaStyle: ['toon'], kind: 'particle' as const, yaml, existingTags: [] };
+  const full = enrichExtracted({ ...base, bundleComplete: true }).description;
+  const part = enrichExtracted({ ...base, bundleComplete: false }).description;
+  assert.match(full, /Fetch with vfx_fetch for the self-contained bundle \(shaders, materials, textures, prefab\)\.$/);
+  assert.match(part, /partial source, so some referenced assets are not in it\.$/);
+  for (const d of [full, part]) assert.doesNotMatch(d, /parameters only|guid \+ path/i);
 });

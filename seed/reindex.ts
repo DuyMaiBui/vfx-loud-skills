@@ -3,7 +3,7 @@
  * sha256, the uri and the version are never touched. Idempotent: a row is updated only when its
  * computed index hash differs from `meta.index_hash`, so a second run changes nothing.
  *
- *   node seed/reindex.ts [--dry-run] [--limit N]
+ *   node seed/reindex.ts [--dry-run] [--limit N] [--match <text>]   (--match: only rows whose description contains the text)
  *
  * Extracted recipes (meta.extracted): description, tags, style, meta.style, meta.keywords, meta.facets and
  * meta.behavior are regenerated from pack / path / name / payload parameters (seed/extract/enrich.ts).
@@ -45,14 +45,14 @@ const uniq = (xs: string[]): string[] => [...new Set(xs)];
 const same = (a: string[], b: string[]): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
 
 async function main(): Promise<void> {
-  const { values } = parseArgs({ options: { 'dry-run': { type: 'boolean' }, limit: { type: 'string' } }, strict: true });
+  const { values } = parseArgs({ options: { 'dry-run': { type: 'boolean' }, limit: { type: 'string' }, match: { type: 'string' } }, strict: true });
   const packs = (JSON.parse(await fs.readFile(path.join(here, 'extract', 'packs.json'), 'utf8')) as { packs: PackConfig[] }).packs;
   const bySlug = new Map(packs.map((p) => [p.slug, p]));
   const embedder = getEmbedder();
   const limit = values.limit ? Number(values.limit) : undefined;
 
   const rows = (
-    await pool.query<Row>('SELECT id, type, slug, name, description, tags, style, category, storage_uri, meta, search_text FROM resource ORDER BY id' + (limit ? ` LIMIT ${limit}` : ''))
+    await pool.query<Row>('SELECT id, type, slug, name, description, tags, style, category, storage_uri, meta, search_text FROM resource' + (values.match ? ' WHERE strpos(description, $1) > 0' : '') + ' ORDER BY id' + (limit ? ` LIMIT ${limit}` : ''), values.match ? [values.match] : [])
   ).rows;
   let updated = 0;
   let unchanged = 0;
@@ -81,6 +81,7 @@ async function main(): Promise<void> {
           effectKinds: (r.meta.effectKinds as string[] | undefined) ?? [],
           yaml,
           existingTags: r.tags,
+          bundleComplete: pack.completeSource === true,
         });
         ({ description, tags, style, keywords, facets, behavior } = { description: en.description, tags: en.tags, style: en.style, keywords: en.keywords, facets: en.facets, behavior: en.behavior });
       } else {

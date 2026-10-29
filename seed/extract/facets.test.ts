@@ -133,7 +133,7 @@ test('hand-written layers recipe: behaviour from the layer list', () => {
 });
 
 test('enrichExtracted emits contract facets + behavior and stays deterministic', () => {
-  const input = { name: 'Fire_Explosion (Test Pack)', prefabPath: 'Assets/T/Prefabs/Combat/Fire_Explosion.prefab', packName: 'Test Pack', vendor: 'V', metaStyle: ['toon'], kind: 'particle' as const, yaml: boom, existingTags: [] };
+  const input = { name: 'Fire_Explosion (Test Pack)', prefabPath: 'Assets/T/Prefabs/Combat/Fire_Explosion.prefab', packName: 'Test Pack', vendor: 'V', metaStyle: ['toon'], kind: 'particle' as const, yaml: boom, existingTags: [], bundleComplete: true };
   const a = enrichExtracted(input);
   assert.deepEqual(a, enrichExtracted(input));
   assert.deepEqual(a.facets.category, ['fire', 'explosion']);

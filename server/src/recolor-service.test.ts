@@ -95,7 +95,9 @@ test('publish:true creates one derived_from record (licence inherited, project) 
   const edge = await pool.query(`SELECT 1 FROM resource_edge WHERE src = $1 AND dst = $2 AND rel = 'derived_from'`, [row.id, base.id]);
   assert.equal(edge.rowCount, 1);
 
-  const count = async (): Promise<number> => Number((await pool.query(`SELECT COUNT(*) n FROM resource WHERE meta ? 'derived'`)).rows[0].n);
+  // Count only the records derived from THIS base: a table-wide count races with every other file publishing derived records
+  // concurrently in the same DB (node --test runs files in parallel).
+  const count = async (): Promise<number> => Number((await pool.query(`SELECT COUNT(*) n FROM resource_edge WHERE rel = 'derived_from' AND dst = $1`, [base.id])).rows[0].n);
   const n1 = await count();
   const second = await post(req);
   assert.equal(second.json.published.uri, pub.uri);
