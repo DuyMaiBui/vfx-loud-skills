@@ -3,9 +3,11 @@
 // plus every extracted recipe WITHOUT a prefab as {slug, prefabGuid:null} (the render records it as skipped:no-prefab, so
 // `preview_render` covers every recipe that is a target or skipped by design), plus every published DERIVED recipe (publish-back: skills/vfx-authoring) that depends on a `.prefab` record.
 // A derived recipe's prefab must be on disk in the preview project first: scripts/vfx-fetch.sh <recipe uri> unity/VFXPreview.
+// The 10 hand-written recipes (recipe-spec.ts HAND_WRITTEN) are appended as {prefabGuid:null}.
 // usage: node tools/preview/targets.ts [out=tools/preview/targets.json]
 import { writeFileSync } from 'node:fs';
 import pg from 'pg';
+import { HAND_WRITTEN } from '../recipe-prefab/recipe-spec.ts';
 
 const out = process.argv[2] ?? new URL('./targets.json', import.meta.url).pathname;
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL ?? 'postgres://vfx:vfx@127.0.0.1:5432/vfxcloud' });
@@ -30,6 +32,10 @@ const noPrefab = await pool.query(`
     FROM resource
    WHERE type = 'recipe' AND meta->>'extracted' = 'true' AND meta->'source'->>'prefabGuid' IS NULL
    ORDER BY slug`);
+// The hand-written recipes have no prefab and are not `extracted`: list them as prefabGuid:null so tools/recipe-prefab/merge-targets.ts can fill the built ones.
+const handWritten = await pool.query(
+  `SELECT DISTINCT slug, meta->>'pack' AS pack, meta->'facets'->>'playback' AS playback FROM resource WHERE type = 'recipe' AND slug = ANY($1) ORDER BY slug`,
+  [HAND_WRITTEN]);
 await pool.end();
 const targets = rows.map((r) => ({ slug: r.slug, pack: r.pack, prefabPath: r.prefabPath, prefabGuid: r.prefabGuid, family: r.family, playback: r.playback ?? '' }));
 for (const d of derived.rows) {
@@ -38,5 +44,7 @@ for (const d of derived.rows) {
 for (const n of noPrefab.rows) {
   targets.push({ slug: n.slug, pack: n.pack ?? '', prefabPath: null, prefabGuid: null, family: '', playback: n.playback ?? '' });
 }
+const have = new Set(targets.map((t) => t.slug));
+for (const h of handWritten.rows) if (!have.has(h.slug)) targets.push({ slug: h.slug, pack: h.pack ?? '', prefabPath: null, prefabGuid: null, family: '', playback: h.playback ?? '' });
 writeFileSync(out, JSON.stringify(targets, null, 1));
 console.log(`${targets.length} targets -> ${out}`);
