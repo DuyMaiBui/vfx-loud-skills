@@ -23,8 +23,21 @@ namespace VfxPreview
         static long _startedAt;
         static bool _hooked;
 
+        static bool _interactive;
+
+        /// <summary>Live-Editor entry (the batch Run quits the Editor): exports to data/export/urp without exiting. Restore the originals first.</summary>
+        [MenuItem("Tools/VFX Preview/5. Export URP Variant (keep Editor open)")]
+        static void RunInteractive()
+        {
+            _interactive = true;
+            _dir = Path.GetFullPath(Path.Combine(PreviewOptions.RepoRoot, "data/export/urp"));
+            try { Export(); }
+            catch (Exception e) { Quit(1, "export failed: " + e); }
+        }
+
         public static void Run()
         {
+            _interactive = false;
             _dir = PreviewOptions.Arg("-vfxExport");
             if (string.IsNullOrEmpty(_dir)) { Quit(1, "-vfxExport <dir> is required"); return; }
             _dir = Path.GetFullPath(Path.Combine(PreviewOptions.RepoRoot, _dir));
@@ -53,6 +66,8 @@ namespace VfxPreview
             {
                 // Only a changed shader is published (C8); a conversion that ended on a shader with no GUID cannot be fetched back.
                 if (string.IsNullOrEmpty(c.ShaderGuid) || c.ShaderGuid == c.OriginalShaderGuid) continue;
+                // A material that lives inside another asset (a .shadergraph sub-asset) has no .mat file or GUID of its own: not publishable.
+                if (!c.Path.EndsWith(".mat", StringComparison.OrdinalIgnoreCase)) { Debug.LogWarning($"[UrpExport] skipped {c.Path}: not a standalone .mat"); continue; }
                 var bytes = File.ReadAllBytes(Path.GetFullPath(c.Path));
                 if (!StartsWithYaml(bytes)) { Quit(1, $"{c.Path} is not a text-serialized .mat (set Asset Serialization to Force Text)"); return; }
                 WriteAtomic(Path.Combine(_dir, c.Guid + ".mat"), bytes);
@@ -85,7 +100,7 @@ namespace VfxPreview
         static void Quit(int code, string msg)
         {
             Debug.Log($"[UrpExport] exit {code}: {msg}");
-            EditorApplication.Exit(code);
+            if (!_interactive) EditorApplication.Exit(code);
         }
     }
 }
