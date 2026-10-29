@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="../../../unity/VFXPreview/Assets/Editor/VfxPreview/FramingMath.cs" Link="FramingMath.cs" />
     <Compile Include="../../../unity/VFXPreview/Assets/Editor/VfxPreview/MagentaMath.cs" Link="MagentaMath.cs" />
+    <Compile Include="../../../unity/VFXPreview/Assets/Editor/VfxPreview/MaterialSlots.cs" Link="MaterialSlots.cs" />
     <Compile Include="../../../unity/VFXPreview/Assets/Editor/VfxPreview/MaterialMapping.cs" Link="MaterialMapping.cs" />
   </ItemGroup>
 </Project>

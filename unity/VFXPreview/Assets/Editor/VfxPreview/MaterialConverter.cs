@@ -161,8 +161,8 @@ namespace VfxPreview
             return any;
         }
 
-        /// <summary>Pre-render gate: why this prefab instance would draw as the missing-shader colour, or null. Checks every enabled renderer's
-        /// materials (and the trail material of a particle system with trails) AFTER ConvertAll, so what is left is a shader with no rule.</summary>
+        /// <summary>Pre-render gate: why this prefab instance would draw as the missing-shader colour, or null. Checks the material slots every enabled renderer
+        /// actually draws (MaterialSlots; a trailing null slot is padding) and the trail material of a particle system with trails AFTER ConvertAll, so what is left is a shader with no rule.</summary>
         public static string Unrenderable(GameObject instance) => Unrenderable(instance, out _);
 
         /// <summary>As <see cref="Unrenderable(GameObject)"/>, also returning the offending shader names (C9 `shaders`).</summary>
@@ -173,13 +173,18 @@ namespace VfxPreview
             foreach (var r in instance.GetComponentsInChildren<Renderer>(true))
             {
                 if (r == null || !r.enabled || !r.gameObject.activeInHierarchy) continue;
+                var mats = r.sharedMaterials;
+                int drawn = mats.Length;
                 if (r is ParticleSystemRenderer pr)
                 {
                     if (pr.renderMode == ParticleSystemRenderMode.None) continue;
                     var ps = pr.GetComponent<ParticleSystem>();
                     if (ps != null && ps.trails.enabled) Check(pr.trailMaterial, r, bad, names);
+                    bool mesh = pr.renderMode == ParticleSystemRenderMode.Mesh;
+                    drawn = MaterialSlots.DrawnParticleSlots(mesh, mesh && pr.mesh != null ? pr.mesh.subMeshCount : 1, mats.Length);
+                    if (mats.Length == 0) Check(null, r, bad, names); // a particle renderer with no slot at all draws with no material
                 }
-                foreach (var m in r.sharedMaterials) Check(m, r, bad, names);
+                for (int i = 0; i < drawn; i++) Check(mats[i], r, bad, names);
             }
             shaders = new List<string>(names);
             return bad.Count == 0 ? null : "unrenderable material (URP draws it as missing-shader magenta): " + string.Join("; ", bad);

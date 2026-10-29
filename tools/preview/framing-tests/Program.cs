@@ -12,6 +12,11 @@ static class Program
 
     static int Main()
     {
+        Check("slots: billboard with a trailing null slot draws slot 0 only", MaterialSlots.DrawnParticleSlots(false, 1, 2) == 1);
+        Check("slots: mesh with 3 submeshes draws 3 slots", MaterialSlots.DrawnParticleSlots(true, 3, 3) == 3);
+        Check("slots: mesh submeshes beyond the slot array are capped", MaterialSlots.DrawnParticleSlots(true, 4, 2) == 2);
+        Check("slots: mesh with no submesh info draws slot 0", MaterialSlots.DrawnParticleSlots(true, 0, 2) == 1);
+        Check("slots: empty slot array draws nothing", MaterialSlots.DrawnParticleSlots(false, 1, 0) == 0);
         Check("empty set does not fit", !FramingMath.TryFit(new List<Ball>(), Out, Margin, Min, out _));
 
         FramingMath.TryFit(new List<Ball> { new(1, 2, 3, 0.5f) }, Out, Margin, Min, out var one);
