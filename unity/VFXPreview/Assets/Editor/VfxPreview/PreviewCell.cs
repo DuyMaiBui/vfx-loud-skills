@@ -36,6 +36,8 @@ namespace VfxPreview
         readonly Dictionary<ParticleSystem, ParticleSystemRenderer> _psr = new();
         ParticleSystem.Particle[] _buf = new ParticleSystem.Particle[1024];
         float _skipSeconds;
+        double _warmUsed = -1; // warm-up actually used (Probe falls back to 0 when the warmed-up clip is empty); -1 until probed
+        bool _moving; Vector3 _home; // effects that emit over distance are translated along +x during the clip (see PreviewOptions.MoveSpeed)
         static readonly Color Bg = new(0.11f, 0.12f, 0.14f, 1f);
 
         public PreviewCell(Target t, Vector3 origin, int size)
@@ -45,7 +47,7 @@ namespace VfxPreview
             var asset = string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath<GameObject>(path);
             if (asset == null) { Error = "prefab not found for guid " + t.prefabGuid; Cause = RenderFailures.PrefabMissing; return; }
             _go = (GameObject)PrefabUtility.InstantiatePrefab(asset);
-            _go.transform.position = origin;
+            _go.transform.position = origin; _home = origin;
             var unrenderable = MaterialConverter.Unrenderable(_go, out var badShaders);
             if (unrenderable != null) { Error = unrenderable; Broken = true; Cause = RenderFailures.UnrenderableMaterial; Shaders = badShaders; return; }
             var all = _go.GetComponentsInChildren<ParticleSystem>(true);
@@ -61,6 +63,7 @@ namespace VfxPreview
             int seed = 1337;
             foreach (var ps in all) { ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear); ps.useAutoRandomSeed = false; ps.randomSeed = (uint)seed++; }
             foreach (var a in _go.GetComponentsInChildren<AudioSource>(true)) a.enabled = false;
+            _moving = all.Any(p => p.emission.enabled && EmitsOverDistance(p.emission.rateOverDistance));
             Loop = t.playback == "loop" || all.Any(p => p.main.loop);
             _renderers = _go.GetComponentsInChildren<Renderer>(true);
             if (!HasParticles) Note = HasScript ? "static: no ParticleSystem, script-driven" : "static: no ParticleSystem";
@@ -79,19 +82,30 @@ namespace VfxPreview
         /// <summary>Restart the simulation at the clip's start time (loops: after warm-up).</summary>
         public void Reset(double warmup)
         {
-            float lead = (Loop ? (float)warmup : 0f) + _skipSeconds;
+            float lead = (Loop ? (float)(_warmUsed >= 0 ? _warmUsed : warmup) : 0f) + _skipSeconds;
+            _go.transform.position = _home;
             foreach (var ps in _roots) ps.Simulate(lead, true, true, true);
         }
 
-        public void Step(float dt) { foreach (var ps in _roots) ps.Simulate(dt, true, false, true); }
+        public void Step(float dt)
+        {
+            if (_moving) _go.transform.position += Vector3.right * (PreviewOptions.MoveSpeed * dt);
+            foreach (var ps in _roots) ps.Simulate(dt, true, false, true);
+        }
+
+        static bool EmitsOverDistance(ParticleSystem.MinMaxCurve c) =>
+            c.constantMax > 0f || ((c.mode == ParticleSystemCurveMode.Curve || c.mode == ParticleSystemCurveMode.TwoCurves) && c.curveMultiplier > 0f);
 
         /// <summary>Simulate the whole clip once without rendering and collect what is visible (CollectBalls). Dead time before the first
         /// visible particle (start delay, a burst late in a loop cycle) is skipped so the clip does not open on empty frames: the
         /// simulation is fast-forwarded to LeadInFrames before the first visible frame (deterministic seeds, so the render matches the probe).</summary>
         public void Probe(int frames, float dt, double warmup)
         {
-            _skipSeconds = 0;
+            _skipSeconds = 0; _warmUsed = warmup;
             int first = RunProbe(frames, dt, warmup);
+            // A loop warm-up lands one-shot burst effects past their only emission (a looping controller or a long duration flags the clip as a
+            // loop): when the warmed-up clip is empty, probe again from t=0, which is what a one-shot shows.
+            if (Loop && warmup > 0 && _balls.Count + _staticBounds.Count == 0) { _warmUsed = 0; first = RunProbe(frames, dt, 0); }
             if (first <= PreviewOptions.LeadInFrames) return;
             _skipSeconds = (first - PreviewOptions.LeadInFrames) * dt;
             RunProbe(frames, dt, warmup);
