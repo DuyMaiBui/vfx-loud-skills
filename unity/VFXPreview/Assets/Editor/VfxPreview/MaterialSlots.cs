@@ -6,6 +6,10 @@ namespace VfxPreview
     /// missing-shader draw, so the pre-render gate must not fail on it.</summary>
     public static class MaterialSlots
     {
+        /// <summary>Whether a particle renderer puts anything on screen: render mode None draws no particle, but the trails module (with a trail
+        /// material) still draws its ribbons, so a mode-None system with trails enabled is drawn.</summary>
+        public static bool DrawsParticles(bool modeNone, bool trailsEnabled, bool hasTrailMaterial) => !modeNone || (trailsEnabled && hasTrailMaterial);
+
         /// <summary>Number of leading slots drawn by the particle renderer itself (never more than <paramref name="slotCount"/>).</summary>
         public static int DrawnParticleSlots(bool meshMode, int submeshCount, int slotCount)
         {

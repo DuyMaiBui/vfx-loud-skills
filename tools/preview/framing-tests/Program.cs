@@ -16,6 +16,10 @@ static class Program
         Check("slots: mesh with 3 submeshes draws 3 slots", MaterialSlots.DrawnParticleSlots(true, 3, 3) == 3);
         Check("slots: mesh submeshes beyond the slot array are capped", MaterialSlots.DrawnParticleSlots(true, 4, 2) == 2);
         Check("slots: mesh with no submesh info draws slot 0", MaterialSlots.DrawnParticleSlots(true, 0, 2) == 1);
+        Check("drawn: mode None without trails draws nothing", !MaterialSlots.DrawsParticles(true, false, true));
+        Check("drawn: mode None with trails but no trail material draws nothing", !MaterialSlots.DrawsParticles(true, true, false));
+        Check("drawn: mode None with trails and a trail material is drawn (ribbons)", MaterialSlots.DrawsParticles(true, true, true));
+        Check("drawn: a billboard is drawn", MaterialSlots.DrawsParticles(false, false, false));
         Check("slots: empty slot array draws nothing", MaterialSlots.DrawnParticleSlots(false, 1, 0) == 0);
         Check("waiver: relabels no-visible-output", WaiverRules.Resolve("no-visible-output", "unfixable-source") == "unfixable-source");
         Check("waiver: relabels prefab-missing and unrenderable-material", WaiverRules.Resolve("prefab-missing", "unfixable-source") == "unfixable-source" && WaiverRules.Resolve("unrenderable-material", "unfixable-shader") == "unfixable-shader");

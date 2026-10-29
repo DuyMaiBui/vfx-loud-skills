@@ -3,42 +3,6 @@
  "note": "Documented accepted render failures. Read by VfxPreview.Waivers; a waiver only re-labels a failure the render produced (WaiverRules). cause is a C9 unfixable-* value.",
  "waivers": [
   {
-   "slug": "epic-toon-fx-windlines",
-   "cause": "unfixable-source",
-   "detail": "every particle system renderer is mode None (or rate 0): nothing is drawn by design",
-   "evidence": "data/reports/nvo-sweep.tsv: empty at harness warm-up, warm-up 0, root motion and a 6 s window; PS renderers mode None"
-  },
-  {
-   "slug": "epic-toon-fx-windlines-speedy",
-   "cause": "unfixable-source",
-   "detail": "every particle system renderer is mode None (or rate 0): nothing is drawn by design",
-   "evidence": "data/reports/nvo-sweep.tsv: empty at harness warm-up, warm-up 0, root motion and a 6 s window; PS renderers mode None"
-  },
-  {
-   "slug": "epic-toon-fx-windlines2",
-   "cause": "unfixable-source",
-   "detail": "every particle system renderer is mode None (or rate 0): nothing is drawn by design",
-   "evidence": "data/reports/nvo-sweep.tsv: empty at harness warm-up, warm-up 0, root motion and a 6 s window; PS renderers mode None"
-  },
-  {
-   "slug": "environment-weather-nature-speed-boost-aside",
-   "cause": "unfixable-source",
-   "detail": "every particle system renderer is mode None (or rate 0): nothing is drawn by design",
-   "evidence": "data/reports/nvo-sweep.tsv: empty at harness warm-up, warm-up 0, root motion and a 6 s window; PS renderers mode None"
-  },
-  {
-   "slug": "environment-weather-nature-speed-boost-front",
-   "cause": "unfixable-source",
-   "detail": "every particle system renderer is mode None (or rate 0): nothing is drawn by design",
-   "evidence": "data/reports/nvo-sweep.tsv: empty at harness warm-up, warm-up 0, root motion and a 6 s window; PS renderers mode None"
-  },
-  {
-   "slug": "synty-polygon-particle-fx-fx-electricity-01",
-   "cause": "unfixable-source",
-   "detail": "every particle system renderer is mode None (or rate 0): nothing is drawn by design",
-   "evidence": "data/reports/nvo-sweep.tsv: empty at harness warm-up, warm-up 0, root motion and a 6 s window; PS renderers mode None"
-  },
-  {
    "slug": "retro-arsenal-laser-beam-blue-static",
    "cause": "unfixable-source",
    "detail": "no ParticleSystem; the static beam draws nothing visible in the preview harness",
@@ -55,12 +19,6 @@
    "cause": "unfixable-source",
    "detail": "no ParticleSystem; the static beam draws nothing visible in the preview harness",
    "evidence": "data/reports/nvo-sweep.tsv"
-  },
-  {
-   "slug": "studio-game-vfx-vfx-ui-star-trail1",
-   "cause": "unfixable-source",
-   "detail": "emits over distance at 0.025 particles/m: too sparse to show in a 2 s clip at the harness 2 m/s",
-   "evidence": "data/reports/uiparticle-remove-list.json notOnList"
   },
   {
    "slug": "namufx-stylized-water-bubble-explosion",
@@ -131,7 +89,7 @@
   {
    "slug": "synty-polygon-particle-fx-fx-fog-small-01",
    "cause": "unfixable-source",
-   "detail": "near-transparent fog, max alpha 0.0235 < VisibleAlpha 0.03",
+   "detail": "near-transparent fog, max alpha 0.0235 < VisibleAlpha 0.03; the clip is a screen-filling grey haze (camera inside size-40 fog), so a future global VisibleAlpha tweak could revive it",
    "evidence": "Editor simulation of FX_Fog_Small_01 (Mesh renderer, 94 particles at 1.5 s, size 40, max alpha 0.0235); PreviewOptions.VisibleAlpha stays 0.03 (not lowered globally)"
   }
  ]

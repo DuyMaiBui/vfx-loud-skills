@@ -135,7 +135,7 @@ namespace VfxPreview
             foreach (var ps in _all)
             {
                 if (ps == null || !ps.gameObject.activeInHierarchy) continue;
-                var r = _psr[ps]; if (r == null || !r.enabled || r.renderMode == ParticleSystemRenderMode.None) continue;
+                var r = _psr[ps]; if (r == null || !r.enabled || !MaterialSlots.DrawsParticles(r.renderMode == ParticleSystemRenderMode.None, ps.trails.enabled, r.trailMaterial != null)) continue;
                 int n = ps.particleCount; if (n == 0) continue;
                 if (_buf.Length < n) _buf = new ParticleSystem.Particle[Mathf.Min(n * 2, 1 << 16)];
                 n = ps.GetParticles(_buf, _buf.Length);

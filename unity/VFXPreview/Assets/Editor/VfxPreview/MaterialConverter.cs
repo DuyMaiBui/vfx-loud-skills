@@ -177,9 +177,11 @@ namespace VfxPreview
                 int drawn = mats.Length;
                 if (r is ParticleSystemRenderer pr)
                 {
-                    if (pr.renderMode == ParticleSystemRenderMode.None) continue;
                     var ps = pr.GetComponent<ParticleSystem>();
-                    if (ps != null && ps.trails.enabled) Check(pr.trailMaterial, r, bad, names);
+                    bool none = pr.renderMode == ParticleSystemRenderMode.None, trails = ps != null && ps.trails.enabled;
+                    if (!MaterialSlots.DrawsParticles(none, trails, pr.trailMaterial != null)) continue;
+                    if (trails) Check(pr.trailMaterial, r, bad, names);
+                    if (none) continue; // mode None: only the trail ribbons are drawn
                     bool mesh = pr.renderMode == ParticleSystemRenderMode.Mesh;
                     drawn = MaterialSlots.DrawnParticleSlots(mesh, mesh && pr.mesh != null ? pr.mesh.subMeshCount : 1, mats.Length);
                     if (mats.Length == 0) Check(null, r, bad, names); // a particle renderer with no slot at all draws with no material
