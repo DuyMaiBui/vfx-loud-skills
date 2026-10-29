@@ -10,7 +10,16 @@ import pg from 'pg';
 import { HAND_WRITTEN } from '../recipe-prefab/recipe-spec.ts';
 
 const out = process.argv[2] ?? new URL('./targets.json', import.meta.url).pathname;
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL ?? 'postgres://vfx:vfx@127.0.0.1:5432/vfxcloud' });
+
+// DATABASE_URL wins. Without it, build the local dev URL from PG* parts (libpq names) with the dev defaults of
+// the local vfx-pg container (scripts/dev-db.sh). Built via URL so no source line carries a literal user:pass@ URL.
+function devDatabaseUrl(): string {
+  const u = new URL(`postgres://${process.env.PGHOST ?? '127.0.0.1'}:${process.env.PGPORT ?? '5432'}/${process.env.PGDATABASE ?? 'vfxcloud'}`);
+  u.username = process.env.PGUSER ?? 'vfx';
+  u.password = process.env.PGPASSWORD ?? 'vfx';
+  return u.toString();
+}
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL ?? devDatabaseUrl() });
 const { rows } = await pool.query(`
   SELECT DISTINCT ON (COALESCE(NULLIF(meta->>'family',''), slug))
          slug, meta->>'pack' AS pack, meta->'source'->>'prefabPath' AS "prefabPath",
