@@ -2,22 +2,7 @@
   "mode": "grid",
   "fps": 24,
   "size": 256,
-  "seconds": 2.0,
-  "only": [
-    "synty-polygon-particle-fx-fx-impact-small-01",
-    "synty-polygon-particle-fx-fx-impact-metal-01",
-    "epic-toon-vfx-2-collision",
-    "synty-polygon-particle-fx-fx-sparkles-small-01",
-    "synty-polygon-particle-fx-fx-sparkles-large-01",
-    "epic-toon-fx-sparkle",
-    "background-effects-sparkles",
-    "synty-polygon-particle-fx-fx-confetti-01",
-    "synty-polygon-particle-fx-fx-confetti-falling-01",
-    "synty-polygon-particle-fx-fx-level-up-01",
-    "epic-toon-fx-levelup-cylinder-blue",
-    "epic-toon-fx-levelup-nova-blue",
-    "synty-polygon-particle-fx-fx-pickup-boost-01",
-    "epic-toon-fx-powerup-glow5"
-  ],
+  "seconds": 2,
+  "only": [],
   "force": true
 }

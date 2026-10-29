@@ -7,7 +7,11 @@
     "eval:search": "node seed/search-eval.ts",
     "reindex": "node seed/reindex.ts",
     "facets:report": "node seed/facet-report.ts",
-    "test": "node --test seed/extract/*.test.ts seed/graph/*.test.ts server/src/*.test.ts hooks/*.test.mjs",
+    "test": "node --test seed/*.test.ts seed/upload/*.test.ts seed/extract/*.test.ts seed/graph/*.test.ts server/src/*.test.ts hooks/*.test.mjs scripts/*.test.mjs scripts/*.test.ts scripts/accept/*.test.ts",
+    "upload:blobs": "node seed/upload-blobs.ts",
+    "verify:closure": "node seed/verify-closure.ts",
+    "ingest:failures": "node seed/preview-failures-ingest.ts",
+    "package:guids": "node seed/extract/package-guids.ts",
     "extract": "node seed/extract-unitypackage.ts",
     "dev": "node --watch server/src/index.ts",
     "start": "node server/src/index.ts",
@@ -18,7 +22,8 @@
     "recolor:validate": "node seed/recolor-validate.ts",
     "corpus:sha": "node seed/corpus-sha.ts",
     "previews:gif": "node seed/preview-gif-ingest.ts",
-    "previews:magenta": "node seed/previews-magenta-scan.ts"
+    "previews:magenta": "node seed/previews-magenta-scan.ts",
+    "previews:consistency": "node seed/previews-consistency.ts"
   },
   "keywords": [],
   "author": "",

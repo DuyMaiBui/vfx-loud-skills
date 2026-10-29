@@ -1,0 +1,25 @@
+id: cartoon-ground-impact
+intent: [impact, landing, destruction]
+style: [cartoon, mobile, puzzle]
+layers:
+  - component: shockwave-ring
+    texture: vfx://texture/ring-01/1
+    delay: 0
+    scale: 0.2 -> 1.8
+    lifetime: 0.35
+    blend: additive
+  - component: soft-dust
+    texture: vfx://texture/smoke-01/1
+    delay: 0.03
+    scale: 0.5 -> 1.4
+    lifetime: 0.7
+    blend: alpha
+  - component: debris-burst
+    texture: vfx://texture/ground-break-01/1
+    delay: 0
+    count: 8
+    velocity: radial-outward
+    lifetime: 0.5
+notes:
+  - Khong scale toan bo effect; tang lifetime cua dust thay vi scale
+  - Overdraw: giua dust va ring khong chong qua nhieu

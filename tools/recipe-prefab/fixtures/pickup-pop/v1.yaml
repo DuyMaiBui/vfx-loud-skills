@@ -1,0 +1,15 @@
+id: pickup-pop
+intent: [pickup, collect, coin]
+style: [casual, mobile, puzzle]
+layers:
+  - component: ring-pop
+    texture: vfx://texture/ring-01/1
+    scale: 0.3 -> 1.2
+    lifetime: 0.25
+    blend: additive
+  - component: sparkles
+    texture: vfx://texture/sparkle-01/1
+    count: 6
+    lifetime: 0.4
+notes:
+  - Ngan, khong qua 0.5s de khong cham gameplay

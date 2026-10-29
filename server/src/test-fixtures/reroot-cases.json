@@ -1,0 +1,42 @@
+[
+  {
+    "target_path": "Assets/VFXCloud/studio-game-vfx/Fx/Prefabs/Boom.prefab",
+    "root": null,
+    "expected": "Assets/VFXCloud/studio-game-vfx/Fx/Prefabs/Boom.prefab"
+  },
+  {
+    "target_path": "Assets/VFXCloud/studio-game-vfx/Fx/Prefabs/Boom.prefab",
+    "root": "",
+    "expected": "Assets/VFXCloud/studio-game-vfx/Fx/Prefabs/Boom.prefab"
+  },
+  {
+    "target_path": "Assets/VFXCloud/studio-game-vfx/Fx/Prefabs/Boom.prefab",
+    "root": "Assets/Game/VFX",
+    "expected": "Assets/Game/VFX/Fx/Prefabs/Boom.prefab"
+  },
+  {
+    "target_path": "Assets/VFXCloud/studio-game-vfx/Fx/Prefabs/Boom.prefab",
+    "root": "Assets/Game/VFX/",
+    "expected": "Assets/Game/VFX/Fx/Prefabs/Boom.prefab"
+  },
+  {
+    "target_path": "Assets/VFXCloud/retro-arsenal/Archanor VFX/Materials/Fire.mat",
+    "root": "Packages/x",
+    "expected": "Packages/x/Archanor VFX/Materials/Fire.mat"
+  },
+  {
+    "target_path": "Assets/VFXCloud/pack-a/deep/nested/a.mat",
+    "root": "R",
+    "expected": "R/deep/nested/a.mat"
+  },
+  {
+    "target_path": "Assets/Other/a.mat",
+    "root": "X",
+    "expected": "Assets/Other/a.mat"
+  },
+  {
+    "target_path": "Assets/VFXCloud/pack-only",
+    "root": "X",
+    "expected": "Assets/VFXCloud/pack-only"
+  }
+]

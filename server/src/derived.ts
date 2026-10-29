@@ -76,7 +76,14 @@ export function parseUnityRef(raw: unknown): UnityRef {
 }
 
 /** Higher = more restrictive. Unknown classes rank highest: an unclassifiable source can never be relaxed. */
-const RANK: Record<string, number> = { cc0: 0, 'cc-attribution': 1, 'proprietary-commercial': 2, restricted: 3, unknown: 4 };
+const RANK: Record<string, number> = {
+  cc0: 0,
+  'cc-attribution': 1,
+  'proprietary-commercial': 2,
+  'studio-internal': 3,
+  restricted: 4,
+  unknown: 5,
+};
 const rank = (license: string): number => RANK[licenseClassOf(license)] ?? RANK.unknown;
 
 /**

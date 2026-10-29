@@ -49,7 +49,7 @@ Chọn theo thứ tự ưu tiên: `recipe` → `component` → `technique` → `
 
 ```
 vfx_resolve(uri)      # xem dependencies + license + sha256
-vfx_fetch(uri)        # → download_url
+vfx_fetch(uri)        # → download_url + bundle (variant urp; đọc bundle.complete trước khi báo xong)
 scripts/vfx-fetch.sh <uri> <Unity project root>
 ```
 

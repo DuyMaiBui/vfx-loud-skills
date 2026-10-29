@@ -1,0 +1,13 @@
+id: melee-slash
+intent: [slash, melee, hit]
+style: [action, fantasy]
+layers:
+  - component: slash
+    texture: vfx://texture/swipe-01/1
+    lifetime: 0.15
+    blend: additive
+  - component: hit-spark
+    recipe: vfx://recipe/hit-spark/1
+    delay: 0.03
+notes:
+  - Dat slash theo normal cua surface neu co surface hit

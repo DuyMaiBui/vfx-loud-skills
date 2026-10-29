@@ -13,6 +13,12 @@ namespace VfxPreview
     {
         public readonly Target Target;
         public string Error, Note;
+        /// <summary>C9 cause for Error (RenderFailures.*), set together with Error by the constructor gates.</summary>
+        public string Cause;
+        /// <summary>Offending shader names for unrenderable-material; PreviewBatch adds the clip's shaders for magenta-pixel.</summary>
+        public List<string> Shaders = new List<string>();
+        /// <summary>Frame() found no visible particle or renderer in the whole clip: it still renders, but is recorded as no-visible-output.</summary>
+        public bool NothingVisible;
         public bool Loop, HasParticles, HasScript;
         /// <summary>Set with Error when the target cannot be previewed correctly (a material URP draws as magenta): stale media of it must go.</summary>
         public bool Broken;
@@ -30,6 +36,8 @@ namespace VfxPreview
         readonly Dictionary<ParticleSystem, ParticleSystemRenderer> _psr = new();
         ParticleSystem.Particle[] _buf = new ParticleSystem.Particle[1024];
         float _skipSeconds;
+        double _warmUsed = -1; // warm-up actually used (Probe falls back to 0 when the warmed-up clip is empty); -1 until probed
+        bool _moving; Vector3 _home; // effects that emit over distance are translated along +x during the clip (see PreviewOptions.MoveSpeed)
         static readonly Color Bg = new(0.11f, 0.12f, 0.14f, 1f);
 
         public PreviewCell(Target t, Vector3 origin, int size)
@@ -37,11 +45,11 @@ namespace VfxPreview
             Target = t; _size = size;
             var path = AssetDatabase.GUIDToAssetPath(t.prefabGuid);
             var asset = string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath<GameObject>(path);
-            if (asset == null) { Error = "prefab not found for guid " + t.prefabGuid; return; }
+            if (asset == null) { Error = "prefab not found for guid " + t.prefabGuid; Cause = RenderFailures.PrefabMissing; return; }
             _go = (GameObject)PrefabUtility.InstantiatePrefab(asset);
-            _go.transform.position = origin;
-            var unrenderable = MaterialConverter.Unrenderable(_go);
-            if (unrenderable != null) { Error = unrenderable; Broken = true; return; }
+            _go.transform.position = origin; _home = origin;
+            var unrenderable = MaterialConverter.Unrenderable(_go, out var badShaders);
+            if (unrenderable != null) { Error = unrenderable; Broken = true; Cause = RenderFailures.UnrenderableMaterial; Shaders = badShaders; return; }
             var all = _go.GetComponentsInChildren<ParticleSystem>(true);
             _roots = all.Where(p => p.transform.parent == null || p.transform.parent.GetComponentInParent<ParticleSystem>(true) == null).ToArray();
             _all = all; HasParticles = all.Length > 0;
@@ -55,6 +63,7 @@ namespace VfxPreview
             int seed = 1337;
             foreach (var ps in all) { ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear); ps.useAutoRandomSeed = false; ps.randomSeed = (uint)seed++; }
             foreach (var a in _go.GetComponentsInChildren<AudioSource>(true)) a.enabled = false;
+            _moving = all.Any(p => p.emission.enabled && EmitsOverDistance(p.emission.rateOverDistance));
             Loop = t.playback == "loop" || all.Any(p => p.main.loop);
             _renderers = _go.GetComponentsInChildren<Renderer>(true);
             if (!HasParticles) Note = HasScript ? "static: no ParticleSystem, script-driven" : "static: no ParticleSystem";
@@ -73,19 +82,30 @@ namespace VfxPreview
         /// <summary>Restart the simulation at the clip's start time (loops: after warm-up).</summary>
         public void Reset(double warmup)
         {
-            float lead = (Loop ? (float)warmup : 0f) + _skipSeconds;
+            float lead = (Loop ? (float)(_warmUsed >= 0 ? _warmUsed : warmup) : 0f) + _skipSeconds;
+            _go.transform.position = _home;
             foreach (var ps in _roots) ps.Simulate(lead, true, true, true);
         }
 
-        public void Step(float dt) { foreach (var ps in _roots) ps.Simulate(dt, true, false, true); }
+        public void Step(float dt)
+        {
+            if (_moving) _go.transform.position += Vector3.right * (PreviewOptions.MoveSpeed * dt);
+            foreach (var ps in _roots) ps.Simulate(dt, true, false, true);
+        }
+
+        static bool EmitsOverDistance(ParticleSystem.MinMaxCurve c) =>
+            c.constantMax > 0f || ((c.mode == ParticleSystemCurveMode.Curve || c.mode == ParticleSystemCurveMode.TwoCurves) && c.curveMultiplier > 0f);
 
         /// <summary>Simulate the whole clip once without rendering and collect what is visible (CollectBalls). Dead time before the first
         /// visible particle (start delay, a burst late in a loop cycle) is skipped so the clip does not open on empty frames: the
         /// simulation is fast-forwarded to LeadInFrames before the first visible frame (deterministic seeds, so the render matches the probe).</summary>
         public void Probe(int frames, float dt, double warmup)
         {
-            _skipSeconds = 0;
+            _skipSeconds = 0; _warmUsed = warmup;
             int first = RunProbe(frames, dt, warmup);
+            // A loop warm-up lands one-shot burst effects past their only emission (a looping controller or a long duration flags the clip as a
+            // loop): when the warmed-up clip is empty, probe again from t=0, which is what a one-shot shows.
+            if (Loop && warmup > 0 && _balls.Count + _staticBounds.Count == 0) { _warmUsed = 0; first = RunProbe(frames, dt, 0); }
             if (first <= PreviewOptions.LeadInFrames) return;
             _skipSeconds = (first - PreviewOptions.LeadInFrames) * dt;
             RunProbe(frames, dt, warmup);
@@ -115,7 +135,7 @@ namespace VfxPreview
             foreach (var ps in _all)
             {
                 if (ps == null || !ps.gameObject.activeInHierarchy) continue;
-                var r = _psr[ps]; if (r == null || !r.enabled || r.renderMode == ParticleSystemRenderMode.None) continue;
+                var r = _psr[ps]; if (r == null || !r.enabled || !MaterialSlots.DrawsParticles(r.renderMode == ParticleSystemRenderMode.None, ps.trails.enabled, r.trailMaterial != null)) continue;
                 int n = ps.particleCount; if (n == 0) continue;
                 if (_buf.Length < n) _buf = new ParticleSystem.Particle[Mathf.Min(n * 2, 1 << 16)];
                 n = ps.GetParticles(_buf, _buf.Length);
@@ -154,7 +174,7 @@ namespace VfxPreview
         {
             var balls = new List<Ball>(_balls); balls.AddRange(_staticBounds);
             Vector3 c = _go.transform.position + Vector3.up * 0.5f; float r = 1f;
-            if (balls.Count == 0) Note = (Note == null ? "" : Note + "; ") + "nothing visible in the clip: default framing";
+            if (balls.Count == 0) { NothingVisible = true; Note = (Note == null ? "" : Note + "; ") + "nothing visible in the clip: default framing"; }
             else if (FramingMath.TryFit(balls, PreviewOptions.FrameOutlierFraction, PreviewOptions.FrameMargin, PreviewOptions.FrameMinRadius, out var fit))
             { c = new Vector3(fit.Cx, fit.Cy, fit.Cz); r = fit.Radius; }
             var dir = new Vector3(0f, PreviewOptions.FramePitch, -1f).normalized;
@@ -164,6 +184,16 @@ namespace VfxPreview
         }
 
         public void Render() { _cam.Render(); }
+
+        /// <summary>Distinct shader names of every enabled renderer's materials (for the magenta-pixel record).</summary>
+        public List<string> ShaderNames()
+        {
+            var set = new SortedSet<string>();
+            if (_renderers != null)
+                foreach (var r in _renderers)
+                    if (r != null) foreach (var m in r.sharedMaterials) if (m != null && m.shader != null) set.Add(m.shader.name);
+            return new List<string>(set);
+        }
 
         public void Dispose()
         {

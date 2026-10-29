@@ -8,6 +8,13 @@ namespace VfxCloud
         const string UriKey = "VfxCloud.LastUri";
         string _uri = "";
         string _server = "";
+        string _apiKey = "";
+        int _variant;
+        int _onConflict;
+        InstallSummary _summary;
+        Vector2 _scroll;
+        static readonly string[] Variants = { "urp", "original" };
+        static readonly string[] Policies = { "refuse", "skip", "overwrite" };
         string _status = "";
         MessageType _statusType = MessageType.None;
 
@@ -15,7 +22,7 @@ namespace VfxCloud
         public static void Open()
         {
             var window = GetWindow<VfxCloudFetchWindow>(true, "VFX Cloud Fetch", true);
-            window.minSize = new Vector2(460f, 190f);
+            window.minSize = new Vector2(520f, 360f);
             window.ShowUtility();
             window.Load();
         }
@@ -24,6 +31,9 @@ namespace VfxCloud
         {
             _uri = EditorPrefs.GetString(UriKey, "vfx://texture/smoke-01/1");
             _server = VfxCloudSettings.Server;
+            _apiKey = VfxCloudSettings.ApiKey;
+            _variant = Mathf.Max(0, System.Array.IndexOf(Variants, VfxCloudSettings.Variant));
+            _onConflict = Mathf.Max(0, System.Array.IndexOf(Policies, VfxCloudSettings.OnConflict));
         }
 
         void OnFocus()
@@ -40,6 +50,17 @@ namespace VfxCloud
             {
                 _server = server;
                 VfxCloudSettings.Server = server;
+            }
+
+            EditorGUI.BeginChangeCheck();
+            _apiKey = EditorGUILayout.PasswordField("API key", _apiKey);
+            _variant = EditorGUILayout.Popup("Variant", _variant, Variants);
+            _onConflict = EditorGUILayout.Popup("On conflict", _onConflict, Policies);
+            if (EditorGUI.EndChangeCheck())
+            {
+                VfxCloudSettings.ApiKey = _apiKey;
+                VfxCloudSettings.Variant = Variants[_variant];
+                VfxCloudSettings.OnConflict = Policies[_onConflict];
             }
 
             EditorGUILayout.Space(6f);
@@ -68,26 +89,40 @@ namespace VfxCloud
                 EditorGUILayout.Space(6f);
                 EditorGUILayout.HelpBox(_status, _statusType);
             }
+            DrawResults();
+        }
+
+        void DrawResults()
+        {
+            if (_summary == null) return;
+            _scroll = EditorGUILayout.BeginScrollView(_scroll);
+            foreach (var w in _summary.Warnings) EditorGUILayout.HelpBox(w, MessageType.Warning);
+            foreach (var i in _summary.Items)
+                EditorGUILayout.LabelField($"{i.Action}  {i.Path}" + (i.Reason != null ? $"  ({i.Reason})" : "") + (i.GuidKept != null ? $"  [GUID kept {i.GuidKept}]" : ""));
+            EditorGUILayout.EndScrollView();
         }
 
         void Run()
         {
             VfxCloudSettings.Server = _server;
-            var result = VfxCloudFetcher.Fetch(_uri.Trim());
-            _status = result.message;
-            _statusType = result.status == VfxFetchStatus.Failed ? MessageType.Error : MessageType.Info;
+            var options = InstallOptions.FromSettings();
+            options.Progress = (what, p) => EditorUtility.DisplayProgressBar("VFX Cloud", what, p);
+            try { _summary = VfxCloudInstaller.Install(_uri.Trim(), options); }
+            finally { EditorUtility.ClearProgressBar(); }
+            _status = _summary.Message;
+            _statusType = _summary.Ok ? MessageType.Info : MessageType.Error;
             Repaint();
 
-            if (result.status == VfxFetchStatus.Failed)
+            if (!_summary.Ok)
             {
-                Debug.LogError($"[VFXCloud] {result.message}");
+                Debug.LogError($"[VFXCloud] {_summary.Message}");
                 return;
             }
 
-            Debug.Log($"[VFXCloud] {result.message}");
-            if (!string.IsNullOrEmpty(result.assetPath))
+            Debug.Log($"[VFXCloud] {_summary.Message}");
+            if (!string.IsNullOrEmpty(_summary.RootPath))
             {
-                EditorGUIUtility.PingObject(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(result.assetPath));
+                EditorGUIUtility.PingObject(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(_summary.RootPath));
             }
         }
     }

@@ -55,6 +55,16 @@ namespace VfxPreview
         /// so the tint colour survives.</summary>
         public const float GlowCap = 1.25f;
 
+        /// <summary>Conversion options. The PREVIEW conversion caps the HDR glow multiplier (LDR frames, no bloom); the URP EXPORT must not:
+        /// a real game with bloom wants the original HDR magnitude (plan.md C8, glow_cap null).</summary>
+        public sealed class Options
+        {
+            /// <summary>Upper bound of the glow multiplier, or null for no cap.</summary>
+            public float? GlowCap = MaterialMapping.GlowCap;
+            public static Options Preview => new Options();
+            public static Options Export => new Options { GlowCap = null };
+        }
+
         sealed class Named
         {
             public string BaseMap;     // source property -> _BaseMap
@@ -88,20 +98,22 @@ namespace VfxPreview
         };
 
         /// <summary>Plan for this material, or null when it should be left as it is.</summary>
-        public static MaterialPlan Plan(MaterialSnapshot m)
+        public static MaterialPlan Plan(MaterialSnapshot m, Options o = null)
         {
+            o = o ?? Options.Preview;
             if (m.Shader == UrpParticlesUnlit) return null;
-            if (Rules.TryGetValue(m.Shader, out var r)) return FromNamed(m, r);
+            if (Rules.TryGetValue(m.Shader, out var r)) return FromNamed(m, r, o);
             bool stdParticle = m.Shader == "Particles/Standard Unlit" || m.Shader == "Particles/Standard Surface";
             if (stdParticle || m.Shader.StartsWith("Legacy Shaders/Particles/", StringComparison.Ordinal)) return Legacy(m, stdParticle);
             if (!m.UrpDrawable) return Generic(m);
             return null;
         }
 
-        static MaterialPlan FromNamed(MaterialSnapshot m, Named r)
+        static MaterialPlan FromNamed(MaterialSnapshot m, Named r, Options o)
         {
             var c = m.TryColor(r.Color, out var tint) ? tint : Rgba.White;
-            float glow = Math.Min((r.Glow != null ? m.Float(r.Glow, 1f) : 1f) * r.GlowConst, GlowCap);
+            float glow = (r.Glow != null ? m.Float(r.Glow, 1f) : 1f) * r.GlowConst;
+            if (o.GlowCap.HasValue) glow = Math.Min(glow, o.GlowCap.Value);
             return new MaterialPlan
             {
                 BaseMapFrom = r.BaseMap != null && m.Textures.Contains(r.BaseMap) ? r.BaseMap : null,

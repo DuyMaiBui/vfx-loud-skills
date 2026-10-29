@@ -115,7 +115,7 @@ class BlockParser {
       const rest = m[2];
       this.pos++;
       if (rest !== undefined && rest !== '') {
-        const full = this.gather(rest);
+        const full = this.gather(rest, indent);
         out[key] = key === 'guid' ? unquote(full.trim()) : parseInline(full, line.no);
       } else {
         out[key] = this.parseNested(indent);
@@ -129,13 +129,21 @@ class BlockParser {
    * deeper than the key). Join them (YAML folds a line break to one space) until the
    * construct closes; `this.pos` is left after the last consumed line.
    */
-  private gather(first: string): string {
+  private gather(first: string, baseIndent: number): string {
     let text = first;
     while (this.pos < this.lines.length && !isBalanced(text)) {
       text += ` ${this.lines[this.pos].text}`;
       this.pos++;
     }
     if (!isBalanced(text)) throw new UnityYamlError(`unterminated value "${first.slice(0, 40)}"`);
+    // A plain scalar (no quote / flow / block / anchor lead) may also wrap: every following line indented
+    // deeper than its key (or "- " item) continues it, folded with one space.
+    if (!/^[{["'|>&*]/.test(first.trimStart())) {
+      while (this.pos < this.lines.length && this.lines[this.pos].indent > baseIndent) {
+        text += ` ${this.lines[this.pos].text}`;
+        this.pos++;
+      }
+    }
     return text;
   }
 
@@ -171,7 +179,7 @@ class BlockParser {
         out.push(this.parseMap(childIndent));
       } else {
         this.pos++;
-        out.push(parseInline(this.gather(rest), line.no));
+        out.push(parseInline(this.gather(rest, indent), line.no));
       }
     }
     return out;

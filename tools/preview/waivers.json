@@ -1,0 +1,96 @@
+{
+ "version": 1,
+ "note": "Documented accepted render failures. Read by VfxPreview.Waivers; a waiver only re-labels a failure the render produced (WaiverRules). cause is a C9 unfixable-* value.",
+ "waivers": [
+  {
+   "slug": "retro-arsenal-laser-beam-blue-static",
+   "cause": "unfixable-source",
+   "detail": "no ParticleSystem; the static beam draws nothing visible in the preview harness",
+   "evidence": "data/reports/nvo-sweep.tsv"
+  },
+  {
+   "slug": "retro-arsenal-lightning-beam-blue-static",
+   "cause": "unfixable-source",
+   "detail": "no ParticleSystem; the static beam draws nothing visible in the preview harness",
+   "evidence": "data/reports/nvo-sweep.tsv"
+  },
+  {
+   "slug": "sci-fi-arsenal-laser-static-blue",
+   "cause": "unfixable-source",
+   "detail": "no ParticleSystem; the static beam draws nothing visible in the preview harness",
+   "evidence": "data/reports/nvo-sweep.tsv"
+  },
+  {
+   "slug": "namufx-stylized-water-bubble-explosion",
+   "cause": "unfixable-source",
+   "detail": "prefab GUID is absent from every pack: the NamuFX source is not available",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F16"
+  },
+  {
+   "slug": "namufx-stylized-water-bubbles-burst",
+   "cause": "unfixable-source",
+   "detail": "prefab GUID is absent from every pack: the NamuFX source is not available",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F16"
+  },
+  {
+   "slug": "namufx-stylized-water-bubbles-vertical-loop",
+   "cause": "unfixable-source",
+   "detail": "prefab GUID is absent from every pack: the NamuFX source is not available",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F16"
+  },
+  {
+   "slug": "namufx-stylized-water-hit-01",
+   "cause": "unfixable-source",
+   "detail": "prefab GUID is absent from every pack: the NamuFX source is not available",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F16"
+  },
+  {
+   "slug": "namufx-stylized-water-hit-02",
+   "cause": "unfixable-source",
+   "detail": "prefab GUID is absent from every pack: the NamuFX source is not available",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F16"
+  },
+  {
+   "slug": "namufx-stylized-water-water-ball-explosion",
+   "cause": "unfixable-source",
+   "detail": "prefab GUID is absent from every pack: the NamuFX source is not available",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F16"
+  },
+  {
+   "slug": "namufx-stylized-water-water-beam",
+   "cause": "unfixable-source",
+   "detail": "prefab GUID is absent from every pack: the NamuFX source is not available",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F16"
+  },
+  {
+   "slug": "namufx-stylized-water-water-explosion",
+   "cause": "unfixable-source",
+   "detail": "prefab GUID is absent from every pack: the NamuFX source is not available",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F16"
+  },
+  {
+   "slug": "namufx-stylized-water-water-impact",
+   "cause": "unfixable-source",
+   "detail": "prefab GUID is absent from every pack: the NamuFX source is not available",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F16"
+  },
+  {
+   "slug": "namufx-stylized-water-water-splash-multiple",
+   "cause": "unfixable-source",
+   "detail": "prefab GUID is absent from every pack: the NamuFX source is not available",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F16"
+  },
+  {
+   "slug": "studio-game-vfx-fx-ui-cardflash",
+   "cause": "unfixable-source",
+   "detail": "renderer slot 0 has no material bound in the source prefab",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F9"
+  },
+  {
+   "slug": "synty-polygon-particle-fx-fx-fog-small-01",
+   "cause": "unfixable-source",
+   "detail": "near-transparent fog, max alpha 0.0235 < VisibleAlpha 0.03; the clip is a screen-filling grey haze (camera inside size-40 fog), so a future global VisibleAlpha tweak could revive it",
+   "evidence": "Editor simulation of FX_Fog_Small_01 (Mesh renderer, 94 particles at 1.5 s, size 40, max alpha 0.0235); PreviewOptions.VisibleAlpha stays 0.03 (not lowered globally)"
+  }
+ ]
+}

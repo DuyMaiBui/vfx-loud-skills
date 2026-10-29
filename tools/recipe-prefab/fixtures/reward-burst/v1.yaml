@@ -1,0 +1,20 @@
+id: reward-burst
+intent: [reward, chest-open, level-complete]
+style: [casual, cartoon]
+layers:
+  - component: coin-burst
+    recipe: vfx://vfx/money-coins-burst/1
+    delay: 0
+    count: 12
+    lifetime: 0.9
+  - component: confetti
+    recipe: vfx://vfx/confetti/1
+    delay: 0.05
+    count: 20
+    lifetime: 1.4
+  - component: sparkle-orbit
+    recipe: vfx://vfx/sparkle-orbit/1
+    delay: 0.1
+    lifetime: 1.6
+notes:
+  - Them screen flash o client neu can emphasis

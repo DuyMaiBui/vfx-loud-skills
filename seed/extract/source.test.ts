@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { folderSource } from './source.ts';
+import { folderSetSource, folderSource, tarSource } from './source.ts';
 import { extractPack, type PackConfig } from './pipeline.ts';
-import { materialYaml, prefabYaml } from './test-helpers.ts';
+import { makeUnityPackage, materialYaml, prefabYaml } from './test-helpers.ts';
+import { createHash } from 'node:crypto';
 
 const MAT = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const PREFAB = '11111111111111111111111111111111';
@@ -64,5 +65,167 @@ test('folder pack runs the shared pipeline: records, skips, roots, materials, li
   } finally {
     await fs.rm(root, { recursive: true, force: true });
     await fs.rm(out, { recursive: true, force: true });
+  }
+});
+
+async function gameRoot(files: Array<{ rel: string; guid: string; body: string | Buffer }>): Promise<string> {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'vfx-game-'));
+  for (const f of files) {
+    const abs = path.join(root, f.rel);
+    await fs.mkdir(path.dirname(abs), { recursive: true });
+    await fs.writeFile(abs, f.body);
+    await fs.writeFile(`${abs}.meta`, meta(f.guid));
+  }
+  return root;
+}
+
+const EMBER = '44444444444444444444444444444444';
+const EPIC = '55555555555555555555555555555555';
+
+test('folderSetSource: a guid in several games is one asset, first game wins, gamesOf lists every game', async () => {
+  const gameA = await tinyFolder();
+  const gameB = await gameRoot([
+    { rel: 'Other/Prefabs/Copy.prefab', guid: PREFAB, body: 'LOSING-COPY-BYTES' },
+    { rel: 'Other/Prefabs/Ember.prefab', guid: EMBER, body: prefabYaml({ name: 'Ember' }) },
+  ]);
+  try {
+    const src = folderSetSource([{ game: 'A', root: gameA }, { game: 'B', root: gameB }], 'Assets');
+    const { paths } = await src.index();
+    assert.equal(paths.get(PREFAB), 'Assets/Fx/Prefabs/Boom.prefab', 'first root wins the path');
+    assert.equal(paths.get(EMBER), 'Assets/Other/Prefabs/Ember.prefab');
+    assert.equal(paths.size, 5); // Boom, Bin, Env, Fire.mat, Ember (Copy collapsed into Boom)
+    assert.deepEqual(src.gamesOf?.(PREFAB), ['A', 'B']);
+    assert.deepEqual(src.gamesOf?.(EMBER), ['B']);
+    assert.deepEqual(src.gamesOf?.('9'.repeat(32)), []);
+    const bytes = new Map<string, Buffer>();
+    for await (const e of src.assets((g) => g === PREFAB)) bytes.set(e.guid, e.data);
+    assert.equal(bytes.get(PREFAB)?.toString('utf8'), prefabYaml(), 'bytes come from the winning root only');
+  } finally {
+    await fs.rm(gameA, { recursive: true, force: true });
+    await fs.rm(gameB, { recursive: true, force: true });
+  }
+});
+
+test('folder-set pack: third-party prefabs skipped, duplicates collapsed, every game recorded in meta', async () => {
+  const gameA = await tinyFolder();
+  const gameB = await gameRoot([
+    { rel: 'Other/Prefabs/Copy.prefab', guid: PREFAB, body: 'LOSING-COPY-BYTES' },
+    { rel: 'Other/Prefabs/Ember.prefab', guid: EMBER, body: prefabYaml({ name: 'Ember' }) },
+    { rel: 'Epic Toon FX/Prefabs/Fire.prefab', guid: EPIC, body: prefabYaml({ name: 'Fire' }) },
+  ]);
+  const out = await fs.mkdtemp(path.join(os.tmpdir(), 'vfx-set-out-'));
+  const pack: PackConfig = {
+    slug: 'studio-set', name: 'Studio Set', vendor: 'The1Studio', license: 'studio-internal',
+    style: ['stylized'], tags: ['studio'], sourceType: 'folder-set', pathPrefix: 'Assets',
+    excludePathPrefixes: ['Assets/Epic Toon FX/'],
+  };
+  try {
+    const source = folderSetSource([{ game: 'A', root: gameA }, { game: 'B', root: gameB }], 'Assets');
+    const s = await extractPack({ pack, source, outDir: out });
+    assert.deepEqual(s.excluded, { 'third-party-pack': 1 });
+    assert.equal(s.duplicatesCollapsed, 1);
+    assert.equal(s.eligible, 4); // Boom, Bin, Env, Ember
+    assert.equal(s.extracted, 3);
+    assert.deepEqual(s.skipped.map((k) => [path.basename(k.prefabPath), k.code]), [['Bin.prefab', 'binary-serialization']]);
+    assert.ok(s.records.every((r) => !r.prefabPath.includes('Epic Toon')));
+    const boom = s.records.find((r) => r.prefabGuid === PREFAB) as (typeof s.records)[number];
+    const rec = JSON.parse(await fs.readFile(path.join(out, 'studio-set', `${boom.slug}.json`), 'utf8'));
+    assert.deepEqual(rec.meta.source.games, ['A', 'B']);
+    assert.equal(rec.meta.source.prefabPath, 'Assets/Fx/Prefabs/Boom.prefab');
+    assert.equal(rec.license, 'studio-internal');
+    assert.equal(rec.meta.license_class, 'studio-internal');
+    assert.equal(rec.meta.ai_training, false);
+    assert.equal(rec.visibility, 'project');
+  } finally {
+    await fs.rm(gameA, { recursive: true, force: true });
+    await fs.rm(gameB, { recursive: true, force: true });
+    await fs.rm(out, { recursive: true, force: true });
+  }
+});
+
+test('folder-set: a non-prefab duplicate guid keeps the first file; a duplicate on a prefab is refused', async () => {
+  const anims = await gameRoot([
+    { rel: 'A/Anim/One.anim', guid: MAT, body: 'x' },
+    { rel: 'B/Anim/Two.anim', guid: MAT, body: 'y' },
+  ]);
+  const prefabs = await gameRoot([
+    { rel: 'P/Prefabs/One.prefab', guid: PREFAB, body: prefabYaml() },
+    { rel: 'P/Prefabs/Two.prefab', guid: PREFAB, body: prefabYaml() },
+  ]);
+  try {
+    const { paths } = await folderSetSource([{ game: 'G', root: anims }], 'Assets').index();
+    assert.equal(paths.get(MAT), 'Assets/A/Anim/One.anim');
+    await assert.rejects(folderSetSource([{ game: 'G', root: prefabs }], 'Assets').index(), /duplicate guid on a prefab/);
+    await assert.rejects(folderSource(prefabs, 'Assets').index(), /duplicate guid/);
+  } finally {
+    await fs.rm(anims, { recursive: true, force: true });
+    await fs.rm(prefabs, { recursive: true, force: true });
+  }
+});
+
+const sha = (b: Buffer | string): string => createHash('sha256').update(b).digest('hex');
+
+test('files(): the .meta bytes come with the asset, byte-exact, for a tar and a folder source', async () => {
+  const folder = await tinyFolder();
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'vfx-pkg-'));
+  const pkg = path.join(tmp, 'Pack.unitypackage');
+  await fs.writeFile(pkg, makeUnityPackage([{ guid: PREFAB, path: 'Assets/Fx/Boom.prefab', asset: prefabYaml() }]));
+  try {
+    const fromTar: Array<{ guid: string; path: string; meta: string | null }> = [];
+    for await (const f of tarSource(pkg).files(() => true)) fromTar.push({ guid: f.guid, path: f.path, meta: f.meta?.toString('utf8') ?? null });
+    assert.deepEqual(fromTar, [{ guid: PREFAB, path: 'Assets/Fx/Boom.prefab', meta: `fileFormatVersion: 2\nguid: ${PREFAB}\n` }]);
+
+    const fromFolder = new Map<string, { path: string; meta: string | null }>();
+    for await (const f of folderSource(folder, 'Assets/Vendor').files(() => true)) {
+      fromFolder.set(f.guid, { path: f.path, meta: f.meta?.toString('utf8') ?? null });
+    }
+    assert.equal(fromFolder.get(PREFAB)?.path, 'Assets/Vendor/Fx/Prefabs/Boom.prefab');
+    assert.equal(fromFolder.get(PREFAB)?.meta, meta(PREFAB));
+    assert.equal(fromFolder.has('f'.repeat(32)), false, 'directory meta is not an asset');
+  } finally {
+    await fs.rm(folder, { recursive: true, force: true });
+    await fs.rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test('copiesOf(): every copy with its sha256, winner first; an unknown guid is []', async () => {
+  const gameA = await gameRoot([{ rel: 'Fx/Boom.prefab', guid: PREFAB, body: prefabYaml() }]);
+  const gameB = await gameRoot([{ rel: 'Other/Copy.prefab', guid: PREFAB, body: 'LOSING-COPY-BYTES' }]);
+  try {
+    const src = folderSetSource([{ game: 'A', root: gameA }, { game: 'B', root: gameB }], 'Assets');
+    await src.index();
+    assert.deepEqual(await src.copiesOf(PREFAB), [
+      { origin: 'A', sha256: sha(prefabYaml()) },
+      { origin: 'B', sha256: sha('LOSING-COPY-BYTES') },
+    ]);
+    assert.deepEqual(await src.copiesOf('9'.repeat(32)), []);
+  } finally {
+    await fs.rm(gameA, { recursive: true, force: true });
+    await fs.rm(gameB, { recursive: true, force: true });
+  }
+});
+
+test('preferCopy: the first copy for which it is true wins; absent option keeps first-wins (D8)', async () => {
+  const VFX = 'ParticleSystem: {}\n';
+  const gameA = await gameRoot([{ rel: 'Fx/Boom.prefab', guid: PREFAB, body: 'no effects in this copy' }]);
+  const gameB = await gameRoot([{ rel: 'Other/Boom.prefab', guid: PREFAB, body: VFX }]);
+  try {
+    const roots = [{ game: 'A', root: gameA }, { game: 'B', root: gameB }];
+    const preferred = folderSetSource(roots, 'Assets', { preferCopy: (_g, bytes) => bytes.includes('ParticleSystem') });
+    const picked = await preferred.index();
+    assert.equal(picked.paths.get(PREFAB), 'Assets/Other/Boom.prefab', 'the copy that contains a ParticleSystem wins');
+    const bytes = new Map<string, Buffer>();
+    for await (const e of preferred.assets(() => true)) bytes.set(e.guid, e.data);
+    assert.equal(bytes.get(PREFAB)?.toString('utf8'), VFX);
+    assert.deepEqual(preferred.gamesOf?.(PREFAB), ['A', 'B'], 'every game still carries the guid');
+
+    const firstWins = folderSetSource(roots, 'Assets');
+    assert.equal((await firstWins.index()).paths.get(PREFAB), 'Assets/Fx/Boom.prefab', 'no option: first root wins');
+
+    const none = folderSetSource(roots, 'Assets', { preferCopy: () => false });
+    assert.equal((await none.index()).paths.get(PREFAB), 'Assets/Fx/Boom.prefab', 'nothing preferred: first copy');
+  } finally {
+    await fs.rm(gameA, { recursive: true, force: true });
+    await fs.rm(gameB, { recursive: true, force: true });
   }
 });

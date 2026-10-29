@@ -5,7 +5,14 @@ import type { PoolClient } from 'pg';
 import { config } from './config.ts';
 import { pool } from './db.ts';
 import { getEmbedder } from './embed.ts';
-import { aiTrainingAllowed, extractedLicenseProblem, licenseClassOf } from './license.ts';
+import {
+  aiTrainingAllowed,
+  EXTRACTED_LICENSE_CLASSES,
+  extractedLicenseProblem,
+  licenseClassOf,
+  VISIBILITIES,
+  type Visibility,
+} from './license.ts';
 import { SLUG_RE } from './slug.ts';
 import { searchDocument } from './search-doc.ts';
 import { candidateFilter, FilterError, normalizeFilters, type FacetFilters } from './facet-query.ts';
@@ -323,7 +330,9 @@ export interface Manifest {
   meta: Record<string, unknown>;
 }
 
-function absoluteUrl(p: string | null | undefined): string | null {
+export function absoluteUrl(p: string): string;
+export function absoluteUrl(p: string | null | undefined): string | null;
+export function absoluteUrl(p: string | null | undefined): string | null {
   if (!p) return null;
   if (/^https?:\/\//.test(p)) return p;
   const base =
@@ -498,7 +507,7 @@ export interface PublishArgs {
   style?: string[];
   category?: string;
   license: string;
-  visibility?: 'project' | 'team' | 'global';
+  visibility?: Visibility;
   fileName?: string;
   b64?: string;
   localPath?: string;
@@ -612,14 +621,22 @@ export async function publish(
     const m = args.meta;
     const problem =
       extractedLicenseProblem(license) ??
-      (m.license_class !== undefined && m.license_class !== 'proprietary-commercial'
-        ? `meta.license_class "${String(m.license_class)}" must be proprietary-commercial`
+      (m.license_class !== undefined && !(EXTRACTED_LICENSE_CLASSES as readonly string[]).includes(String(m.license_class))
+        ? `meta.license_class "${String(m.license_class)}" must be ${EXTRACTED_LICENSE_CLASSES.join(' | ')}`
         : m.ai_training === true
           ? 'meta.ai_training must be false'
           : null);
     if (problem) {
       throw new VfxError(`extracted record refused: ${problem}`, 'invalid');
     }
+  }
+  const visibility: Visibility = args.visibility ?? 'project';
+  if (!(VISIBILITIES as readonly string[]).includes(visibility)) {
+    throw new VfxError(`visibility "${String(visibility)}" must be ${VISIBILITIES.join(' | ')}`, 'invalid');
+  }
+  // Extracted records (purchased packs, studio game assets) are never global (C1, D2).
+  if (args.meta?.extracted === true && visibility === 'global') {
+    throw new VfxError('extracted record refused: visibility "global" (extracted records are never global)', 'invalid');
   }
   assertSlug(args.slug);
 
@@ -694,7 +711,7 @@ export async function publish(
         args.category ?? '',
         'unity',
         license,
-        args.visibility ?? 'project',
+        visibility,
         rel,
         mime,
         bytes.length,

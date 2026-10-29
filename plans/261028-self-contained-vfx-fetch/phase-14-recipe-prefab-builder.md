@@ -1,0 +1,41 @@
+# Phase 14: Recipe-to-prefab builder for the hand-written recipes (lane B, code only)
+
+Lane: B
+Depends-on: 1
+Steps: lane-decides
+Effort: M
+Agent: `t1k-unity-base-developer` (Editor C# plus the small TS tools), worktree `../vfx-skill-cloud-worktrees/lane-B` from the current head. No Editor in this phase; the first compile and run happen in phase 10 (Editor slot 1). Added after phase 13 was numbered (owner decision 2026-10-28); phase numbers are not reordered, so read this phase as parallel with 2-8.
+Owns: `unity/VFXPreview/Assets/Editor/VfxPreview/RecipePrefabBuilder*.cs`, `tools/recipe-prefab/**`
+Creates: `unity/VFXPreview/Assets/Editor/VfxPreview/RecipePrefabBuilder.cs`, `unity/VFXPreview/Assets/Editor/VfxPreview/RecipePrefabBuilderModel.cs`, `tools/recipe-prefab/recipe-spec.ts`, `tools/recipe-prefab/recipe-spec.test.ts`, `tools/recipe-prefab/merge-targets.ts`, `tools/recipe-prefab/merge-targets.test.ts`, `tools/recipe-prefab/fixtures/`, `tools/recipe-prefab/tests/RecipePrefabTests.csproj`, `tools/recipe-prefab/tests/Program.cs`, `scripts/accept/phase-14.sh`
+AX: AX-01 `recipe-spec.ts` and `merge-targets.ts` print a one-line JSON summary and exit non-zero on any unsupported construct; AX-10 `--help` lists `--out`, `--only`, `--empty-control`
+Accept: `bash scripts/accept/phase-14.sh`
+
+## Goal
+
+The 10 hand-written recipes (`cartoon-ground-impact`, `hit-spark`, `melee-slash`, `metal-landing-spark`, `pickup-pop`, `projectile-trail`, `reward-burst`, `rod-twinkle-box` (v1 and v2 share the preview slug), `soft-smoke-plume`, `teleport-gate`) have no prefab, so today they are `skipped:no-prefab`. This lane builds a renderable prefab from each recipe's own parameters so they get a preview like every other recipe. It never invents motion: a construct it cannot map makes the slug `skipped` with the reason, never a partial preview.
+
+Recipe shape (read from `data/recipe/<slug>/v1.yaml`, 18 `component:` layers across the 10): `layers:` list; per layer `component`, `texture: vfx://texture/<slug>/<v>`, `recipe: vfx://vfx/<slug>/<v>` or `vfx://recipe/<slug>/<v>` (a nested effect), `blend: additive`, `lifetime`, `delay`, `loop`, `scale: a -> b` or a number, `rotation`, `alpha`, `count`; two recipes use explicit `particle_system:`/`renderer:`/`main:`/`emission:`/`shape:`/`color_over_lifetime:` blocks.
+
+## Boundaries and ordering (stated once)
+
+- File ownership: lane R's `unity/VFXPreview/Assets/Editor/VfxPreview/*.cs` glob EXCLUDES `RecipePrefabBuilder*.cs` (plan.md SHARED vs LANE partition); no other lane's glob matches `RecipePrefabBuilder*` or `tools/recipe-prefab/**`. Lane B never edits R's files: it only CALLS the existing public members `MaterialMapping.UrpParticlesUnlit` and `MaterialMapping.BlendState(...)` as they exist at the base commit; if it needs another member it stops and reports.
+- Needs lane R's output? Not to be written or compiled (code-only, blind, base commit only). It needs R's output to RUN end to end in phase 10: `-vfxTargets`, `-vfxOut`, `_failures.json` and the `preview_render` persistence. Therefore the Editor run is phase 10 (steps 2b, 3b, 4b below), after lanes B, R, F and phase 9 are merged; it is not run in phases 11-12 except for defect fixes (phase 11) and one sample (phase 12).
+- No migration or contract change: slugs keep `skipped` as the existing C9 state; a builder-skipped slug uses `state='skipped', cause='no-prefab'` with `detail='recipe-builder: <reason>'`.
+
+## Steps
+
+1. `recipe-spec.ts`: a minimal YAML-subset parser (maps, lists of maps, inline lists, scalars, `a -> b`) sized to exactly the grammar of the 10 recipe files (the repo has no YAML dependency and `package.json` is phase 1's), reading `data/recipe/<slug>/v<N>.yaml`; unknown keys, unknown `component` semantics it cannot place, or a `recipe:` reference that does not resolve are reported in `unsupported[]` (NOT ignored). Output `data/previews/recipe-specs/<slug>.json`: `{slug, version, layers:[{component, kind:'quad'|'particle_system'|'nested', textureUri, texturePath, nestedUri, nestedPath, blend, lifetime, delay, loop, scale:{from,to}, rotation, alpha, count, particleSystem?:{...}}], unsupported:[]}`; `texturePath` = legacy fetch location `Assets/VFXCloud/texture/<slug>/<file_name>`, `nestedPath` likewise `Assets/VFXCloud/vfx/<slug>/<file_name>` or the nested recipe's own built prefab (built first, dependency order).
+2. `RecipePrefabBuilderModel.cs` (pure, no UnityEngine, compiled by plain `dotnet`): spec -> `ParticlePlan` per layer (billboard quad `ParticleSystem`: startLifetime, startSize via size-over-lifetime from `scale a -> b`, `loop`, start delay, `count` as a burst, `alpha` as start colour alpha, additive/alpha blend as `Blend`). The mapping table is the single place values are converted; every field it does not map is listed in the plan's `Unmapped`.
+3. `RecipePrefabBuilder.cs` (Editor): `VfxPreview.RecipePrefabBuilder.Run -vfxSpecs <dir> -vfxOut <file>` (and menu `Tools/VFX Preview/4. Build Recipe Prefabs`): for each spec build a GameObject with one child per layer, a `URP Particles/Unlit` material (`_BaseMap` = the fetched texture, blend through `MaterialMapping.BlendState`), nested layers as `PrefabUtility.InstantiatePrefab` of the fetched `vfx` prefab, save to `Assets/RecipePrefabs/<slug>.prefab` (under the gitignored `/Assets/*` whitelist, so nothing generated is tracked), then write `data/previews/_recipe-prefabs.json` `{version:1, runId, items:{<slug>:{prefabPath, prefabGuid, layersInRecipe, systemsBuilt, status:'built'|'skipped', reason}}}` atomically. A missing texture or nested prefab is `skipped` with `texture-missing:<uri>` / `nested-missing:<uri>`. `--empty-control` builds a zero-layer prefab for the control in phase 10 (see Falsifiable check).
+4. `merge-targets.ts`: reads `tools/preview/targets.json` (written by lane R's `targets.ts`, which lists the hand-written recipes as `{slug, prefabGuid:null}`) and `_recipe-prefabs.json`, sets `prefabPath`/`prefabGuid` for every `built` slug, leaves everything else untouched, writes the result back to `tools/preview/targets.json` in place (a gitignored generated file); idempotent; `skipped` slugs keep `prefabGuid:null`, so they are recorded `skipped:no-prefab` with the builder's reason.
+5. Tests: `tools/recipe-prefab/fixtures/` holds a copy of the 10 recipe YAMLs (authored content) as test inputs; `recipe-spec.test.ts` checks layer count, values (`scale`, `lifetime`, `delay`, `count`) equal the YAML for all 10, an injected unknown key lands in `unsupported[]`, and `scale: 0.6 -> 1.0` yields `{from:0.6,to:1.0}`; `merge-targets.test.ts` checks replacement, idempotence and that a non-null row is never changed; the `dotnet` project checks `ParticlePlan` per fixture (systems == layers, blend, burst count, size curve endpoints).
+6. `scripts/accept/phase-14.sh`: run the two node tests and `dotnet run --project tools/recipe-prefab/tests` (no Editor, no DB). These tests are NOT in `npm test` (its globs are phase 1's and `tools/**` is not covered); the accept script is their runner and phase 9 runs it once more on the merged head.
+7. Branch `lane/vfx-bytes-B`, pathspec commit, push, report: "C# not compiled in Unity yet; phase 10 compiles and runs it".
+
+## Falsifiable check
+
+Unit level (this phase): deleting one layer from a fixture makes the `systems == layers` assertion fail; an unknown YAML key that the parser silently ignores makes the `unsupported` assertion fail. Editor level (phase 10, run by its accept script): every built slug has `systemsBuilt == layersInRecipe`; the 10 slugs have `preview_render.state='ok'` (or a builder-skipped reason) and a `preview_gif` row; and the control: `RecipePrefabBuilder.Run --empty-control` into `-vfxOut data/previews-control` (with `-skipGifIngest`, not ingested) must produce `no-visible-output` for the zero-layer prefab, proving the render gate sees a blank result and an all-ok report is not vacuous.
+
+## Rollback
+
+Code: drop branch `lane/vfx-bytes-B`. Generated state is gitignored and idempotent: delete `Assets/RecipePrefabs/`, `data/previews/recipe-specs/`, `data/previews/_recipe-prefabs.json`; regenerate `tools/preview/targets.json` with `node tools/preview/targets.ts`; `DELETE FROM preview_render WHERE slug IN (<the 10>)` and the 10 `preview_gif` rows if the previews must be withdrawn.

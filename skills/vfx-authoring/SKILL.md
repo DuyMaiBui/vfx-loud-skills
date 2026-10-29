@@ -29,9 +29,9 @@ Server đã được đăng ký: `claude mcp add --transport http vfx-skill http
 ## Luật bất di bất dịch
 
 1. **Search trước, tạo sau.** Mọi yêu cầu effect mới/lỗi VFX đều bắt đầu bằng `vfx_search`.
-2. **MCP không bao giờ trả binary.** `vfx_search` → Knowledge Card + `vfx://` URI. `vfx_resolve` → manifest. `vfx_fetch` → `download_url` + `sha256`, client tự tải.
+2. **MCP không bao giờ trả binary.** `vfx_search` → Knowledge Card + `vfx://` URI. `vfx_resolve` → manifest. `vfx_fetch` → `download_url` + `sha256` + `bundle` (vfx-bundle/1, mặc định `variant=urp`). Bytes chỉ tải được bằng `x-vfx-key` qua `download_url`.
 3. **Không overwrite.** `vfx_publish` luôn tạo version mới (`v2`, `v3`…).
-4. **Giữ GUID.** File về `Assets/VFXCloud/<type>/<slug>/<slug>.<ext>` — tên ổn định qua mọi version, `.meta` không bao giờ bị đụng.
+4. **Giữ GUID.** Bundle cài vào `Assets/VFXCloud/<pack>/<path>` kèm `<file>.meta` là bản byte-exact của vendor, nên `guid:` giữ nguyên. Không tự viết `.meta`, không sửa `guid:` trong file.
 5. **License gate.** `license="unknown"` bị từ chối. Synty pack → `synty-store-eula`. Tự viết → `cc0`.
 6. **Chỉ publish cái đã validate trong Unity.** Chưa chạy được thì đừng publish.
 
@@ -82,7 +82,7 @@ Lọc `type` ∈ `texture | shader | code | recipe | component | vfx` nếu bi�
 
 `vfx_resolve(uri)` → metadata, `dependencies`, `download_url`, `file_name`, `sha256`.
 
-`vfx_fetch(uri)` → thêm `target_hint` và `fetch_command`. Dùng cái này khi đã quyết định lấy.
+`vfx_fetch(uri, variant?)` → thêm `target_hint`, `fetch_command`, `closure` (legacy, giữ nguyên) và `bundle`. Dùng cái này khi đã quyết định lấy. `variant`: `urp` (mặc định, material đã convert) hoặc `original` (bytes gốc của vendor).
 
 ### 2b. Cần màu khác? Recolor hay lấy biến thể
 
@@ -104,9 +104,23 @@ cd /var/home/mike/Documents/Work/The1/vfx-skill-cloud
 ./scripts/vfx-fetch.sh vfx://texture/smoke-01/1 /path/to/UnityProject
 ```
 
-Cách trong Unity: menu **TheOne → VFX Cloud → Fetch URI…** → dán URI → Fetch. Client tự verify `sha256`, ghi file, `ImportAsset`, rồi log GUID trước/sau để chứng minh GUID không đổi.
+Cách trong Unity: menu **TheOne → VFX Cloud → Fetch URI…** → dán URI → Fetch. Client tự verify `sha256` từng blob trước khi ghi, ghi `.meta` trước asset, rồi kiểm tra GUID sau import (`AssetPathToGUID` phải khớp bundle). Chọn `variant` và `On conflict` trong cửa sổ.
 
-Kết quả nằm ở `Assets/VFXCloud/<type>/<slug>/`.
+Kết quả nằm ở `Assets/VFXCloud/<pack>/`. Cùng kết quả bằng batch: `-executeMethod VfxCloud.Editor.BatchFetch.Run -vfxUri <uri>`.
+
+### 3b. Đọc bundle trước khi báo "xong"
+
+Chỉ coi là đủ khi `bundle.complete` là `true`. Phân biệt các trường (chi tiết và exit code: README § Bytes and bundle API):
+
+| Trường | Ý nghĩa cho agent |
+|---|---|
+| `complete: false`, `reason: no_prefab` | recipe không có prefab (recipe viết tay). Không phải lỗi dữ liệu: lấy bằng `VFX_FETCH_LEGACY=1 ./scripts/vfx-fetch.sh <uri> <project>` |
+| `complete: false`, `reason: bytes_not_uploaded` | chưa đủ bytes trên server. Báo người dùng, không tự cài dở |
+| `unresolved` (không rỗng) | GUID không có nguồn. Đây là lỗi làm `complete:false`; không dùng `VFX_ALLOW_INCOMPLETE=1` để "cho qua" |
+| `requires` | Unity built-in hoặc package UPM, không ship. Chỉ cảnh báo; thiếu package thì cài package đó |
+| `dangling` | GUID vendor pack cũng không có (slot trống). Chỉ cảnh báo, không chặn `complete`; không báo là lỗi cài đặt |
+
+`vfx-fetch.sh` exit 3 (xung đột) thì không ghi gì; đổi `VFX_ON_CONFLICT` chỉ khi người dùng đồng ý. Exit 7 (`.meta` đổi GUID sau khi cài) thường do Editor đang import song song: đóng hoặc đợi Editor rồi cài lại.
 
 ### 4. Tác giả trong Unity
 
@@ -167,7 +181,7 @@ Trên recipe (bước c) bắt buộc:
 - `category`, `tags`, `style`, `meta.behavior` (1–3 câu tiếng Anh: người xem thấy gì theo thời gian) — không đủ thì server từ chối. Nên thêm `meta.facets` (xem `vfx_resolve` của nguồn để lấy mẫu) và `meta.keywords` để `vfx_search` lọc được.
 - `visibility`: mặc định `project`; chỉ nâng khi owner nói.
 
-**Kiểm tra closure** (trước khi coi là xong): `vfx_fetch(<recipe uri>)` phải trả `closure` liệt kê đủ prefab + material + texture, kèm `unity.guid`. Thử thật: `./scripts/vfx-fetch.sh <recipe uri> <thư mục thử>` ghi đủ mọi file (phụ thuộc trước). Thiếu file nào = chưa publish đủ, quay lại bước a/b.
+**Kiểm tra closure** (trước khi coi là xong): `vfx_fetch(<recipe uri>)` phải trả `bundle.complete: true` (mục 3b), và `closure` liệt kê đủ prefab + material + texture kèm `unity.guid`. Thử thật: `./scripts/vfx-fetch.sh <recipe uri> <thư mục thử>` ghi đủ mọi file. `complete:false` do `unresolved` hoặc `bytes_not_uploaded` = chưa publish đủ, quay lại bước a/b.
 
 **2. Preview**: render qua preview lane rồi nạp GIF vào DB.
 `./scripts/vfx-fetch.sh <recipe uri> unity/VFXPreview` (closure vào project preview) → `node tools/preview/targets.ts` (thêm recipe derived vào targets) → render lane với `only: ["<slug>"]` trong `tools/preview/run.json` → `npm run previews:gif -- --only <slug>`. Lane chạy bằng `BatchEntry` thì bước ingest tự chạy ở cuối. Xem README § Preview.
@@ -197,7 +211,7 @@ Bảng "VFX Cloud" của game (NutSort: `node scripts/nutsort/vfxcloud-table.cjs
 | Repo | `/var/home/mike/Documents/Work/The1/vfx-skill-cloud` |
 | Endpoint | `http://127.0.0.1:8787` — `/mcp`, `/healthz`, `/v1/...` |
 | DB | podman `vfx-pg` (pgvector:pg17), `vfx/vfx@127.0.0.1:5432/vfxcloud` |
-| Files | `data/<type>/<slug>/v<version>.<ext>` |
+| Files | `data/<type>/<slug>/v<version>.<ext>` (resource) · `data/blobs/<sha[0:2]>/<sha[2:4]>/<sha256>` (bytes của bundle, gzip cho kind văn bản) |
 | Seed | `seed/manifest.json` + `npm run seed` (idempotent, bỏ qua slug đã có) |
 | Unity pkg | `unity/Packages/com.mike.vfx-cloud` (file: reference vào Unity project) |
 | Smoke | `./scripts/smoke.sh` |
@@ -210,7 +224,8 @@ Bảng "VFX Cloud" của game (NutSort: `node scripts/nutsort/vfxcloud-table.cjs
 | `generation expression is not immutable` | `tags::text` không immutable — đã dùng cột `search_text` do app ghi. Đừng trả về `tags::text` trong generated column. |
 | `license "unknown" bị từ chối` | Ingest gate — phải khai license thật |
 | MCP `Authorization header invalid` | Chưa set token; dev thì `AUTH_DISABLED=1` |
-| `.meta` bị đụng / GUID đổi | Client bug — chỉ được ghi file, không được ghi `.meta` |
+| `vfx-fetch.sh` exit 7 (`guid_changed`) | `.meta` không còn GUID của bundle sau khi cài: Editor đã import file đó song song. Đóng hoặc đợi Editor, rồi cài lại (không sửa tay `.meta`) |
+| `vfx-fetch.sh` exit 4 (sha256) | Bytes tải về không khớp: không có file nào được ghi. Thử lại; nếu lặp lại thì báo server |
 | `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX` | Node strip-only: cấm parameter property, enum, namespace |
 
 ## Deferred (không làm ở V0)

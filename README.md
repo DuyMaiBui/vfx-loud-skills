@@ -21,6 +21,38 @@ Vertical slice "deploy now": MCP server HTTP + Postgres/pgvector + Unity Editor 
 "No valid Unity Editor license" (thiếu entitlement `com.unity.editor.headless`).
 Nên phần "hiện đúng trong Editor" + 3 request thật phải làm tay trong Editor.
 
+## Status (đo 2026-10-29)
+
+Số liệu từ DB sống (chỉ `SELECT`) và `data/reports/*.json`. Mỗi dòng có khoá trong backtick; `scripts/accept/phase-13.sh` đối chiếu từng khoá với nguồn, lệch là FAIL.
+
+| Khoá | Giá trị | Nguồn |
+|---|---|---|
+| `resources` | 3472 | DB `resource` (khớp `/healthz`) |
+| `recipes` | 3316 | DB `resource` type=recipe: 3248 có sẵn + 68 game (`studio-internal`, `studio-only`) |
+| `game_recipes_removed` | 48 | `seed/extract/unfixable-scripts.json` (5 `unfixable-script` + 43 chỉ có UIParticle; 116 trích được − 48 = 68) |
+| `resource_edges` | 18738 | DB `resource_edge` |
+| `asset_files_original` | 5466 | `data/reports/upload-original.json` `.files` |
+| `asset_files_urp` | 655 | DB `asset_file` variant=urp (637 `Particles/Unlit` + 18 `URP/Lit`) |
+| `asset_blobs` | 11563 | DB `asset_blob` (10908 của `original` + 655 của `urp`) |
+| `original_bytes` | 1576075529 | `data/reports/upload-original.json` `.bytes` (trước nén) |
+| `blob_stored_bytes` | 365817839 | DB `sum(stored_bytes)` (sau gzip của kind văn bản) |
+| `closure_urp_checked` | 3305 | `data/reports/closure-verify-urp.json` `.checked` |
+| `closure_urp_complete` | 3293 | `data/reports/closure-verify-urp.json` `.complete` |
+| `closure_urp_incomplete` | 12 | `.incomplete`: 10 `bytes_not_uploaded` + 2 `unresolved`, cả 12 đều là namufx (pack chỉ có tham số) |
+| `closure_urp_dangling` | 305 | `.dangling`: recipe có ít nhất một GUID dangling (24 GUID khác nhau) |
+| `previews_rendered` | 1768 | DB `preview_render` |
+| `previews_ok` | 1753 | DB `preview_render` state=ok |
+| `previews_failed` | 15 | DB `preview_render` state=failed; cả 15 là `unfixable-source`, đúng bằng 15 mục của `tools/preview/waivers.json` |
+| `fixable_failures` | 0 | `scripts/accept/phase-11.sh` FIXABLE=0 |
+| `preview_gifs` | 1753 | DB `preview_gif` (`previews:consistency`: consistent) |
+| `magenta_allow` | 4 | `tools/preview/magenta-allow.txt` (dòng không phải comment) |
+
+Chưa đo lại, nên không có trong bảng:
+
+- `data/reports/closure-verify.json` (`variant=original`: 3353 checked, 3341 complete) là báo cáo **trước** khi gỡ 48 recipe. Chạy lại `node seed/verify-closure.ts --all --variant original` để có số mới.
+- `data/accept/logs/` của phase 12 (clean project) không có bảng pass/fail; `control.exit=1` và `build-recipe.exit=0` là hai tín hiệu duy nhất còn lại. Chạy lại cần Unity Editor.
+- `data/reports/phase-9.out` (2026-10-28) ghi một FAIL `pinned_baseline_corpus_clone`; chưa chạy lại sau các thay đổi sau đó.
+
 ## Chạy
 
 ```bash
@@ -48,7 +80,7 @@ Skills + MCP cho Unity project đã được bật sẵn:
 | `vfx_facets` | Đếm record theo từng facet cho `query` + `filters` → biết nên hỏi user câu gì tiếp |
 | `vfx_resolve` | URI → version, `file_name`, `download_url`, `sha256`, `dependencies` |
 | `vfx_review` / `vfx_review_result` | Mở trang review cho ứng viên / bộ (trả `url` + `session`) và đọc lựa chọn của user |
-| `vfx_fetch` | URL tải payload + `closure` (mọi file record cần để import đủ: prefab → material → texture, phụ thuộc trước). `scripts/vfx-fetch.sh <uri> <unity project root>` ghi file + verify sha256, tải cả closure (`VFX_FETCH_DEPS=0` để tắt), không đụng `.meta` |
+| `vfx_fetch` | Metadata + `closure` (legacy, không đổi) + `bundle` (`vfx-bundle/1`: mọi file Unity cần để render, kèm `.meta` gốc để GUID giữ nguyên). Input `variant`: `urp` (mặc định) \| `original`. MCP chỉ trả URL + metadata, không bao giờ bytes. `scripts/vfx-fetch.sh <uri> <unity project root>` tải và verify sha256 toàn bộ bundle rồi mới ghi file. Chi tiết: § Bytes and bundle API |
 | `vfx_publish` | Payload mới → version mới + `linkDependencies` (cập nhật graph, không overwrite). Effect đã chỉnh từ record có sẵn: `derived_from`, `modifications`, `unity`, `visibility` (xem **Publish-back**) |
 
 ## Knowledge graph
@@ -59,7 +91,7 @@ Skills + MCP cho Unity project đã được bật sẵn:
 | --- | --- |
 | `variant_of` | cùng effect khác màu/version: cùng pack + folder + tên đã bỏ từ màu/version, **và** cùng số node + cùng node path/module. `meta.family` trên mọi thành viên, edge tới thành viên canonical (slug nhỏ nhất) |
 | `pairs_with` | cùng bộ muzzle + projectile + impact (pack Archanor), theo stem tên + màu. `meta.pairRole`, `meta.pairSet` |
-| `uses` (recipe → asset) | bảng `asset` + `resource_asset`: material/texture/shader/mesh theo GUID, chỉ metadata (không bytes). Tách bảng riêng, không phải `resource`, để không lọt vào search/facets/healthz |
+| `uses` (recipe → asset) | bảng `asset` + `resource_asset`: material/texture/shader/mesh theo GUID, metadata. Bytes của các file đó nằm ở `asset_file` + `asset_blob` (§ Bytes and bundle API). Tách bảng riêng, không phải `resource`, để không lọt vào search/facets/healthz |
 | `similar_to` | dùng chung material/texture, Jaccard, top-10 mỗi recipe (`weight`) |
 | `applies_to` | technique/component/shader/code → recipe áp dụng, theo mapping facet trong JSON |
 
@@ -188,13 +220,13 @@ Thiếu facet nào thì **bỏ key** (record hand-written chỉ có facet suy ra
 
 ## Corpus
 
-**164 resource · 90 edge (knowledge graph)**
+**3472 resource · 18738 edge (knowledge graph)** — số đo 2026-10-29, xem § Status
 
 | type | số | nguồn |
 | --- | --- | --- |
 | `texture` | 113 | 28 Synty (EULA) + 80 Kenney (CC0) + 5 OpenGameArt flipbook (CC0) |
 | `vfx` | 21 | Synty prefab |
-| `recipe` | 8 | tự viết (inline YAML) |
+| `recipe` | 3316 | 3248 pack đã ingest + 68 game (`studio-internal`) + 8 tự viết (inline YAML) |
 | `technique` | 9 | tự viết |
 | `component` | 6 | tự viết |
 | `shader` | 3 | tự viết (URP) |
@@ -210,8 +242,7 @@ Graph được dựng lại mỗi lần `npm run seed` (`relinkAll`) bằng các
 Xem **[LICENSES.md](LICENSES.md)** — taxonomy đầy đủ. Mỗi record mang
 `license` + `meta.license_class` + `meta.ai_training`.
 
-- `cc0` → 115 record (Kenney 80 + flipbook OpenGameArt 5 + nội dung tự viết 30)
-- `synty-store-eula` → 49 record (`proprietary-commercial`, `ai_training=false`)
+- `cc0` → 118 resource · `synty-store-eula` → 229 · `asset-store-eula` → 3057 · `studio-internal` → 68 (game recipe, `visibility=studio-only`, `ai_training=false`). Số đo: `SELECT license, count(*) FROM resource GROUP BY 1`.
 
 `license="unknown"` **bị server từ chối** (ingest gate, có test).
 
@@ -252,9 +283,121 @@ Nguồn/author/license đầy đủ: `seed/vendor/flipbooks/SOURCES.md`.
 `Unity/VFXSource/Packages/manifest.json` bằng `file:` reference.
 
 - `VfxCloudSettings` (Project Settings), `VfxCloudManifest`, `VfxCloudFetcher`
-- Menu `Tools → VFX Cloud → Fetch…` (`VfxCloudFetchWindow`)
+- Menu `TheOne → VFX Cloud → Fetch URI…` (`VfxCloudFetchWindow`): ô Server, API key, Variant (`urp` | `original`), On conflict (`refuse` | `skip` | `overwrite`), nút Fetch. Cài bundle `vfx-bytes/1` như `vfx-fetch.sh`, cùng exit code (§ Bytes and bundle API).
+- Batch (không mở cửa sổ): `-executeMethod VfxCloud.Editor.BatchFetch.Run -vfxUri <vfx://…> [-vfxVariant urp|original] [-vfxOnConflict refuse|skip|overwrite] [-vfxServer <url>] [-vfxKey <key>] [-vfxRoot <dir>]`; mỗi tham số mặc định lấy từ env tương ứng (`VFX_VARIANT`, `VFX_ON_CONFLICT`, `VFX_SERVER`, `VFX_API_KEY`, `VFX_ROOT`). Thoát khác 0 khi lỗi.
 - Compile sạch 0 lỗi/0 warning (kiểm bằng `dotnet` + `UnityEngine/UnityEditor.dll`,
   không qua Editor — vì license headless)
+
+## Bytes and bundle API (vfx-bytes/1)
+
+Human copy of the contract. The field-level SSOT is `plans/261028-self-contained-vfx-fetch/plan.md` § Contract (C1-C10), executed as `server/src/bundle-contract.ts`; do not copy field lists elsewhere.
+
+- Bytes are content-addressed files under `DATA_DIR/blobs/<sha[0:2]>/<sha[2:4]>/<sha256>` (text kinds gzipped at rest). Metadata lives in Postgres: `asset_blob`, `asset_file` (one row per `(guid, variant)`), `preview_render` (migration 010).
+- `variant=original` is vendor bytes. `variant=urp` is the converted material, same guid, path and `.meta`. Packages and Unity built-ins are listed in `requires`, never shipped. `dangling` lists GUIDs a shipped file references that no readable source of its fully swept pack defines (the vendor pack has the same hole, e.g. Retro Arsenal's `_Ramp` slot; Unity shows an empty texture): a warning, the bundle stays `complete`. Clients surface it (`vfx-fetch.sh` summary key `dangling` plus a stderr warning, the Unity window a warning line) and keep their exit codes. A GUID that a root references, or that a partial folder copy might simply lack, stays `unresolved` (an error).
+- Blob routes need `x-vfx-key` even under `AUTH_DISABLED=1`. Opt out only with `VFX_BLOB_ALLOW_ANON=1`. MCP never carries bytes.
+
+| Route | Purpose |
+| --- | --- |
+| `POST /v1/blob/missing` | which of these sha256 values are not stored yet |
+| `PUT /v1/blob/:sha256` | store raw bytes (the body must hash to `:sha256`) |
+| `GET /v1/blob/:sha256` | fetch raw bytes (ETag, immutable cache) |
+| `POST /v1/asset-file/batch` | register files (per-item `created`/`unchanged`/`replaced`/`rejected`) |
+| `GET /v1/asset-file/:guid?variant=` | one `BundleFile` |
+| `GET /v1/closure/:type/:slug/:version?variant=` | the `Bundle` for a recipe (default `urp`) |
+
+Env: `VFX_BLOB_MAX_BYTES` (256 MiB), `VFX_BUNDLE_MAX_FILES` (3000), `VFX_BLOB_ALLOW_ANON`.
+
+Tests run on scratch databases only: `bash scripts/accept/with-testdb.sh <lane> <cmd>` creates `vfxcloud_test_<lane>`, migrates it and drops it on exit. `npm test` against the live `vfxcloud` DB is refused by `assertScratchDb()` in the DB-backed contract tests.
+
+### Ai được lấy bytes, và variant nào
+
+- Bytes chỉ đi qua route blob có `x-vfx-key`. Không có `VFX_API_KEY` và không có `VFX_BLOB_ALLOW_ANON=1` thì 403. Mục đích: bytes của pack mua không lộ qua compose mặc định (`AUTH_DISABLED=1`, bind `0.0.0.0`).
+- `asset_file` không bao giờ `visibility=global` (CHECK). License được phép kèm bytes: `synty-store-eula`, `asset-store-eula`, `studio-internal`. `unknown`, `restricted` và mọi `ai_training=true` bị từ chối (`forbidden`).
+- `original`: bytes gốc của vendor (`.unitypackage`, thư mục namufx, thư mục game). Không bao giờ lấy từ `unity/VFXPreview/Assets/ImportedPacks` vì đó là bản đã convert tại chỗ.
+- `urp`: material đã convert sang URP, cùng guid, path và `.meta` với bản gốc; chỉ có ở material. Sinh bởi `VfxPreview.UrpExport` không cap glow. Là mặc định của `vfx_fetch`, `vfx-fetch.sh`, `/v1/closure` và Unity client.
+
+### Bundle: đọc gì trước khi báo "xong"
+
+| Trường | Nghĩa | Việc phải làm |
+|---|---|---|
+| `complete: true` | mọi GUID mà root tham chiếu đều có file hoặc thuộc Unity/UPM | cài được |
+| `complete: false`, `reason: no_prefab` | recipe không có prefab (recipe viết tay); `files` rỗng | `vfx-fetch.sh` thoát 5. Dùng `VFX_FETCH_LEGACY=1` (D18) |
+| `complete: false`, `reason: bytes_not_uploaded` | prefab có GUID nhưng chưa có dòng `asset_file` | báo lỗi, chưa cài được |
+| `unresolved` | GUID không có nguồn nào | lỗi thật, `complete:false`. Chỉ cài với `VFX_ALLOW_INCOMPLETE=1` |
+| `requires` | GUID thuộc Unity built-in hoặc package UPM (không ship) | cảnh báo; `VFX_STRICT_REQUIRES=1` làm thoát 6 nếu package thiếu trong `Packages/manifest.json` |
+| `dangling` | GUID mà pack vendor cũng không định nghĩa (Unity hiện slot trống) | chỉ cảnh báo; không đổi `complete` hay exit code. 17 script game bị bỏ có chủ ý (`stripped`) cũng nằm ở đây |
+| `cycles` | vòng tham chiếu, đã cắt | thông tin |
+
+Chi tiết trường và thứ tự file: plan `plans/261028-self-contained-vfx-fetch/plan.md` § Contract (C4).
+
+### `vfx-fetch.sh`
+
+```bash
+scripts/vfx-fetch.sh vfx://recipe/<slug>/<version> [project_root]
+VFX_DRY_RUN=1 scripts/vfx-fetch.sh vfx://recipe/<slug>/1 /path/to/Unity   # chỉ in kế hoạch
+```
+
+| Biến | Mặc định | Ghi chú |
+|---|---|---|
+| `VFX_SERVER` | `http://127.0.0.1:8787` | |
+| `VFX_API_KEY` | (trống) | gửi là `x-vfx-key`; bắt buộc cho route blob |
+| `VFX_PROJECT` | thư mục hiện tại | project root khi không truyền tham số |
+| `VFX_VARIANT` | `urp` | `urp` \| `original` |
+| `VFX_ON_CONFLICT` | `refuse` | `refuse` \| `skip` \| `overwrite`; không bao giờ xóa |
+| `VFX_ROOT` | (trống) | đổi prefix `Assets/VFXCloud/<pack>/` thành `<VFX_ROOT>/` |
+| `VFX_DRY_RUN` | (trống) | `1`: in kế hoạch, không ghi gì |
+| `VFX_ALLOW_INCOMPLETE` | (trống) | `1`: cài dù `complete:false` |
+| `VFX_STRICT_REQUIRES` | (trống) | `1`: thoát 6 khi thiếu package |
+| `VFX_FETCH_LEGACY` | (trống) | `1`: đường cũ theo từng resource; `VFX_FETCH_DEPS=0` chỉ có tác dụng ở đường này |
+
+| Exit | Nghĩa |
+|---|---|
+| 0 | ok |
+| 1 | lỗi mạng, server hoặc cài đặt |
+| 2 | sai cách gọi |
+| 3 | xung đột bị từ chối (`refuse`) |
+| 4 | sha256 không khớp; không có gì được ghi |
+| 5 | bundle `complete:false` (và không có `VFX_ALLOW_INCOMPLETE=1`) |
+| 6 | package bắt buộc thiếu (`VFX_STRICT_REQUIRES=1`) |
+| 7 | `guid:` trong `.meta` đổi sau khi cài (thường do Editor đang mở import song song) |
+
+Quy trình cài: mọi blob tải về `Temp/vfx-cloud-<random>/` và verify sha256 trước; chỉ khi tất cả đúng mới di chuyển. Mỗi file ghi `.meta` trước rồi mới ghi asset; `.meta` là bản byte-exact của vendor, nên GUID giữ nguyên. Nhật ký `Temp/vfx-cloud-journal.json` cho phép hoàn tác khi lỗi ở pha di chuyển. Dòng JSON cuối stdout: `{"uri","variant","written","unchanged","reused","skipped","requires_missing","dangling","complete"}`.
+
+### Uploader, verifier, backup
+
+```bash
+node seed/upload-blobs.ts                                   # dry run: không gửi gì
+node seed/upload-blobs.ts --yes --limit 5                   # smoke
+node seed/upload-blobs.ts --yes --resume                    # đầy đủ, chạy lại an toàn
+node seed/upload-blobs.ts --yes --variant urp --urp-dir data/export/urp
+node seed/verify-closure.ts --all --variant urp             # chỉ đọc; --sample N, --slugs a,b@2
+node seed/verify-closure.ts --all --variant urp --record    # ghi preview_render (xem dưới)
+podman exec vfx-pg pg_dump -U vfx -Fc vfxcloud > data/backups/vfxcloud-$(date +%Y%m%d-%H%M%S).dump
+```
+
+- Uploader: `--skip-kinds audio,script`, `--pack <slug>`, `--dangling-map server/src/dangling-guids.json` (chỉ khi chạy toàn bộ `original`). Exit: 0 ok, 1 có file lỗi hoặc bị từ chối, 2 sai cách gọi, 75 server không tới được sau retry.
+- Verifier: exit 0 (không đầy đủ là một phát hiện, không phải lỗi), 1 sha256 sai hoặc bundle không đọc được, 2 sai cách gọi, 75 server không tới được. Báo cáo ở `data/reports/closure-verify*.json`.
+- `--record` ghi `preview_render(state='failed', cause='closure-unresolved')` cho recipe không đầy đủ. Không bao giờ ghi đè dòng `unfixable-*` hay dòng `ok` của pack không đánh dấu `completeSource` (namufx, `seed/extract/packs.json`). Xóa dòng `closure-unresolved` cũ của các slug nay đã đầy đủ.
+- Backup trước mọi lệnh migrate hoặc ghi hàng loạt: lệnh `pg_dump` ở trên; kiểm tra bằng `pg_restore --list <file>`.
+
+### Chu kỳ render và đọc lỗi
+
+1. Khôi phục bản gốc: `node scripts/preview-restore-originals.ts` (`--dry-run` để xem trước).
+2. Export bản publish: menu `Tools/VFX Preview/5. Export URP Variant (keep Editor open)` hoặc `-executeMethod VfxPreview.UrpExport.Run -vfxExport data/export/urp` (không cap glow, C8). Rồi upload `urp` như trên.
+3. Khôi phục bản gốc lần nữa, convert cho preview (`GlowCap=1.25`), render: `BatchEntry.Run`, hoặc `tools/preview/run.json` với `only`.
+4. Nạp lỗi: `node seed/preview-failures-ingest.ts` (đọc `data/previews/_failures.json`), rồi `npm run previews:gif`, `npm run previews:magenta`, `npm run previews:consistency`.
+
+Đọc lỗi:
+
+```sql
+SELECT cause, count(*) FROM preview_render WHERE state='failed' GROUP BY 1;
+```
+
+Cause `unfixable-shader`, `unfixable-source`, `unfixable-script` là lỗi đã có chứng cứ. Mọi cause khác là việc cần sửa; `scripts/accept/phase-11.sh` đếm chúng là `FIXABLE` và phải bằng 0.
+
+- `tools/preview/waivers.json`: mục ghi nhận lỗi đã có chứng cứ (cause phải là `unfixable-*`). Chỉ đổi nhãn lỗi mà render đã tạo ra, không tạo ra ảnh.
+- `tools/preview/magenta-allow.txt`: slug magenta thật đã kiểm tra (không phải lỗi shader). `npm run previews:magenta -- --no-allow` bỏ qua danh sách này.
+- `npm run previews:consistency`: có dòng `preview_gif` khi và chỉ khi lần render mới nhất là `ok`.
 
 ## Cut trong V0
 

@@ -16,7 +16,9 @@
       ],
       "metaStyle": [
         "stylized"
-      ]
+      ],
+      "bytes": true,
+      "completeSource": true
     },
     {
       "slug": "epic-toon-vfx-2",
@@ -35,7 +37,9 @@
       "metaStyle": [
         "toon",
         "stylized"
-      ]
+      ],
+      "bytes": true,
+      "completeSource": true
     },
     {
       "slug": "environment-weather-nature",
@@ -54,7 +58,9 @@
       ],
       "metaStyle": [
         "stylized"
-      ]
+      ],
+      "bytes": true,
+      "completeSource": true
     },
     {
       "slug": "epic-toon-fx",
@@ -72,7 +78,9 @@
       "metaStyle": [
         "toon",
         "stylized"
-      ]
+      ],
+      "bytes": true,
+      "completeSource": true
     },
     {
       "slug": "retro-arsenal",
@@ -90,7 +98,9 @@
       "metaStyle": [
         "retro",
         "stylized"
-      ]
+      ],
+      "bytes": true,
+      "completeSource": true
     },
     {
       "slug": "sci-fi-arsenal",
@@ -108,7 +118,9 @@
       "metaStyle": [
         "sci-fi",
         "stylized"
-      ]
+      ],
+      "bytes": true,
+      "completeSource": true
     },
     {
       "slug": "synty-polygon-particle-fx",
@@ -130,7 +142,9 @@
       "metaStyle": [
         "low-poly",
         "stylized"
-      ]
+      ],
+      "bytes": true,
+      "completeSource": true
     },
     {
       "slug": "namufx-stylized-water",
@@ -153,7 +167,66 @@
       ],
       "metaStyle": [
         "stylized"
-      ]
+      ],
+      "bytes": true
+    },
+    {
+      "slug": "studio-game-vfx",
+      "name": "Studio Game VFX",
+      "vendor": "The1Studio",
+      "license": "studio-internal",
+      "style": [
+        "stylized"
+      ],
+      "tags": [
+        "studio",
+        "game"
+      ],
+      "stripScripts": true,
+      "sourceType": "folder-set",
+      "pathPrefix": "Assets",
+      "sourceRoots": [
+        {
+          "game": "Mahjong3D",
+          "path": "/var/home/mike/Documents/Work/The1/Unity/Mahjong3D/UnityMahjong3D/Assets"
+        },
+        {
+          "game": "NutSort",
+          "path": "/var/home/mike/Documents/Work/The1/Unity/NutSort/UnityNutSort/Assets"
+        },
+        {
+          "game": "SexyArrow",
+          "path": "/var/home/mike/Documents/Work/The1/Unity/SexyArrow/UnitySexyArrow/Assets"
+        },
+        {
+          "game": "SgameArrow3D",
+          "path": "/var/home/mike/Documents/Work/The1/Unity/SgameArrow3D/UnitySgameArrow3D/Assets"
+        },
+        {
+          "game": "SgameRotateRing",
+          "path": "/var/home/mike/Documents/Work/The1/Unity/SgameRotateRing/UnitySgameRotateRing/Assets"
+        },
+        {
+          "game": "SgameTemplate",
+          "path": "/var/home/mike/Documents/Work/The1/Unity/SgameTemplate/UnitySgameTemplate/Assets"
+        },
+        {
+          "game": "SmashFest",
+          "path": "/var/home/mike/Documents/Work/The1/Unity/SmashFest/UnitySmashFest/Assets"
+        }
+      ],
+      "excludePathPrefixes": [
+        "Assets/Epic Toon FX/",
+        "Assets/NamuFX/",
+        "Assets/Plugins/"
+      ],
+      "metaStyle": [
+        "stylized"
+      ],
+      "prefabSelect": "vfx-components",
+      "visibility": "studio-only",
+      "bytes": true,
+      "completeSource": true
     }
   ]
 }

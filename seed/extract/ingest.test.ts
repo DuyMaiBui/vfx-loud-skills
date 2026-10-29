@@ -70,3 +70,24 @@ test('a non-extracted json is refused, and --limit caps the batch', async () => 
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+test('a record carries its own visibility (studio-only); global and unknown values are refused', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'vfx-ingest-'));
+  await fs.mkdir(path.join(dir, 'p'));
+  const withVis = (slug: string, visibility: string): string => JSON.stringify({ ...JSON.parse(rec(slug)), visibility });
+  await fs.writeFile(path.join(dir, 'p', 'a.json'), withVis('p-a', 'studio-only'));
+  await fs.writeFile(path.join(dir, 'p', 'b.json'), withVis('p-b', 'global'));
+  await fs.writeFile(path.join(dir, 'p', 'c.json'), withVis('p-c', 'secret'));
+  await fs.writeFile(path.join(dir, 'p', 'd.json'), rec('p-d')); // no field: project, as before
+  const seen: Array<{ slug: string; visibility: string }> = [];
+  try {
+    const deps: IngestDeps = { exists: async () => false, publish: async (a) => (seen.push({ slug: a.slug, visibility: a.visibility }), { uri: a.slug }) };
+    const r = await ingestExtracted(dir, deps);
+    assert.deepEqual(seen, [{ slug: 'p-a', visibility: 'studio-only' }, { slug: 'p-d', visibility: 'project' }]);
+    assert.equal(r.failures.length, 2);
+    assert.match(r.failures.join('\n'), /b\.json.*global/);
+    assert.match(r.failures.join('\n'), /c\.json.*unknown visibility/);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});

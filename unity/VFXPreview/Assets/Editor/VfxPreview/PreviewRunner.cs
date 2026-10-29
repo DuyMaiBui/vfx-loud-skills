@@ -30,6 +30,11 @@ namespace VfxPreview
             _o = PreviewOptions.Load();
             var all = JsonConvert.DeserializeObject<List<Target>>(File.ReadAllText(_o.targets));
             if (_o.only is { Length: > 0 }) { var set = _o.only.ToHashSet(); all = all.Where(t => set.Contains(t.slug)).ToList(); }
+            RenderFailures.Begin();
+            // Recipes without a prefab are not renderable: record them as skipped:no-prefab so the DB covers every recipe (C9).
+            foreach (var t in all.Where(t => string.IsNullOrEmpty(t.prefabGuid)))
+                RenderFailures.Record(t.slug, RenderFailures.StateSkipped, RenderFailures.NoPrefab, "recipe has no prefab", null);
+            all = all.Where(t => !string.IsNullOrEmpty(t.prefabGuid)).ToList();
             _idx = PreviewIndex.Load();
             if (!_o.force) all = all.Where(t => !PreviewIndex.Has(_idx, t.slug)).ToList();
             if (_o.limit > 0) all = all.Take(_o.limit).ToList();
@@ -57,6 +62,7 @@ namespace VfxPreview
                 foreach (var r in PreviewBatch.Run(batch, _o, tm))
                 {
                     if (r.note != null) _notes[r.slug] = r.note;
+                    RenderFailures.RecordResult(r);
                     if (r.ok) { PreviewIndex.Merge(_idx, r.slug, r.bytes, _o.fps, _o.Frames, _o.size); _done++; }
                     else
                     {
@@ -66,7 +72,11 @@ namespace VfxPreview
                 }
                 PreviewIndex.Save(_idx);
             }
-            catch (Exception e) { _failed += batch.Count; Debug.LogError("[VfxPreview] batch failed: " + e); }
+            catch (Exception e)
+            {
+                _failed += batch.Count; Debug.LogError("[VfxPreview] batch failed: " + e);
+                foreach (var t in batch) RenderFailures.Record(t.slug, RenderFailures.StateFailed, RenderFailures.Exception, e.GetType().Name + ": " + e.Message, null);
+            }
             tm["batchMs"] = sw.ElapsedMilliseconds; _batchTimings.Add(tm);
             Status("running");
         }
@@ -74,6 +84,7 @@ namespace VfxPreview
         static void Finish()
         {
             EditorApplication.update -= Tick; _batches = null; _wall.Stop();
+            try { RenderFailures.Write(); } catch (Exception e) { Debug.LogError("[VfxPreview] _failures.json not written: " + e); }
             Status("done");
             Debug.Log($"[VfxPreview] done: ok={_done} failed={_failed} wall={_wall.Elapsed.TotalSeconds:F1}s");
         }

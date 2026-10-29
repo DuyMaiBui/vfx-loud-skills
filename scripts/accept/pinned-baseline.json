@@ -1,0 +1,29 @@
+{
+  "_doc": "Pinned pre-existing reds/skips, identity '<repo-relative file> :: <test name>'. Source: plan.md ## Pinned baseline (D19). Pin only shrinks by explicit edit.",
+  "profiles": {
+    "scratch-unseeded": {
+      "red": [
+        "server/src/preview-gif.test.ts :: cards expose gif (and preview_uri) when the slug has one, null otherwise",
+        "server/src/preview-gif.test.ts :: a variant without its own GIF borrows its family canonical one, flagged viaFamily",
+        "server/src/preview-gif.test.ts :: the review page (flat and set) embeds the DB GIF as an <img> and counts it as a preview",
+        "server/src/publish-derived.test.ts :: publish refuses a bad derived record BEFORE writing anything",
+        "server/src/publish-derived.test.ts :: derived recipe: provenance, modifications, derived_from edge, searchable, closure is whole and dependency-first",
+        "server/src/publish-derived.test.ts :: vfx-fetch.sh fetches the whole closure (dependencies first); VFX_FETCH_DEPS=0 fetches only the file asked for",
+        "server/src/review.test.ts :: session/selection round trip, replace semantics, validation",
+        "server/src/review.test.ts :: GET /review renders cards with a placeholder when there is no preview, and reopens by session",
+        "server/src/review.test.ts :: GET /review escapes hostile query text"
+      ],
+      "skipped": [
+        "server/src/facet-search.test.ts :: POST /v1/facets over the corpus: totals, OR / AND consistency, unknown facet is a 400",
+        "server/src/recolor-service.test.ts :: POST /v1/recolor: hue shift returns payload, tint list and per-key changes; base untouched",
+        "server/src/recolor-service.test.ts :: POST /v1/recolor: same input is deterministic; includePayload:false drops the payload",
+        "server/src/recolor-service.test.ts :: publish:true creates one derived_from record (licence inherited, project) and is idempotent",
+        "server/src/recolor-service.test.ts :: published payload differs from the base only on colour rows (round-trips the emitter)"
+      ]
+    },
+    "corpus-clone": {
+      "red": [],
+      "skipped": []
+    }
+  }
+}

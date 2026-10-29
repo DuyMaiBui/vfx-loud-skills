@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../unity/Packages/com.mike.vfx-cloud/Editor/VfxCloudBundle.cs" Link="VfxCloudBundle.cs" />
+    <Compile Include="../../unity/Packages/com.mike.vfx-cloud/Editor/VfxCloudMover.cs" Link="VfxCloudMover.cs" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+</Project>

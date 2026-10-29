@@ -1,0 +1,18 @@
+id: teleport-gate
+intent: [portal, teleport, gate]
+style: [sci-fi, fantasy]
+layers:
+  - component: base-circle
+    texture: vfx://texture/ritual-circle-01/1
+    rotation: 0.4
+    loop: true
+  - component: ring
+    texture: vfx://texture/portal-chipped-01/1
+    loop: true
+    blend: additive
+  - component: glow
+    texture: vfx://texture/soft-spot-01/1
+    scale: 0.9
+    loop: true
+notes:
+  - Loop khong spawn burst; dung local loi lai thay vi instantiate

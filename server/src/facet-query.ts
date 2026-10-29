@@ -1,5 +1,6 @@
 import { ARRAY_FACETS, FACET_NAMES, SCALAR_FACETS, type Facets } from './facets.ts';
 import { expandQuery } from './vocab.ts';
+import { VISIBILITIES } from './license.ts';
 
 /** `{ facetName: [value, ...] }`: values within a facet are OR-ed, facets are AND-ed. */
 export type FacetFilters = Record<string, string[]>;
@@ -54,7 +55,7 @@ export function candidateFilter(a: CandidateArgs, first: number): { sql: string;
     else if ((SCALAR_FACETS as readonly string[]).includes(name)) add((n) => `(meta->'facets'->>'${name}') = ANY($${n}::text[])`, vals);
   }
   // V0 chua co auth -> luon thay ca 3 muc. Cot da san sang cho V0.4.
-  add((n) => `visibility = ANY($${n}::text[])`, ['project', 'team', 'global']);
+  add((n) => `visibility = ANY($${n}::text[])`, [...VISIBILITIES]);
   return { sql: clauses.join(' AND '), params };
 }
 
