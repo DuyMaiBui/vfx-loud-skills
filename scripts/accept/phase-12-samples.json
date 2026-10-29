@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "note": "phase 12 acceptance samples (plans/261028-self-contained-vfx-fetch/phase-12-acceptance.md step 2). make-accept-project.sh copies this to data/accept/samples.json. 'shader' is the pack shader the sample's materials use (the URP conversion rule that matters).",
+  "samples": [
+    { "slug": "retro-arsenal-exclamation", "pack": "retro-arsenal", "shader": "Archanor VFX/Retro Arsenal/BasicGlow", "bundle": true, "expect_complete": true, "control": true },
+    { "slug": "retro-arsenal-laser-beam-blue", "pack": "retro-arsenal", "shader": "Archanor VFX/Retro Arsenal/Beam", "bundle": true, "expect_complete": true, "control": true },
+    { "slug": "retro-arsenal-powerbox-cash", "pack": "retro-arsenal", "shader": "Archanor VFX/Retro Arsenal/Powerbox", "bundle": true, "expect_complete": true, "control": true },
+    { "slug": "epic-toon-fx-powerbox-col-magnet", "pack": "epic-toon-fx", "shader": "Archanor VFX/Epic Toon FX/ETFX_PowerboxUnlit", "bundle": true, "expect_complete": true, "control": true },
+    { "slug": "epic-toon-fx-powerbox-metal-bullet", "pack": "epic-toon-fx", "shader": "Standard (urp-upgrader)", "bundle": true, "expect_complete": true, "control": true },
+    { "slug": "sci-fi-arsenal-modular-ring-impact", "pack": "sci-fi-arsenal", "shader": "legacy particles", "bundle": true, "expect_complete": true, "control": false },
+    { "slug": "synty-polygon-particle-fx-fx-level-up-01", "pack": "synty-polygon-particle-fx", "shader": "Synty Generic_Basic", "bundle": true, "expect_complete": true, "control": false },
+    { "slug": "studio-game-vfx-eff-rotatebomb-boom", "pack": "studio-game-vfx", "shader": "HsApp/Particles/HsAppVFXAllEffect", "bundle": true, "expect_complete": true, "control": false },
+    { "slug": "namufx-stylized-water-water-splash-a", "pack": "namufx-stylized-water", "shader": "Shader Graph SH_Particles", "bundle": true, "expect_complete": false, "expect_unresolved": ["5a961b8f"], "note": "complete:false by design: unresolved GUID 5a961b8f... (D15); fetched with VFX_ALLOW_INCOMPLETE=1", "control": false },
+    { "slug": "teleport-gate", "pack": "vfx-skill-cloud-authored", "shader": "recipe-built (URP Particles/Unlit)", "bundle": false, "legacy": true, "expect_complete": null, "control": false }
+  ],
+  "unity_client": ["retro-arsenal-powerbox-cash", "studio-game-vfx-eff-rotatebomb-boom"]
+}
