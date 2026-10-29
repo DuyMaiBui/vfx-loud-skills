@@ -1,0 +1,156 @@
+{
+ "version": 1,
+ "note": "Documented accepted render failures. Read by VfxPreview.Waivers; a waiver only re-labels a failure the render produced (WaiverRules). cause is a C9 unfixable-* value.",
+ "waivers": [
+  {
+   "slug": "epic-toon-fx-windlines",
+   "cause": "unfixable-source",
+   "detail": "every particle system renderer is mode None (or rate 0): nothing is drawn by design",
+   "evidence": "data/reports/nvo-sweep.tsv: empty at harness warm-up, warm-up 0, root motion and a 6 s window; PS renderers mode None"
+  },
+  {
+   "slug": "epic-toon-fx-windlines-speedy",
+   "cause": "unfixable-source",
+   "detail": "every particle system renderer is mode None (or rate 0): nothing is drawn by design",
+   "evidence": "data/reports/nvo-sweep.tsv: empty at harness warm-up, warm-up 0, root motion and a 6 s window; PS renderers mode None"
+  },
+  {
+   "slug": "epic-toon-fx-windlines2",
+   "cause": "unfixable-source",
+   "detail": "every particle system renderer is mode None (or rate 0): nothing is drawn by design",
+   "evidence": "data/reports/nvo-sweep.tsv: empty at harness warm-up, warm-up 0, root motion and a 6 s window; PS renderers mode None"
+  },
+  {
+   "slug": "environment-weather-nature-speed-boost-aside",
+   "cause": "unfixable-source",
+   "detail": "every particle system renderer is mode None (or rate 0): nothing is drawn by design",
+   "evidence": "data/reports/nvo-sweep.tsv: empty at harness warm-up, warm-up 0, root motion and a 6 s window; PS renderers mode None"
+  },
+  {
+   "slug": "environment-weather-nature-speed-boost-front",
+   "cause": "unfixable-source",
+   "detail": "every particle system renderer is mode None (or rate 0): nothing is drawn by design",
+   "evidence": "data/reports/nvo-sweep.tsv: empty at harness warm-up, warm-up 0, root motion and a 6 s window; PS renderers mode None"
+  },
+  {
+   "slug": "synty-polygon-particle-fx-fx-electricity-01",
+   "cause": "unfixable-source",
+   "detail": "every particle system renderer is mode None (or rate 0): nothing is drawn by design",
+   "evidence": "data/reports/nvo-sweep.tsv: empty at harness warm-up, warm-up 0, root motion and a 6 s window; PS renderers mode None"
+  },
+  {
+   "slug": "retro-arsenal-laser-beam-blue-static",
+   "cause": "unfixable-source",
+   "detail": "no ParticleSystem; the static beam draws nothing visible in the preview harness",
+   "evidence": "data/reports/nvo-sweep.tsv"
+  },
+  {
+   "slug": "retro-arsenal-lightning-beam-blue-static",
+   "cause": "unfixable-source",
+   "detail": "no ParticleSystem; the static beam draws nothing visible in the preview harness",
+   "evidence": "data/reports/nvo-sweep.tsv"
+  },
+  {
+   "slug": "sci-fi-arsenal-laser-static-blue",
+   "cause": "unfixable-source",
+   "detail": "no ParticleSystem; the static beam draws nothing visible in the preview harness",
+   "evidence": "data/reports/nvo-sweep.tsv"
+  },
+  {
+   "slug": "studio-game-vfx-eff-wand-dissolve",
+   "cause": "unfixable-script",
+   "detail": "controller prefab: no emitting particle system and its driver is a game C# script that ships stripped (ShapeDissolveView)",
+   "evidence": "data/reports/uiparticle-remove-list.json notOnList"
+  },
+  {
+   "slug": "studio-game-vfx-vfx-ui-star-trail1",
+   "cause": "unfixable-source",
+   "detail": "emits over distance at 0.025 particles/m: too sparse to show in a 2 s clip at the harness 2 m/s",
+   "evidence": "data/reports/uiparticle-remove-list.json notOnList"
+  },
+  {
+   "slug": "namufx-stylized-water-bubble-explosion",
+   "cause": "unfixable-source",
+   "detail": "prefab GUID is absent from every pack: the NamuFX source is not available",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F16"
+  },
+  {
+   "slug": "namufx-stylized-water-bubbles-burst",
+   "cause": "unfixable-source",
+   "detail": "prefab GUID is absent from every pack: the NamuFX source is not available",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F16"
+  },
+  {
+   "slug": "namufx-stylized-water-bubbles-vertical-loop",
+   "cause": "unfixable-source",
+   "detail": "prefab GUID is absent from every pack: the NamuFX source is not available",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F16"
+  },
+  {
+   "slug": "namufx-stylized-water-hit-01",
+   "cause": "unfixable-source",
+   "detail": "prefab GUID is absent from every pack: the NamuFX source is not available",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F16"
+  },
+  {
+   "slug": "namufx-stylized-water-hit-02",
+   "cause": "unfixable-source",
+   "detail": "prefab GUID is absent from every pack: the NamuFX source is not available",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F16"
+  },
+  {
+   "slug": "namufx-stylized-water-water-ball-explosion",
+   "cause": "unfixable-source",
+   "detail": "prefab GUID is absent from every pack: the NamuFX source is not available",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F16"
+  },
+  {
+   "slug": "namufx-stylized-water-water-beam",
+   "cause": "unfixable-source",
+   "detail": "prefab GUID is absent from every pack: the NamuFX source is not available",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F16"
+  },
+  {
+   "slug": "namufx-stylized-water-water-explosion",
+   "cause": "unfixable-source",
+   "detail": "prefab GUID is absent from every pack: the NamuFX source is not available",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F16"
+  },
+  {
+   "slug": "namufx-stylized-water-water-impact",
+   "cause": "unfixable-source",
+   "detail": "prefab GUID is absent from every pack: the NamuFX source is not available",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F16"
+  },
+  {
+   "slug": "namufx-stylized-water-water-splash-multiple",
+   "cause": "unfixable-source",
+   "detail": "prefab GUID is absent from every pack: the NamuFX source is not available",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F16"
+  },
+  {
+   "slug": "studio-game-vfx-vfx-impact-star-244f1b",
+   "cause": "unfixable-shader",
+   "detail": "material shader ecfa8f57 comes from package com.coffee.ui-particle, which is not in the preview project",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F10"
+  },
+  {
+   "slug": "studio-game-vfx-vfx-impact-star-c6146f",
+   "cause": "unfixable-shader",
+   "detail": "material shader ecfa8f57 comes from package com.coffee.ui-particle, which is not in the preview project",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F10"
+  },
+  {
+   "slug": "studio-game-vfx-vfx-starburst-impact",
+   "cause": "unfixable-shader",
+   "detail": "material shader ecfa8f57 comes from package com.coffee.ui-particle, which is not in the preview project",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F10"
+  },
+  {
+   "slug": "studio-game-vfx-fx-ui-cardflash",
+   "cause": "unfixable-source",
+   "detail": "renderer slot 0 has no material bound in the source prefab",
+   "evidence": "plans/reports/261029-render-failure-rootcause.md F9"
+  }
+ ]
+}

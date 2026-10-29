@@ -35,8 +35,13 @@ namespace VfxPreview
         /// <summary>A rendered clip is `ok`, unless the cell saw nothing visible (still a clip, but recorded as failed/no-visible-output).</summary>
         public static void RecordResult(PreviewBatch.Result r)
         {
-            if (r.ok && r.cause == null) Record(r.slug, StateOk, null, r.note, r.shaders);
-            else Record(r.slug, StateFailed, r.cause ?? Exception, r.error ?? r.note, r.shaders);
+            if (r.ok && r.cause == null) { Record(r.slug, StateOk, null, r.note, r.shaders); return; }
+            var cause = r.cause ?? Exception; var detail = r.error ?? r.note;
+            // A waived slug that failed as the waiver expects is recorded with the waiver's unfixable-* cause (rendered cause kept in the detail);
+            // a waived slug that rendered fine stays ok (the waiver is stale), a different failure keeps its own cause.
+            if (Waivers.TryGet(r.slug, out var w) && WaiverRules.Resolve(cause, w.Cause) != cause)
+            { detail = "waived: " + w.Detail + " [" + cause + (string.IsNullOrEmpty(detail) ? "" : ": " + detail) + "]"; cause = w.Cause; }
+            Record(r.slug, StateFailed, cause, detail, r.shaders);
         }
 
         /// <summary>Merge this run into the existing file (a slug not rendered this run keeps its previous entry) and replace it atomically.</summary>

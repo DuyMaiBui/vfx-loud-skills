@@ -17,6 +17,11 @@ static class Program
         Check("slots: mesh submeshes beyond the slot array are capped", MaterialSlots.DrawnParticleSlots(true, 4, 2) == 2);
         Check("slots: mesh with no submesh info draws slot 0", MaterialSlots.DrawnParticleSlots(true, 0, 2) == 1);
         Check("slots: empty slot array draws nothing", MaterialSlots.DrawnParticleSlots(false, 1, 0) == 0);
+        Check("waiver: relabels no-visible-output", WaiverRules.Resolve("no-visible-output", "unfixable-source") == "unfixable-source");
+        Check("waiver: relabels prefab-missing and unrenderable-material", WaiverRules.Resolve("prefab-missing", "unfixable-source") == "unfixable-source" && WaiverRules.Resolve("unrenderable-material", "unfixable-shader") == "unfixable-shader");
+        Check("waiver: an exception is never waived", WaiverRules.Resolve("exception", "unfixable-source") == "exception");
+        Check("waiver: a non-unfixable waiver cause is ignored", WaiverRules.Resolve("no-visible-output", "no-visible-output") == "no-visible-output" && WaiverRules.Resolve("no-visible-output", "ok") == "no-visible-output");
+        Check("waiver: no waiver keeps the cause", WaiverRules.Resolve("no-visible-output", null) == "no-visible-output");
         Check("empty set does not fit", !FramingMath.TryFit(new List<Ball>(), Out, Margin, Min, out _));
 
         FramingMath.TryFit(new List<Ball> { new(1, 2, 3, 0.5f) }, Out, Margin, Min, out var one);
