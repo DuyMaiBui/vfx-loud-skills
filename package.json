@@ -22,7 +22,8 @@
     "recolor:validate": "node seed/recolor-validate.ts",
     "corpus:sha": "node seed/corpus-sha.ts",
     "previews:gif": "node seed/preview-gif-ingest.ts",
-    "previews:magenta": "node seed/previews-magenta-scan.ts"
+    "previews:magenta": "node seed/previews-magenta-scan.ts",
+    "previews:consistency": "node seed/previews-consistency.ts"
   },
   "keywords": [],
   "author": "",
