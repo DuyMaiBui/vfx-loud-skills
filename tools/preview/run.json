@@ -3,25 +3,6 @@
   "fps": 24,
   "size": 256,
   "seconds": 2,
-  "only": [
-    "cartoon-ground-impact",
-    "hit-spark",
-    "melee-slash",
-    "metal-landing-spark",
-    "pickup-pop",
-    "projectile-trail",
-    "reward-burst",
-    "rod-twinkle-box",
-    "soft-smoke-plume",
-    "teleport-gate",
-    "studio-game-vfx-arrow-ice-arrow3-d",
-    "studio-game-vfx-star-impact-m",
-    "studio-game-vfx-vfx-youaregood",
-    "synty-polygon-particle-fx-fx-impact-small-01",
-    "epic-toon-vfx-2-collision",
-    "epic-toon-fx-sparkle",
-    "background-effects-sparkles",
-    "synty-polygon-particle-fx-fx-confetti-01"
-  ],
+  "only": [],
   "force": true
 }
